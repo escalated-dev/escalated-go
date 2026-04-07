@@ -286,7 +286,6 @@ func (s *PostgresStore) ListReplies(ctx context.Context, f models.ReplyFilters) 
 	if f.Pinned != nil {
 		where = append(where, fmt.Sprintf("is_pinned = $%d", argN))
 		args = append(args, *f.Pinned)
-		argN++
 	}
 
 	order := "ASC"
