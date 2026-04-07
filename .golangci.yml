@@ -1,0 +1,13 @@
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gofmt
+    - goimports
+linters-settings:
+  gofmt:
+    simplify: true
