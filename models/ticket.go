@@ -100,6 +100,11 @@ type Ticket struct {
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
 
+	// Chat fields
+	Channel      *string         `json:"channel,omitempty"`
+	ChatEndedAt  *time.Time      `json:"chat_ended_at,omitempty"`
+	ChatMetadata json.RawMessage `json:"chat_metadata,omitempty"`
+
 	// Metadata stored as JSON
 	Metadata json.RawMessage `json:"metadata,omitempty"`
 
@@ -123,6 +128,16 @@ func (t *Ticket) IsOpen() bool {
 // IsSnoozed returns true if the ticket is currently snoozed.
 func (t *Ticket) IsSnoozed() bool {
 	return t.Status == StatusSnoozed && t.SnoozedUntil != nil
+}
+
+// IsLiveChat returns true if this ticket originated from a live chat.
+func (t *Ticket) IsLiveChat() bool {
+	return t.Channel != nil && *t.Channel == ChannelChat
+}
+
+// IsChatActive returns true if this is an active live chat session.
+func (t *Ticket) IsChatActive() bool {
+	return t.IsLiveChat() && t.Status == StatusLive && t.ChatEndedAt == nil
 }
 
 // IsGuest returns true if this is a guest ticket (no authenticated requester).

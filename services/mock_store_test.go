@@ -8,19 +8,23 @@ import (
 	"github.com/escalated-dev/escalated-go/models"
 )
 
-// mockStore implements store.Store for testing (minus ListSnoozedDueBefore).
+// mockStore implements store.Store for testing.
 type mockStore struct {
-	tickets    map[int64]*models.Ticket
-	replies    map[int64]*models.Reply
-	activities []*models.Activity
-	nextID     int64
+	tickets      map[int64]*models.Ticket
+	replies      map[int64]*models.Reply
+	activities   []*models.Activity
+	chatSessions map[int64]*models.ChatSession
+	chatRules    map[int64]*models.ChatRoutingRule
+	nextID       int64
 }
 
 func newMockStore() *mockStore {
 	return &mockStore{
-		tickets: make(map[int64]*models.Ticket),
-		replies: make(map[int64]*models.Reply),
-		nextID:  1,
+		tickets:      make(map[int64]*models.Ticket),
+		replies:      make(map[int64]*models.Reply),
+		chatSessions: make(map[int64]*models.ChatSession),
+		chatRules:    make(map[int64]*models.ChatRoutingRule),
+		nextID:       1,
 	}
 }
 
@@ -183,4 +187,110 @@ func (m *mockStore) CreateActivity(_ context.Context, a *models.Activity) error 
 
 func (m *mockStore) ListActivities(_ context.Context, _ int64, _ int) ([]*models.Activity, error) {
 	return m.activities, nil
+}
+
+func (m *mockStore) CreateChatSession(_ context.Context, s *models.ChatSession) error {
+	s.ID = m.nextID
+	m.nextID++
+	cp := *s
+	m.chatSessions[s.ID] = &cp
+	return nil
+}
+
+func (m *mockStore) GetChatSession(_ context.Context, id int64) (*models.ChatSession, error) {
+	s, ok := m.chatSessions[id]
+	if !ok {
+		return nil, nil
+	}
+	cp := *s
+	return &cp, nil
+}
+
+func (m *mockStore) GetChatSessionByTicket(_ context.Context, ticketID int64) (*models.ChatSession, error) {
+	for _, s := range m.chatSessions {
+		if s.TicketID == ticketID {
+			cp := *s
+			return &cp, nil
+		}
+	}
+	return nil, nil
+}
+
+func (m *mockStore) UpdateChatSession(_ context.Context, s *models.ChatSession) error {
+	if _, ok := m.chatSessions[s.ID]; !ok {
+		return fmt.Errorf("chat session %d not found", s.ID)
+	}
+	cp := *s
+	m.chatSessions[s.ID] = &cp
+	return nil
+}
+
+func (m *mockStore) ListChatSessions(_ context.Context, f models.ChatSessionFilters) ([]*models.ChatSession, error) {
+	var result []*models.ChatSession
+	for _, s := range m.chatSessions {
+		if f.Active && s.Status != models.ChatStatusWaiting && s.Status != models.ChatStatusActive {
+			continue
+		}
+		if f.Status != nil && s.Status != *f.Status {
+			continue
+		}
+		if f.AgentID != nil && (s.AgentID == nil || *s.AgentID != *f.AgentID) {
+			continue
+		}
+		cp := *s
+		result = append(result, &cp)
+	}
+	return result, nil
+}
+
+func (m *mockStore) CreateChatRoutingRule(_ context.Context, r *models.ChatRoutingRule) error {
+	r.ID = m.nextID
+	m.nextID++
+	cp := *r
+	m.chatRules[r.ID] = &cp
+	return nil
+}
+
+func (m *mockStore) GetChatRoutingRule(_ context.Context, id int64) (*models.ChatRoutingRule, error) {
+	r, ok := m.chatRules[id]
+	if !ok {
+		return nil, nil
+	}
+	cp := *r
+	return &cp, nil
+}
+
+func (m *mockStore) ListActiveChatRoutingRules(_ context.Context, _ *int64) ([]*models.ChatRoutingRule, error) {
+	var result []*models.ChatRoutingRule
+	for _, r := range m.chatRules {
+		if r.IsActive {
+			cp := *r
+			result = append(result, &cp)
+		}
+	}
+	return result, nil
+}
+
+func (m *mockStore) UpdateChatRoutingRule(_ context.Context, r *models.ChatRoutingRule) error {
+	if _, ok := m.chatRules[r.ID]; !ok {
+		return fmt.Errorf("routing rule %d not found", r.ID)
+	}
+	cp := *r
+	m.chatRules[r.ID] = &cp
+	return nil
+}
+
+func (m *mockStore) DeleteChatRoutingRule(_ context.Context, id int64) error {
+	delete(m.chatRules, id)
+	return nil
+}
+
+func (m *mockStore) CountActiveChatsForAgent(_ context.Context, agentID int64) (int, error) {
+	count := 0
+	for _, s := range m.chatSessions {
+		if s.AgentID != nil && *s.AgentID == agentID && s.Status == models.ChatStatusActive {
+			count++
+		}
+	}
+	return count, nil
 }
