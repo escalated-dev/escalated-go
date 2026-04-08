@@ -156,6 +156,37 @@ func (m *widgetMockStore) CreateActivity(_ context.Context, _ *models.Activity) 
 func (m *widgetMockStore) ListActivities(_ context.Context, _ int64, _ int) ([]*models.Activity, error) {
 	return nil, nil
 }
+func (m *widgetMockStore) CreateChatSession(_ context.Context, _ *models.ChatSession) error {
+	return nil
+}
+func (m *widgetMockStore) GetChatSession(_ context.Context, _ int64) (*models.ChatSession, error) {
+	return nil, nil
+}
+func (m *widgetMockStore) GetChatSessionByTicket(_ context.Context, _ int64) (*models.ChatSession, error) {
+	return nil, nil
+}
+func (m *widgetMockStore) UpdateChatSession(_ context.Context, _ *models.ChatSession) error {
+	return nil
+}
+func (m *widgetMockStore) ListChatSessions(_ context.Context, _ models.ChatSessionFilters) ([]*models.ChatSession, error) {
+	return nil, nil
+}
+func (m *widgetMockStore) CreateChatRoutingRule(_ context.Context, _ *models.ChatRoutingRule) error {
+	return nil
+}
+func (m *widgetMockStore) GetChatRoutingRule(_ context.Context, _ int64) (*models.ChatRoutingRule, error) {
+	return nil, nil
+}
+func (m *widgetMockStore) ListActiveChatRoutingRules(_ context.Context, _ *int64) ([]*models.ChatRoutingRule, error) {
+	return nil, nil
+}
+func (m *widgetMockStore) UpdateChatRoutingRule(_ context.Context, _ *models.ChatRoutingRule) error {
+	return nil
+}
+func (m *widgetMockStore) DeleteChatRoutingRule(_ context.Context, _ int64) error { return nil }
+func (m *widgetMockStore) CountActiveChatsForAgent(_ context.Context, _ int64) (int, error) {
+	return 0, nil
+}
 
 func TestWidgetHandler_Config(t *testing.T) {
 	tests := []struct {

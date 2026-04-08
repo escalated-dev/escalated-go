@@ -333,3 +333,20 @@ func idFromPath(r *http.Request) (int64, error) {
 	}
 	return strconv.ParseInt(path, 10, 64)
 }
+
+// refFromPath extracts a reference string from the URL path.
+func refFromPath(r *http.Request) string {
+	if v := r.PathValue("reference"); v != "" {
+		return v
+	}
+	if v := r.PathValue("ref"); v != "" {
+		return v
+	}
+	path := r.URL.Path
+	for i := len(path) - 1; i >= 0; i-- {
+		if path[i] == '/' {
+			return path[i+1:]
+		}
+	}
+	return path
+}

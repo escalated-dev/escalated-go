@@ -63,6 +63,21 @@ type Store interface {
 	DeleteSavedView(ctx context.Context, id int64) error
 	ReorderSavedViews(ctx context.Context, userID int64, ids []int64) error
 
+	// Chat Sessions
+	CreateChatSession(ctx context.Context, s *models.ChatSession) error
+	GetChatSession(ctx context.Context, id int64) (*models.ChatSession, error)
+	GetChatSessionByTicket(ctx context.Context, ticketID int64) (*models.ChatSession, error)
+	UpdateChatSession(ctx context.Context, s *models.ChatSession) error
+	ListChatSessions(ctx context.Context, f models.ChatSessionFilters) ([]*models.ChatSession, error)
+
+	// Chat Routing Rules
+	CreateChatRoutingRule(ctx context.Context, r *models.ChatRoutingRule) error
+	GetChatRoutingRule(ctx context.Context, id int64) (*models.ChatRoutingRule, error)
+	ListActiveChatRoutingRules(ctx context.Context, departmentID *int64) ([]*models.ChatRoutingRule, error)
+	UpdateChatRoutingRule(ctx context.Context, r *models.ChatRoutingRule) error
+	DeleteChatRoutingRule(ctx context.Context, id int64) error
+	CountActiveChatsForAgent(ctx context.Context, agentID int64) (int, error)
+
 	// Activities
 	CreateActivity(ctx context.Context, a *models.Activity) error
 	ListActivities(ctx context.Context, ticketID int64, limit int) ([]*models.Activity, error)
