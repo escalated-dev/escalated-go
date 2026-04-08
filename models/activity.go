@@ -21,6 +21,7 @@ const (
 	ActionSLABreached      = "sla_breached"
 	ActionTicketEscalated  = "ticket_escalated"
 	ActionTicketMerged     = "ticket_merged"
+	ActionTicketSplit      = "ticket_split"
 )
 
 // Activity records an event that occurred on a ticket.

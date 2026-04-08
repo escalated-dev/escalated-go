@@ -246,6 +246,48 @@ func (h *APIHandler) CreateReply(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]any{"reply": reply})
 }
 
+// SplitTicket handles POST /api/tickets/{id}/split
+func (h *APIHandler) SplitTicket(w http.ResponseWriter, r *http.Request) {
+	id, err := idFromPath(r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid ticket id"})
+		return
+	}
+
+	var in struct {
+		ReplyID int64  `json:"reply_id"`
+		Subject string `json:"subject"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	if in.ReplyID == 0 {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "reply_id is required"})
+		return
+	}
+
+	uid := h.userID(r)
+	var causerID *int64
+	if uid > 0 {
+		causerID = &uid
+	}
+
+	newTicket, err := h.tickets.SplitTicket(r.Context(), services.SplitTicketInput{
+		TicketID: id,
+		ReplyID:  in.ReplyID,
+		Subject:  in.Subject,
+		CauserID: causerID,
+	})
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]any{"ticket": newTicket})
+}
+
 // ListDepartments handles GET /api/departments
 func (h *APIHandler) ListDepartments(w http.ResponseWriter, r *http.Request) {
 	depts, err := h.store.ListDepartments(r.Context(), true)
