@@ -55,6 +55,13 @@ type Store interface {
 
 	// Snooze
 	ListSnoozedDueBefore(ctx context.Context, before time.Time) ([]*models.Ticket, error)
+	// Saved Views
+	CreateSavedView(ctx context.Context, sv *models.SavedView) error
+	GetSavedView(ctx context.Context, id int64) (*models.SavedView, error)
+	ListSavedViews(ctx context.Context, userID int64, includeShared bool) ([]*models.SavedView, error)
+	UpdateSavedView(ctx context.Context, sv *models.SavedView) error
+	DeleteSavedView(ctx context.Context, id int64) error
+	ReorderSavedViews(ctx context.Context, userID int64, ids []int64) error
 
 	// Activities
 	CreateActivity(ctx context.Context, a *models.Activity) error

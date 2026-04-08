@@ -81,6 +81,7 @@ type Ticket struct {
 	DepartmentID *int64 `json:"department_id,omitempty"`
 	SLAPolicyID  *int64 `json:"sla_policy_id,omitempty"`
 	MergedIntoID *int64 `json:"merged_into_id,omitempty"`
+	SplitFromID  *int64 `json:"split_from_id,omitempty"`
 
 	// Snooze fields
 	SnoozedUntil       *time.Time `json:"snoozed_until,omitempty"`

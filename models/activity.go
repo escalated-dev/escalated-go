@@ -23,6 +23,7 @@ const (
 	ActionTicketMerged     = "ticket_merged"
 	ActionTicketSnoozed    = "ticket_snoozed"
 	ActionTicketUnsnoozed  = "ticket_unsnoozed"
+	ActionTicketSplit      = "ticket_split"
 )
 
 // Activity records an event that occurred on a ticket.
