@@ -78,8 +78,8 @@ func TestStartSession(t *testing.T) {
 			check: func(t *testing.T, ticket *models.Ticket, session *models.ChatSession) {
 				// After auto-routing, session should be retrieved fresh from store
 				// The assign may have been done in-memory
-				if ticket.AssignedTo != nil && *ticket.AssignedTo == 42 {
-					// Good, was auto-assigned
+				if ticket.AssignedTo != nil && *ticket.AssignedTo != 42 {
+					t.Errorf("expected auto-assigned agent 42, got %d", *ticket.AssignedTo)
 				}
 			},
 		},

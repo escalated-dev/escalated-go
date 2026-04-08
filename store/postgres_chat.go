@@ -71,7 +71,6 @@ func (s *PostgresStore) ListChatSessions(ctx context.Context, f models.ChatSessi
 	if f.AgentID != nil {
 		where = append(where, fmt.Sprintf("agent_id = $%d", idx))
 		args = append(args, *f.AgentID)
-		idx++
 	}
 
 	q := fmt.Sprintf(`SELECT id, ticket_id, status, agent_id, visitor_user_agent, visitor_ip, visitor_page_url, agent_joined_at, last_activity_at, ended_at, created_at FROM %s`, s.t("chat_sessions"))
