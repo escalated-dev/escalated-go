@@ -645,3 +645,80 @@ func (s *PostgresStore) ListActivities(ctx context.Context, ticketID int64, limi
 	}
 	return activities, rows.Err()
 }
+
+// --- Saved Views ---
+
+func (s *PostgresStore) CreateSavedView(ctx context.Context, sv *models.SavedView) error {
+	q := fmt.Sprintf(`INSERT INTO %s (name, filters, user_id, is_shared, position, icon, color, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`, s.t("saved_views"))
+	now := time.Now()
+	sv.CreatedAt = now
+	sv.UpdatedAt = now
+	return s.db.QueryRowContext(ctx, q,
+		sv.Name, sv.Filters, sv.UserID, sv.IsShared, sv.Position, sv.Icon, sv.Color, sv.CreatedAt, sv.UpdatedAt,
+	).Scan(&sv.ID)
+}
+
+func (s *PostgresStore) GetSavedView(ctx context.Context, id int64) (*models.SavedView, error) {
+	q := fmt.Sprintf(`SELECT id, name, filters, user_id, is_shared, position, icon, color, created_at, updated_at
+		FROM %s WHERE id = $1`, s.t("saved_views"))
+	sv := &models.SavedView{}
+	err := s.db.QueryRowContext(ctx, q, id).Scan(
+		&sv.ID, &sv.Name, &sv.Filters, &sv.UserID, &sv.IsShared, &sv.Position, &sv.Icon, &sv.Color, &sv.CreatedAt, &sv.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return sv, nil
+}
+
+func (s *PostgresStore) ListSavedViews(ctx context.Context, userID int64, includeShared bool) ([]*models.SavedView, error) {
+	var q string
+	var args []any
+	if includeShared {
+		q = fmt.Sprintf(`SELECT id, name, filters, user_id, is_shared, position, icon, color, created_at, updated_at
+			FROM %s WHERE user_id = $1 OR is_shared = TRUE ORDER BY position ASC, id ASC`, s.t("saved_views"))
+		args = []any{userID}
+	} else {
+		q = fmt.Sprintf(`SELECT id, name, filters, user_id, is_shared, position, icon, color, created_at, updated_at
+			FROM %s WHERE user_id = $1 ORDER BY position ASC, id ASC`, s.t("saved_views"))
+		args = []any{userID}
+	}
+	rows, err := s.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var views []*models.SavedView
+	for rows.Next() {
+		sv := &models.SavedView{}
+		if err := rows.Scan(&sv.ID, &sv.Name, &sv.Filters, &sv.UserID, &sv.IsShared, &sv.Position, &sv.Icon, &sv.Color, &sv.CreatedAt, &sv.UpdatedAt); err != nil {
+			return nil, err
+		}
+		views = append(views, sv)
+	}
+	return views, rows.Err()
+}
+
+func (s *PostgresStore) UpdateSavedView(ctx context.Context, sv *models.SavedView) error {
+	sv.UpdatedAt = time.Now()
+	q := fmt.Sprintf(`UPDATE %s SET name=$1, filters=$2, is_shared=$3, position=$4, icon=$5, color=$6, updated_at=$7 WHERE id=$8`, s.t("saved_views"))
+	_, err := s.db.ExecContext(ctx, q, sv.Name, sv.Filters, sv.IsShared, sv.Position, sv.Icon, sv.Color, sv.UpdatedAt, sv.ID)
+	return err
+}
+
+func (s *PostgresStore) DeleteSavedView(ctx context.Context, id int64) error {
+	q := fmt.Sprintf(`DELETE FROM %s WHERE id = $1`, s.t("saved_views"))
+	_, err := s.db.ExecContext(ctx, q, id)
+	return err
+}
+
+func (s *PostgresStore) ReorderSavedViews(ctx context.Context, userID int64, ids []int64) error {
+	for i, id := range ids {
+		q := fmt.Sprintf(`UPDATE %s SET position = $1 WHERE id = $2 AND user_id = $3`, s.t("saved_views"))
+		if _, err := s.db.ExecContext(ctx, q, i, id, userID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
