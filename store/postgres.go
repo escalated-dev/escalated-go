@@ -645,3 +645,39 @@ func (s *PostgresStore) ListActivities(ctx context.Context, ticketID int64, limi
 	}
 	return activities, rows.Err()
 }
+
+// --- Snooze ---
+
+func (s *PostgresStore) ListSnoozedDueBefore(ctx context.Context, before time.Time) ([]*models.Ticket, error) {
+	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type,
+		requester_type, requester_id, guest_name, guest_email, guest_token,
+		assigned_to, department_id, sla_policy_id, merged_into_id,
+		snoozed_until, snoozed_by, status_before_snooze,
+		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
+		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at
+		FROM %s WHERE status = $1 AND snoozed_until IS NOT NULL AND snoozed_until <= $2`,
+		s.t("tickets"))
+
+	rows, err := s.db.QueryContext(ctx, q, models.StatusSnoozed, before)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tickets []*models.Ticket
+	for rows.Next() {
+		t := &models.Ticket{}
+		if err := rows.Scan(
+			&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType,
+			&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken,
+			&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
+			&t.SnoozedUntil, &t.SnoozedBy, &t.StatusBeforeSnooze,
+			&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
+			&t.FirstResponseAt, &t.ResolvedAt, &t.ClosedAt, &t.Metadata, &t.CreatedAt, &t.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		tickets = append(tickets, t)
+	}
+	return tickets, rows.Err()
+}

@@ -4,6 +4,7 @@ package store
 
 import (
 	"context"
+	"time"
 
 	"github.com/escalated-dev/escalated-go/models"
 )
@@ -51,6 +52,9 @@ type Store interface {
 	ListSLAPolicies(ctx context.Context, activeOnly bool) ([]*models.SLAPolicy, error)
 	UpdateSLAPolicy(ctx context.Context, s *models.SLAPolicy) error
 	DeleteSLAPolicy(ctx context.Context, id int64) error
+
+	// Snooze
+	ListSnoozedDueBefore(ctx context.Context, before time.Time) ([]*models.Ticket, error)
 
 	// Activities
 	CreateActivity(ctx context.Context, a *models.Activity) error

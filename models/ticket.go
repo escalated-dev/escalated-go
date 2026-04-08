@@ -18,6 +18,7 @@ const (
 	StatusResolved          = 5
 	StatusClosed            = 6
 	StatusReopened          = 7
+	StatusSnoozed           = 8
 )
 
 // StatusName maps status integers to human-readable names.
@@ -30,6 +31,7 @@ var StatusName = map[int]string{
 	StatusResolved:          "resolved",
 	StatusClosed:            "closed",
 	StatusReopened:          "reopened",
+	StatusSnoozed:           "snoozed",
 }
 
 // Ticket priority constants.
@@ -80,6 +82,11 @@ type Ticket struct {
 	SLAPolicyID  *int64 `json:"sla_policy_id,omitempty"`
 	MergedIntoID *int64 `json:"merged_into_id,omitempty"`
 
+	// Snooze fields
+	SnoozedUntil       *time.Time `json:"snoozed_until,omitempty"`
+	SnoozedBy          *int64     `json:"snoozed_by,omitempty"`
+	StatusBeforeSnooze *int       `json:"status_before_snooze,omitempty"`
+
 	// SLA tracking
 	SLAFirstResponseDueAt *time.Time `json:"sla_first_response_due_at,omitempty"`
 	SLAResolutionDueAt    *time.Time `json:"sla_resolution_due_at,omitempty"`
@@ -110,6 +117,11 @@ func (t *Ticket) IsOpen() bool {
 		return true
 	}
 	return false
+}
+
+// IsSnoozed returns true if the ticket is currently snoozed.
+func (t *Ticket) IsSnoozed() bool {
+	return t.Status == StatusSnoozed && t.SnoozedUntil != nil
 }
 
 // IsGuest returns true if this is a guest ticket (no authenticated requester).
