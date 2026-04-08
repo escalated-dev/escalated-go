@@ -132,6 +132,24 @@ func (m *widgetMockStore) UpdateSLAPolicy(_ context.Context, _ *models.SLAPolicy
 	return nil
 }
 func (m *widgetMockStore) DeleteSLAPolicy(_ context.Context, _ int64) error { return nil }
+
+func (m *widgetMockStore) ListSnoozedDueBefore(_ context.Context, _ time.Time) ([]*models.Ticket, error) {
+	return nil, nil
+}
+
+func (m *widgetMockStore) CreateSavedView(_ context.Context, _ *models.SavedView) error { return nil }
+func (m *widgetMockStore) GetSavedView(_ context.Context, _ int64) (*models.SavedView, error) {
+	return nil, nil
+}
+func (m *widgetMockStore) ListSavedViews(_ context.Context, _ int64, _ bool) ([]*models.SavedView, error) {
+	return nil, nil
+}
+func (m *widgetMockStore) UpdateSavedView(_ context.Context, _ *models.SavedView) error { return nil }
+func (m *widgetMockStore) DeleteSavedView(_ context.Context, _ int64) error             { return nil }
+func (m *widgetMockStore) ReorderSavedViews(_ context.Context, _ int64, _ []int64) error {
+	return nil
+}
+
 func (m *widgetMockStore) CreateActivity(_ context.Context, _ *models.Activity) error {
 	return nil
 }

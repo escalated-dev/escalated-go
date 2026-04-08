@@ -145,6 +145,9 @@ func (m *savedViewMockStore) UpdateSLAPolicy(_ context.Context, _ *models.SLAPol
 	return nil
 }
 func (m *savedViewMockStore) DeleteSLAPolicy(_ context.Context, _ int64) error { return nil }
+func (m *savedViewMockStore) ListSnoozedDueBefore(_ context.Context, _ time.Time) ([]*models.Ticket, error) {
+	return nil, nil
+}
 func (m *savedViewMockStore) CreateActivity(_ context.Context, _ *models.Activity) error {
 	return nil
 }

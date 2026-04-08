@@ -161,6 +161,19 @@ func (m *mockStore) ListSnoozedDueBefore(_ context.Context, _ time.Time) ([]*mod
 	return nil, nil
 }
 
+func (m *mockStore) CreateSavedView(_ context.Context, _ *models.SavedView) error { return nil }
+func (m *mockStore) GetSavedView(_ context.Context, _ int64) (*models.SavedView, error) {
+	return nil, nil
+}
+func (m *mockStore) ListSavedViews(_ context.Context, _ int64, _ bool) ([]*models.SavedView, error) {
+	return nil, nil
+}
+func (m *mockStore) UpdateSavedView(_ context.Context, _ *models.SavedView) error { return nil }
+func (m *mockStore) DeleteSavedView(_ context.Context, _ int64) error             { return nil }
+func (m *mockStore) ReorderSavedViews(_ context.Context, _ int64, _ []int64) error {
+	return nil
+}
+
 func (m *mockStore) CreateActivity(_ context.Context, a *models.Activity) error {
 	a.ID = m.nextID
 	m.nextID++
