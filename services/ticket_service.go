@@ -218,6 +218,88 @@ func (ts *TicketService) AddReply(ctx context.Context, ticketID int64, body stri
 	return r, nil
 }
 
+// SplitTicketInput holds the fields needed to split a ticket from a reply.
+type SplitTicketInput struct {
+	TicketID int64
+	ReplyID  int64
+	Subject  string
+	CauserID *int64
+}
+
+// SplitTicket creates a new ticket from a reply on an existing ticket.
+// The new ticket copies metadata from the original and records a link via SplitFromID.
+func (ts *TicketService) SplitTicket(ctx context.Context, in SplitTicketInput) (*models.Ticket, error) {
+	original, err := ts.store.GetTicket(ctx, in.TicketID)
+	if err != nil {
+		return nil, fmt.Errorf("fetching original ticket: %w", err)
+	}
+	if original == nil {
+		return nil, fmt.Errorf("ticket %d not found", in.TicketID)
+	}
+
+	reply, err := ts.store.GetReply(ctx, in.ReplyID)
+	if err != nil {
+		return nil, fmt.Errorf("fetching reply: %w", err)
+	}
+	if reply == nil {
+		return nil, fmt.Errorf("reply %d not found", in.ReplyID)
+	}
+	if reply.TicketID != in.TicketID {
+		return nil, fmt.Errorf("reply %d does not belong to ticket %d", in.ReplyID, in.TicketID)
+	}
+
+	subject := in.Subject
+	if subject == "" {
+		subject = "Split from: " + original.Subject
+	}
+
+	newTicket := &models.Ticket{
+		Subject:       subject,
+		Description:   reply.Body,
+		Status:        models.StatusOpen,
+		Priority:      original.Priority,
+		TicketType:    original.TicketType,
+		RequesterType: original.RequesterType,
+		RequesterID:   original.RequesterID,
+		GuestName:     original.GuestName,
+		GuestEmail:    original.GuestEmail,
+		DepartmentID:  original.DepartmentID,
+		SplitFromID:   &original.ID,
+	}
+
+	if err := ts.store.CreateTicket(ctx, newTicket); err != nil {
+		return nil, fmt.Errorf("creating split ticket: %w", err)
+	}
+
+	// Record activity on original ticket
+	var causerType *string
+	if in.CauserID != nil {
+		ct := "User"
+		causerType = &ct
+	}
+	details, _ := json.Marshal(map[string]any{
+		"new_ticket_id":   newTicket.ID,
+		"new_reference":   newTicket.Reference,
+		"source_reply_id": in.ReplyID,
+	})
+	_ = ts.store.CreateActivity(ctx, &models.Activity{
+		TicketID:   original.ID,
+		Action:     models.ActionTicketSplit,
+		CauserType: causerType,
+		CauserID:   in.CauserID,
+		Details:    details,
+	})
+
+	// Record activity on new ticket
+	_ = ts.store.CreateActivity(ctx, &models.Activity{
+		TicketID: newTicket.ID,
+		Action:   models.ActionTicketCreated,
+		Details:  details,
+	})
+
+	return newTicket, nil
+}
+
 func (ts *TicketService) applySLA(ctx context.Context, t *models.Ticket) error {
 	// Try department default SLA, then global default
 	var policy *models.SLAPolicy
