@@ -14,6 +14,17 @@ Embeddable support ticket system for Go applications. Works with standard `net/h
 - Framework-agnostic HTTP handlers
 - Embedded SQL migrations
 
+### Additional Features
+
+- **Ticket splitting** — Split a reply into a new standalone ticket while preserving the original context
+- **Ticket snooze** — Snooze tickets with presets (1h, 4h, tomorrow, next week); a background goroutine scheduler auto-wakes them on schedule
+- **Saved views / custom queues** — Save, name, and share filter presets as reusable ticket views
+- **Embeddable support widget** — Lightweight `<script>` widget with KB search, ticket form, and status check
+- **Email threading** — Outbound emails include proper `In-Reply-To` and `References` headers for correct threading in mail clients
+- **Branded email templates** — Configurable logo, primary color, and footer text for all outbound emails
+- **Real-time updates** — Server-Sent Events (SSE) endpoint for live ticket updates with automatic polling fallback
+- **Knowledge base toggle** — Enable or disable the public knowledge base from admin settings
+
 ## Installation
 
 ```bash
