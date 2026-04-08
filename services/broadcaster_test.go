@@ -196,7 +196,7 @@ func TestBroadcaster_PublishDropsWhenBufferFull(t *testing.T) {
 	}
 
 	// Fill the buffer
-	b.Publish("test", "evt1", nil)
+	_, _ = b.Publish("test", "evt1", nil)
 	// This should not block (drops the event)
 	delivered, _ := b.Publish("test", "evt2", nil)
 	if delivered != 0 {
