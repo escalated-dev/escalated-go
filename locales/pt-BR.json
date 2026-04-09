@@ -1,0 +1,50 @@
+{
+  "status": {
+    "open": "Aberto",
+    "in_progress": "Em andamento",
+    "waiting_on_customer": "Aguardando cliente",
+    "waiting_on_agent": "Aguardando agente",
+    "escalated": "Escalado",
+    "resolved": "Resolvido",
+    "closed": "Fechado",
+    "reopened": "Reaberto",
+    "snoozed": "Adiado",
+    "unsnoozed": "Reativado"
+  },
+  "priority": {
+    "low": "Baixa",
+    "medium": "Media",
+    "high": "Alta",
+    "urgent": "Urgente",
+    "critical": "Critica"
+  },
+  "activity": {
+    "status_changed": "Status alterado",
+    "assigned": "Atribuido",
+    "unassigned": "Nao atribuido",
+    "priority_changed": "Prioridade alterada",
+    "tag_added": "Tag adicionada",
+    "tag_removed": "Tag removida",
+    "sla_breached": "SLA violado",
+    "replied": "Respondido",
+    "note_added": "Nota adicionada",
+    "department_changed": "Departamento alterado",
+    "ticket_split": "Chamado dividido",
+    "snoozed": "Adiado",
+    "unsnoozed": "Reativado"
+  },
+  "messages": {
+    "reply_sent": "Resposta enviada.",
+    "ticket_assigned": "Chamado atribuido.",
+    "status_updated": "Status atualizado.",
+    "priority_updated": "Prioridade atualizada.",
+    "tags_updated": "Tags atualizadas.",
+    "department_updated": "Departamento atualizado.",
+    "ticket_created": "Chamado criado com sucesso.",
+    "ticket_closed": "Chamado fechado.",
+    "ticket_reopened": "Chamado reaberto.",
+    "settings_updated": "Configuracoes atualizadas.",
+    "access_denied": "Acesso negado.",
+    "not_found": "Recurso nao encontrado."
+  }
+}

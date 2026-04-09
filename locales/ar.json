@@ -1,0 +1,50 @@
+{
+  "status": {
+    "open": "مفتوح",
+    "in_progress": "قيد التنفيذ",
+    "waiting_on_customer": "بانتظار العميل",
+    "waiting_on_agent": "بانتظار الوكيل",
+    "escalated": "مُصعَّد",
+    "resolved": "تم الحل",
+    "closed": "مغلق",
+    "reopened": "أُعيد فتحه",
+    "snoozed": "مؤجَّل",
+    "unsnoozed": "تم إلغاء التأجيل"
+  },
+  "priority": {
+    "low": "منخفض",
+    "medium": "متوسط",
+    "high": "مرتفع",
+    "urgent": "عاجل",
+    "critical": "حرج"
+  },
+  "activity": {
+    "status_changed": "تم تغيير الحالة",
+    "assigned": "تم التعيين",
+    "unassigned": "غير معيَّن",
+    "priority_changed": "تم تغيير الأولوية",
+    "tag_added": "تمت إضافة وسم",
+    "tag_removed": "تمت إزالة وسم",
+    "sla_breached": "تم انتهاك SLA",
+    "replied": "تم الرد",
+    "note_added": "تمت إضافة ملاحظة",
+    "department_changed": "تم تغيير القسم",
+    "ticket_split": "تم تقسيم التذكرة",
+    "snoozed": "مؤجَّل",
+    "unsnoozed": "تم إلغاء التأجيل"
+  },
+  "messages": {
+    "reply_sent": "تم إرسال الرد.",
+    "ticket_assigned": "تم تعيين التذكرة.",
+    "status_updated": "تم تحديث الحالة.",
+    "priority_updated": "تم تحديث الأولوية.",
+    "tags_updated": "تم تحديث الوسوم.",
+    "department_updated": "تم تحديث القسم.",
+    "ticket_created": "تم إنشاء التذكرة بنجاح.",
+    "ticket_closed": "تم إغلاق التذكرة.",
+    "ticket_reopened": "تم إعادة فتح التذكرة.",
+    "settings_updated": "تم تحديث الإعدادات.",
+    "access_denied": "تم رفض الوصول.",
+    "not_found": "لم يتم العثور على المورد المطلوب."
+  }
+}

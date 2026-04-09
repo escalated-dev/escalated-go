@@ -1,0 +1,50 @@
+{
+  "status": {
+    "open": "Открыта",
+    "in_progress": "В работе",
+    "waiting_on_customer": "Ожидание клиента",
+    "waiting_on_agent": "Ожидание агента",
+    "escalated": "Эскалирована",
+    "resolved": "Решена",
+    "closed": "Закрыта",
+    "reopened": "Переоткрыта",
+    "snoozed": "Отложена",
+    "unsnoozed": "Восстановлена"
+  },
+  "priority": {
+    "low": "Низкий",
+    "medium": "Средний",
+    "high": "Высокий",
+    "urgent": "Срочный",
+    "critical": "Критический"
+  },
+  "activity": {
+    "status_changed": "Статус изменен",
+    "assigned": "Назначена",
+    "unassigned": "Не назначена",
+    "priority_changed": "Приоритет изменен",
+    "tag_added": "Тег добавлен",
+    "tag_removed": "Тег удален",
+    "sla_breached": "SLA нарушен",
+    "replied": "Ответ",
+    "note_added": "Заметка добавлена",
+    "department_changed": "Отдел изменен",
+    "ticket_split": "Заявка разделена",
+    "snoozed": "Отложена",
+    "unsnoozed": "Восстановлена"
+  },
+  "messages": {
+    "reply_sent": "Ответ отправлен.",
+    "ticket_assigned": "Заявка назначена.",
+    "status_updated": "Статус обновлен.",
+    "priority_updated": "Приоритет обновлен.",
+    "tags_updated": "Теги обновлены.",
+    "department_updated": "Отдел обновлен.",
+    "ticket_created": "Заявка успешно создана.",
+    "ticket_closed": "Заявка закрыта.",
+    "ticket_reopened": "Заявка переоткрыта.",
+    "settings_updated": "Настройки обновлены.",
+    "access_denied": "Доступ запрещен.",
+    "not_found": "Ресурс не найден."
+  }
+}

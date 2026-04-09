@@ -1,0 +1,50 @@
+{
+  "status": {
+    "open": "Acik",
+    "in_progress": "Devam ediyor",
+    "waiting_on_customer": "Musteri bekleniyor",
+    "waiting_on_agent": "Temsilci bekleniyor",
+    "escalated": "Eskalasyon yapildi",
+    "resolved": "Cozuldu",
+    "closed": "Kapatildi",
+    "reopened": "Yeniden acildi",
+    "snoozed": "Ertelendi",
+    "unsnoozed": "Erteleme kaldirildi"
+  },
+  "priority": {
+    "low": "Dusuk",
+    "medium": "Orta",
+    "high": "Yuksek",
+    "urgent": "Acil",
+    "critical": "Kritik"
+  },
+  "activity": {
+    "status_changed": "Durum degisti",
+    "assigned": "Atandi",
+    "unassigned": "Atanmamis",
+    "priority_changed": "Oncelik degisti",
+    "tag_added": "Etiket eklendi",
+    "tag_removed": "Etiket kaldirildi",
+    "sla_breached": "SLA ihlal edildi",
+    "replied": "Yanitlandi",
+    "note_added": "Not eklendi",
+    "department_changed": "Departman degisti",
+    "ticket_split": "Destek talebi bolundu",
+    "snoozed": "Ertelendi",
+    "unsnoozed": "Erteleme kaldirildi"
+  },
+  "messages": {
+    "reply_sent": "Yanit gonderildi.",
+    "ticket_assigned": "Destek talebi atandi.",
+    "status_updated": "Durum guncellendi.",
+    "priority_updated": "Oncelik guncellendi.",
+    "tags_updated": "Etiketler guncellendi.",
+    "department_updated": "Departman guncellendi.",
+    "ticket_created": "Destek talebi basariyla olusturuldu.",
+    "ticket_closed": "Destek talebi kapatildi.",
+    "ticket_reopened": "Destek talebi yeniden acildi.",
+    "settings_updated": "Ayarlar guncellendi.",
+    "access_denied": "Erisim reddedildi.",
+    "not_found": "Kaynak bulunamadi."
+  }
+}
