@@ -17,30 +17,30 @@
 
 # Escalated Go
 
-Embeddable support ticket system for Go applications. Works with standard `net/http`, Chi, and any router that accepts `http.HandlerFunc`.
+Встраиваемая система тикетов поддержки для приложений Go. Работает со стандартным `net/http`, Chi и любым маршрутизатором, принимающим `http.HandlerFunc`.
 
 ## Возможности
 
-- Tickets with statuses, priorities, types, and SLA tracking
-- Replies (public, internal notes, system messages)
-- Departments and tags
-- SLA policies with per-priority response/resolution targets
-- Agent dashboard and admin configuration
-- Inertia.js UI or headless JSON API mode
-- PostgreSQL and SQLite support
-- Framework-agnostic HTTP handlers
-- Embedded SQL migrations
+- Заявки со статусами, приоритетами, типами и отслеживанием SLA
+- Ответы (публичные, внутренние заметки, системные сообщения)
+- Отделы и теги
+- Политики SLA с целевыми показателями ответа/решения для каждого приоритета
+- Панель агента и настройка администратора
+- Интерфейс Inertia.js или безголовый режим JSON API
+- Поддержка PostgreSQL и SQLite
+- Фреймворк-независимые HTTP-обработчики
+- Встроенные SQL-миграции
 
-### Additional Features
+### Возможности
 
-- **Ticket splitting** — Split a reply into a new standalone ticket while preserving the original context
-- **Ticket snooze** — Snooze tickets with presets (1h, 4h, tomorrow, next week); a background goroutine scheduler auto-wakes them on schedule
-- **Saved views / custom queues** — Save, name, and share filter presets as reusable ticket views
-- **Embeddable support widget** — Lightweight `<script>` widget with KB search, ticket form, and status check
-- **Email threading** — Outbound emails include proper `In-Reply-To` and `References` headers for correct threading in mail clients
-- **Branded email templates** — Configurable logo, primary color, and footer text for all outbound emails
-- **Real-time updates** — Server-Sent Events (SSE) endpoint for live ticket updates with automatic polling fallback
-- **Knowledge base toggle** — Enable or disable the public knowledge base from admin settings
+- **Ticket splitting** — Разделение ответа в новую самостоятельную заявку с сохранением исходного контекста
+- **Ticket snooze** — Откладывание заявок с пресетами (1ч, 4ч, завтра, следующая неделя); фоновый планировщик goroutine автоматически пробуждает их по расписанию
+- **Saved views / custom queues** — Сохранение, именование и распространение пресетов фильтров как многоразовых представлений заявок
+- **Embeddable support widget** — Лёгкий `<script>` виджет с поиском по базе знаний, формой заявки и проверкой статуса
+- **Email threading** — Исходящие письма включают правильные заголовки `In-Reply-To` и `References` для корректной цепочки в почтовых клиентах
+- **Branded email templates** — Настраиваемый логотип, основной цвет и текст подвала для всех исходящих писем
+- **Real-time updates** — Эндпоинт Server-Sent Events (SSE) для обновлений заявок в реальном времени с автоматическим откатом на опрос
+- **Knowledge base toggle** — Включение или отключение публичной базы знаний из настроек администратора
 
 ## Установка
 
@@ -157,72 +157,72 @@ func main() {
 
 ## Конфигурация
 
-| Field | Type | Default | Description |
+| Поле | Тип | По умолчанию | Описание |
 |-------|------|---------|-------------|
-| `RoutePrefix` | `string` | `/escalated` | URL prefix for all routes |
-| `UIEnabled` | `bool` | `true` | Mount Inertia UI routes; `false` for JSON API only |
-| `TablePrefix` | `string` | `escalated_` | Database table name prefix |
-| `AdminCheck` | `func(*http.Request) bool` | `false` | Returns true for admin users |
-| `AgentCheck` | `func(*http.Request) bool` | `false` | Returns true for agent users |
-| `UserIDFunc` | `func(*http.Request) int64` | `0` | Extracts current user's ID from request |
-| `DB` | `*sql.DB` | required | Database connection |
+| `RoutePrefix` | `string` | `/escalated` | URL-префикс для всех маршрутов |
+| `UIEnabled` | `bool` | `true` | Монтировать маршруты Inertia UI; `false` для только JSON API |
+| `TablePrefix` | `string` | `escalated_` | Префикс имени таблицы базы данных |
+| `AdminCheck` | `func(*http.Request) bool` | `false` | Возвращает true для администраторов |
+| `AgentCheck` | `func(*http.Request) bool` | `false` | Возвращает true для агентов |
+| `UserIDFunc` | `func(*http.Request) int64` | `0` | Извлекает ID текущего пользователя из запроса |
+| `DB` | `*sql.DB` | required | Подключение к базе данных |
 
-## API Routes
+## Маршруты API
 
-All routes are prefixed with `RoutePrefix` (default `/escalated`).
+Все маршруты имеют префикс `RoutePrefix` (по умолчанию `/escalated`).
 
-### JSON API (always mounted)
+### JSON API (всегда смонтирован)
 
-| Method | Path | Description |
+| Метод | Путь | Описание |
 |--------|------|-------------|
-| `GET` | `/api/tickets` | List tickets (with filters) |
-| `POST` | `/api/tickets` | Create a ticket |
-| `GET` | `/api/tickets/{id}` | Get ticket with replies and activities |
-| `PATCH` | `/api/tickets/{id}` | Update a ticket |
-| `POST` | `/api/tickets/{id}/replies` | Add a reply |
-| `GET` | `/api/departments` | List departments |
-| `GET` | `/api/tags` | List tags |
+| `GET` | `/api/tickets` | Список заявок (с фильтрами) |
+| `POST` | `/api/tickets` | Создать заявку |
+| `GET` | `/api/tickets/{id}` | Получить заявку с ответами и активностями |
+| `PATCH` | `/api/tickets/{id}` | Обновить заявку |
+| `POST` | `/api/tickets/{id}/replies` | Добавить ответ |
+| `GET` | `/api/departments` | Список отделов |
+| `GET` | `/api/tags` | Список тегов |
 
-### Customer UI (when `UIEnabled: true`)
+### UI клиента (при `UIEnabled: true`)
 
-| Method | Path | Description |
+| Метод | Путь | Описание |
 |--------|------|-------------|
-| `GET` | `/tickets` | My tickets |
-| `POST` | `/tickets` | Submit a ticket |
-| `GET` | `/tickets/{id}` | View ticket |
-| `POST` | `/tickets/{id}/replies` | Reply to ticket |
+| `GET` | `/tickets` | Мои заявки |
+| `POST` | `/tickets` | Отправить заявку |
+| `GET` | `/tickets/{id}` | Просмотр заявки |
+| `POST` | `/tickets/{id}/replies` | Ответить на заявку |
 
-### Agent UI (requires `AgentCheck`)
+### UI агента (требует `AgentCheck`)
 
-| Method | Path | Description |
+| Метод | Путь | Описание |
 |--------|------|-------------|
-| `GET` | `/agent/` | Agent dashboard |
-| `GET` | `/agent/tickets` | Ticket queue |
-| `GET` | `/agent/tickets/{id}` | Ticket detail |
-| `POST` | `/agent/tickets/{id}/assign` | Assign ticket |
-| `POST` | `/agent/tickets/{id}/replies` | Reply / internal note |
-| `POST` | `/agent/tickets/{id}/status` | Change status |
+| `GET` | `/agent/` | Панель агента |
+| `GET` | `/agent/tickets` | Очередь заявок |
+| `GET` | `/agent/tickets/{id}` | Детали заявки |
+| `POST` | `/agent/tickets/{id}/assign` | Назначить заявку |
+| `POST` | `/agent/tickets/{id}/replies` | Ответ / внутренняя заметка |
+| `POST` | `/agent/tickets/{id}/status` | Изменить статус |
 
-### Admin UI (requires `AdminCheck`)
+### UI администратора (требует `AdminCheck`)
 
-| Method | Path | Description |
+| Метод | Путь | Описание |
 |--------|------|-------------|
-| `GET/POST/PATCH/DELETE` | `/admin/departments` | Manage departments |
-| `GET/POST/DELETE` | `/admin/tags` | Manage tags |
-| `GET/POST/DELETE` | `/admin/sla-policies` | Manage SLA policies |
+| `GET/POST/PATCH/DELETE` | `/admin/departments` | Управление отделами |
+| `GET/POST/DELETE` | `/admin/tags` | Управление тегами |
+| `GET/POST/DELETE` | `/admin/sla-policies` | Управление политиками SLA |
 
-## Custom Store
+## Пользовательское хранилище
 
-Implement the `store.Store` interface to use a different database:
+Реализуйте интерфейс `store.Store` для использования другой базы данных:
 
 ```go
 esc, _ := escalated.New(cfg)
 esc.Store = myCustomStore // satisfies store.Store interface
 ```
 
-## Ticket Statuses
+## Статусы заявок
 
-| Value | Name |
+| Значение | Имя |
 |-------|------|
 | 0 | open |
 | 1 | in_progress |
@@ -233,9 +233,9 @@ esc.Store = myCustomStore // satisfies store.Store interface
 | 6 | closed |
 | 7 | reopened |
 
-## Priorities
+## Приоритеты
 
-| Value | Name |
+| Значение | Имя |
 |-------|------|
 | 0 | low |
 | 1 | medium |

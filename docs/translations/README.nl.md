@@ -17,30 +17,30 @@
 
 # Escalated Go
 
-Embeddable support ticket system for Go applications. Works with standard `net/http`, Chi, and any router that accepts `http.HandlerFunc`.
+Inbedbaar support-ticketsysteem voor Go-applicaties. Werkt met standaard `net/http`, Chi en elke router die `http.HandlerFunc` accepteert.
 
 ## Functies
 
-- Tickets with statuses, priorities, types, and SLA tracking
-- Replies (public, internal notes, system messages)
-- Departments and tags
-- SLA policies with per-priority response/resolution targets
-- Agent dashboard and admin configuration
-- Inertia.js UI or headless JSON API mode
-- PostgreSQL and SQLite support
-- Framework-agnostic HTTP handlers
-- Embedded SQL migrations
+- Tickets met statussen, prioriteiten, typen en SLA-tracking
+- Antwoorden (openbaar, interne notities, systeemberichten)
+- Afdelingen en tags
+- SLA-beleid met respons-/oplossingsdoelen per prioriteit
+- Agent-dashboard en admin-configuratie
+- Inertia.js-UI of headless JSON API-modus
+- PostgreSQL- en SQLite-ondersteuning
+- Framework-onafhankelijke HTTP-handlers
+- Ingebedde SQL-migraties
 
-### Additional Features
+### Functies
 
-- **Ticket splitting** — Split a reply into a new standalone ticket while preserving the original context
-- **Ticket snooze** — Snooze tickets with presets (1h, 4h, tomorrow, next week); a background goroutine scheduler auto-wakes them on schedule
-- **Saved views / custom queues** — Save, name, and share filter presets as reusable ticket views
-- **Embeddable support widget** — Lightweight `<script>` widget with KB search, ticket form, and status check
-- **Email threading** — Outbound emails include proper `In-Reply-To` and `References` headers for correct threading in mail clients
-- **Branded email templates** — Configurable logo, primary color, and footer text for all outbound emails
-- **Real-time updates** — Server-Sent Events (SSE) endpoint for live ticket updates with automatic polling fallback
-- **Knowledge base toggle** — Enable or disable the public knowledge base from admin settings
+- **Ticket splitting** — Een antwoord opsplitsen in een nieuw zelfstandig ticket met behoud van de oorspronkelijke context
+- **Ticket snooze** — Tickets snoozen met voorinstellingen (1u, 4u, morgen, volgende week); een achtergrond-goroutine-scheduler wekt ze automatisch op schema
+- **Saved views / custom queues** — Filter-voorinstellingen opslaan, benoemen en delen als herbruikbare ticketweergaven
+- **Embeddable support widget** — Lichtgewicht `<script>`-widget met KB-zoeken, ticketformulier en statuscontrole
+- **Email threading** — Uitgaande e-mails bevatten juiste `In-Reply-To`- en `References`-headers voor correct threading in mailclients
+- **Branded email templates** — Configureerbaar logo, primaire kleur en voettekst voor alle uitgaande e-mails
+- **Real-time updates** — Server-Sent Events (SSE)-endpoint voor live ticketupdates met automatische polling-fallback
+- **Knowledge base toggle** — Openbare kennisbank in- of uitschakelen vanuit admin-instellingen
 
 ## Installatie
 
@@ -157,72 +157,72 @@ func main() {
 
 ## Configuratie
 
-| Field | Type | Default | Description |
+| Veld | Type | Standaard | Beschrijving |
 |-------|------|---------|-------------|
-| `RoutePrefix` | `string` | `/escalated` | URL prefix for all routes |
-| `UIEnabled` | `bool` | `true` | Mount Inertia UI routes; `false` for JSON API only |
-| `TablePrefix` | `string` | `escalated_` | Database table name prefix |
-| `AdminCheck` | `func(*http.Request) bool` | `false` | Returns true for admin users |
-| `AgentCheck` | `func(*http.Request) bool` | `false` | Returns true for agent users |
-| `UserIDFunc` | `func(*http.Request) int64` | `0` | Extracts current user's ID from request |
-| `DB` | `*sql.DB` | required | Database connection |
+| `RoutePrefix` | `string` | `/escalated` | URL-voorvoegsel voor alle routes |
+| `UIEnabled` | `bool` | `true` | Inertia UI-routes aankoppelen; `false` voor alleen JSON API |
+| `TablePrefix` | `string` | `escalated_` | Voorvoegsel voor databasetabelnaam |
+| `AdminCheck` | `func(*http.Request) bool` | `false` | Geeft true terug voor admin-gebruikers |
+| `AgentCheck` | `func(*http.Request) bool` | `false` | Geeft true terug voor agent-gebruikers |
+| `UserIDFunc` | `func(*http.Request) int64` | `0` | Haalt de ID van de huidige gebruiker uit het verzoek |
+| `DB` | `*sql.DB` | required | Databaseverbinding |
 
-## API Routes
+## API-routes
 
-All routes are prefixed with `RoutePrefix` (default `/escalated`).
+Alle routes zijn voorzien van het voorvoegsel `RoutePrefix` (standaard `/escalated`).
 
-### JSON API (always mounted)
+### JSON API (altijd aangekoppeld)
 
-| Method | Path | Description |
+| Methode | Pad | Beschrijving |
 |--------|------|-------------|
-| `GET` | `/api/tickets` | List tickets (with filters) |
-| `POST` | `/api/tickets` | Create a ticket |
-| `GET` | `/api/tickets/{id}` | Get ticket with replies and activities |
-| `PATCH` | `/api/tickets/{id}` | Update a ticket |
-| `POST` | `/api/tickets/{id}/replies` | Add a reply |
-| `GET` | `/api/departments` | List departments |
-| `GET` | `/api/tags` | List tags |
+| `GET` | `/api/tickets` | Tickets weergeven (met filters) |
+| `POST` | `/api/tickets` | Een ticket aanmaken |
+| `GET` | `/api/tickets/{id}` | Ticket ophalen met antwoorden en activiteiten |
+| `PATCH` | `/api/tickets/{id}` | Een ticket bijwerken |
+| `POST` | `/api/tickets/{id}/replies` | Een antwoord toevoegen |
+| `GET` | `/api/departments` | Afdelingen weergeven |
+| `GET` | `/api/tags` | Tags weergeven |
 
-### Customer UI (when `UIEnabled: true`)
+### Klant-UI (wanneer `UIEnabled: true`)
 
-| Method | Path | Description |
+| Methode | Pad | Beschrijving |
 |--------|------|-------------|
-| `GET` | `/tickets` | My tickets |
-| `POST` | `/tickets` | Submit a ticket |
-| `GET` | `/tickets/{id}` | View ticket |
-| `POST` | `/tickets/{id}/replies` | Reply to ticket |
+| `GET` | `/tickets` | Mijn tickets |
+| `POST` | `/tickets` | Een ticket indienen |
+| `GET` | `/tickets/{id}` | Ticket bekijken |
+| `POST` | `/tickets/{id}/replies` | Antwoorden op ticket |
 
-### Agent UI (requires `AgentCheck`)
+### Agent-UI (vereist `AgentCheck`)
 
-| Method | Path | Description |
+| Methode | Pad | Beschrijving |
 |--------|------|-------------|
-| `GET` | `/agent/` | Agent dashboard |
-| `GET` | `/agent/tickets` | Ticket queue |
-| `GET` | `/agent/tickets/{id}` | Ticket detail |
-| `POST` | `/agent/tickets/{id}/assign` | Assign ticket |
-| `POST` | `/agent/tickets/{id}/replies` | Reply / internal note |
-| `POST` | `/agent/tickets/{id}/status` | Change status |
+| `GET` | `/agent/` | Agent-dashboard |
+| `GET` | `/agent/tickets` | Ticketwachtrij |
+| `GET` | `/agent/tickets/{id}` | Ticketdetail |
+| `POST` | `/agent/tickets/{id}/assign` | Ticket toewijzen |
+| `POST` | `/agent/tickets/{id}/replies` | Antwoord / interne notitie |
+| `POST` | `/agent/tickets/{id}/status` | Status wijzigen |
 
-### Admin UI (requires `AdminCheck`)
+### Admin-UI (vereist `AdminCheck`)
 
-| Method | Path | Description |
+| Methode | Pad | Beschrijving |
 |--------|------|-------------|
-| `GET/POST/PATCH/DELETE` | `/admin/departments` | Manage departments |
-| `GET/POST/DELETE` | `/admin/tags` | Manage tags |
-| `GET/POST/DELETE` | `/admin/sla-policies` | Manage SLA policies |
+| `GET/POST/PATCH/DELETE` | `/admin/departments` | Afdelingen beheren |
+| `GET/POST/DELETE` | `/admin/tags` | Tags beheren |
+| `GET/POST/DELETE` | `/admin/sla-policies` | SLA-beleid beheren |
 
-## Custom Store
+## Aangepaste store
 
-Implement the `store.Store` interface to use a different database:
+Implementeer de `store.Store`-interface om een andere database te gebruiken:
 
 ```go
 esc, _ := escalated.New(cfg)
 esc.Store = myCustomStore // satisfies store.Store interface
 ```
 
-## Ticket Statuses
+## Ticketstatussen
 
-| Value | Name |
+| Waarde | Naam |
 |-------|------|
 | 0 | open |
 | 1 | in_progress |
@@ -233,9 +233,9 @@ esc.Store = myCustomStore // satisfies store.Store interface
 | 6 | closed |
 | 7 | reopened |
 
-## Priorities
+## Prioriteiten
 
-| Value | Name |
+| Waarde | Naam |
 |-------|------|
 | 0 | low |
 | 1 | medium |
