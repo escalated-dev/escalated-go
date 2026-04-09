@@ -17,30 +17,30 @@
 
 # Escalated Go
 
-Embeddable support ticket system for Go applications. Works with standard `net/http`, Chi, and any router that accepts `http.HandlerFunc`.
+Go 애플리케이션을 위한 내장 가능한 지원 티켓 시스템. 표준 `net/http`, Chi 및 `http.HandlerFunc`를 받는 모든 라우터와 함께 작동합니다.
 
 ## 기능
 
-- Tickets with statuses, priorities, types, and SLA tracking
-- Replies (public, internal notes, system messages)
-- Departments and tags
-- SLA policies with per-priority response/resolution targets
-- Agent dashboard and admin configuration
-- Inertia.js UI or headless JSON API mode
-- PostgreSQL and SQLite support
-- Framework-agnostic HTTP handlers
-- Embedded SQL migrations
+- 상태, 우선순위, 유형, SLA 추적이 포함된 티켓
+- 답변 (공개, 내부 메모, 시스템 메시지)
+- 부서 및 태그
+- 우선순위별 응답/해결 목표를 가진 SLA 정책
+- 에이전트 대시보드 및 관리자 구성
+- Inertia.js UI 또는 헤드리스 JSON API 모드
+- PostgreSQL 및 SQLite 지원
+- 프레임워크에 독립적인 HTTP 핸들러
+- 내장된 SQL 마이그레이션
 
-### Additional Features
+### 기능
 
-- **Ticket splitting** — Split a reply into a new standalone ticket while preserving the original context
-- **Ticket snooze** — Snooze tickets with presets (1h, 4h, tomorrow, next week); a background goroutine scheduler auto-wakes them on schedule
-- **Saved views / custom queues** — Save, name, and share filter presets as reusable ticket views
-- **Embeddable support widget** — Lightweight `<script>` widget with KB search, ticket form, and status check
-- **Email threading** — Outbound emails include proper `In-Reply-To` and `References` headers for correct threading in mail clients
-- **Branded email templates** — Configurable logo, primary color, and footer text for all outbound emails
-- **Real-time updates** — Server-Sent Events (SSE) endpoint for live ticket updates with automatic polling fallback
-- **Knowledge base toggle** — Enable or disable the public knowledge base from admin settings
+- **Ticket splitting** — 원본 컨텍스트를 보존하면서 답변을 새로운 독립 티켓으로 분할
+- **Ticket snooze** — 프리셋(1시간, 4시간, 내일, 다음 주)으로 티켓 스누즈; 백그라운드 goroutine 스케줄러가 예정대로 자동 깨움
+- **Saved views / custom queues** — 필터 프리셋을 재사용 가능한 티켓 뷰로 저장, 명명, 공유
+- **Embeddable support widget** — KB 검색, 티켓 양식, 상태 확인이 포함된 경량 `<script>` 위젯
+- **Email threading** — 발신 이메일에 메일 클라이언트에서 올바른 스레딩을 위한 적절한 `In-Reply-To` 및 `References` 헤더 포함
+- **Branded email templates** — 모든 발신 이메일에 구성 가능한 로고, 기본 색상, 바닥글 텍스트
+- **Real-time updates** — 자동 폴링 폴백이 포함된 실시간 티켓 업데이트를 위한 Server-Sent Events (SSE) 엔드포인트
+- **Knowledge base toggle** — 관리자 설정에서 공개 지식 베이스 활성화 또는 비활성화
 
 ## 설치
 
@@ -155,74 +155,74 @@ func main() {
 }
 ```
 
-## 설정
+## 구성
 
-| Field | Type | Default | Description |
+| 필드 | 유형 | 기본값 | 설명 |
 |-------|------|---------|-------------|
-| `RoutePrefix` | `string` | `/escalated` | URL prefix for all routes |
-| `UIEnabled` | `bool` | `true` | Mount Inertia UI routes; `false` for JSON API only |
-| `TablePrefix` | `string` | `escalated_` | Database table name prefix |
-| `AdminCheck` | `func(*http.Request) bool` | `false` | Returns true for admin users |
-| `AgentCheck` | `func(*http.Request) bool` | `false` | Returns true for agent users |
-| `UserIDFunc` | `func(*http.Request) int64` | `0` | Extracts current user's ID from request |
-| `DB` | `*sql.DB` | required | Database connection |
+| `RoutePrefix` | `string` | `/escalated` | 모든 경로의 URL 접두사 |
+| `UIEnabled` | `bool` | `true` | Inertia UI 경로 마운트; `false`이면 JSON API만 |
+| `TablePrefix` | `string` | `escalated_` | 데이터베이스 테이블 이름 접두사 |
+| `AdminCheck` | `func(*http.Request) bool` | `false` | 관리자 사용자일 때 true 반환 |
+| `AgentCheck` | `func(*http.Request) bool` | `false` | 에이전트 사용자일 때 true 반환 |
+| `UserIDFunc` | `func(*http.Request) int64` | `0` | 요청에서 현재 사용자 ID 추출 |
+| `DB` | `*sql.DB` | required | 데이터베이스 연결 |
 
-## API Routes
+## API 경로
 
-All routes are prefixed with `RoutePrefix` (default `/escalated`).
+모든 경로에는 `RoutePrefix` (기본값 `/escalated`)가 접두사로 붙습니다.
 
-### JSON API (always mounted)
+### JSON API (항상 마운트)
 
-| Method | Path | Description |
+| 메서드 | 경로 | 설명 |
 |--------|------|-------------|
-| `GET` | `/api/tickets` | List tickets (with filters) |
-| `POST` | `/api/tickets` | Create a ticket |
-| `GET` | `/api/tickets/{id}` | Get ticket with replies and activities |
-| `PATCH` | `/api/tickets/{id}` | Update a ticket |
-| `POST` | `/api/tickets/{id}/replies` | Add a reply |
-| `GET` | `/api/departments` | List departments |
-| `GET` | `/api/tags` | List tags |
+| `GET` | `/api/tickets` | 티켓 목록 (필터 포함) |
+| `POST` | `/api/tickets` | 티켓 생성 |
+| `GET` | `/api/tickets/{id}` | 답변 및 활동이 포함된 티켓 조회 |
+| `PATCH` | `/api/tickets/{id}` | 티켓 수정 |
+| `POST` | `/api/tickets/{id}/replies` | 답변 추가 |
+| `GET` | `/api/departments` | 부서 목록 |
+| `GET` | `/api/tags` | 태그 목록 |
 
-### Customer UI (when `UIEnabled: true`)
+### 고객 UI (`UIEnabled: true`일 때)
 
-| Method | Path | Description |
+| 메서드 | 경로 | 설명 |
 |--------|------|-------------|
-| `GET` | `/tickets` | My tickets |
-| `POST` | `/tickets` | Submit a ticket |
-| `GET` | `/tickets/{id}` | View ticket |
-| `POST` | `/tickets/{id}/replies` | Reply to ticket |
+| `GET` | `/tickets` | 내 티켓 |
+| `POST` | `/tickets` | 티켓 제출 |
+| `GET` | `/tickets/{id}` | 티켓 보기 |
+| `POST` | `/tickets/{id}/replies` | 티켓에 답변 |
 
-### Agent UI (requires `AgentCheck`)
+### 에이전트 UI (`AgentCheck` 필요)
 
-| Method | Path | Description |
+| 메서드 | 경로 | 설명 |
 |--------|------|-------------|
-| `GET` | `/agent/` | Agent dashboard |
-| `GET` | `/agent/tickets` | Ticket queue |
-| `GET` | `/agent/tickets/{id}` | Ticket detail |
-| `POST` | `/agent/tickets/{id}/assign` | Assign ticket |
-| `POST` | `/agent/tickets/{id}/replies` | Reply / internal note |
-| `POST` | `/agent/tickets/{id}/status` | Change status |
+| `GET` | `/agent/` | 에이전트 대시보드 |
+| `GET` | `/agent/tickets` | 티켓 대기열 |
+| `GET` | `/agent/tickets/{id}` | 티켓 상세 |
+| `POST` | `/agent/tickets/{id}/assign` | 티켓 할당 |
+| `POST` | `/agent/tickets/{id}/replies` | 답변 / 내부 메모 |
+| `POST` | `/agent/tickets/{id}/status` | 상태 변경 |
 
-### Admin UI (requires `AdminCheck`)
+### 관리자 UI (`AdminCheck` 필요)
 
-| Method | Path | Description |
+| 메서드 | 경로 | 설명 |
 |--------|------|-------------|
-| `GET/POST/PATCH/DELETE` | `/admin/departments` | Manage departments |
-| `GET/POST/DELETE` | `/admin/tags` | Manage tags |
-| `GET/POST/DELETE` | `/admin/sla-policies` | Manage SLA policies |
+| `GET/POST/PATCH/DELETE` | `/admin/departments` | 부서 관리 |
+| `GET/POST/DELETE` | `/admin/tags` | 태그 관리 |
+| `GET/POST/DELETE` | `/admin/sla-policies` | SLA 정책 관리 |
 
-## Custom Store
+## 커스텀 스토어
 
-Implement the `store.Store` interface to use a different database:
+다른 데이터베이스를 사용하려면 `store.Store` 인터페이스를 구현합니다:
 
 ```go
 esc, _ := escalated.New(cfg)
 esc.Store = myCustomStore // satisfies store.Store interface
 ```
 
-## Ticket Statuses
+## 티켓 상태
 
-| Value | Name |
+| 값 | 이름 |
 |-------|------|
 | 0 | open |
 | 1 | in_progress |
@@ -233,9 +233,9 @@ esc.Store = myCustomStore // satisfies store.Store interface
 | 6 | closed |
 | 7 | reopened |
 
-## Priorities
+## 우선순위
 
-| Value | Name |
+| 값 | 이름 |
 |-------|------|
 | 0 | low |
 | 1 | medium |

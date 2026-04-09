@@ -17,30 +17,30 @@
 
 # Escalated Go
 
-Embeddable support ticket system for Go applications. Works with standard `net/http`, Chi, and any router that accepts `http.HandlerFunc`.
+Système de tickets de support intégrable pour les applications Go. Fonctionne avec `net/http` standard, Chi et tout routeur acceptant `http.HandlerFunc`.
 
 ## Fonctionnalités
 
-- Tickets with statuses, priorities, types, and SLA tracking
-- Replies (public, internal notes, system messages)
-- Departments and tags
-- SLA policies with per-priority response/resolution targets
-- Agent dashboard and admin configuration
-- Inertia.js UI or headless JSON API mode
-- PostgreSQL and SQLite support
-- Framework-agnostic HTTP handlers
-- Embedded SQL migrations
+- Tickets avec statuts, priorités, types et suivi SLA
+- Réponses (publiques, notes internes, messages système)
+- Départements et tags
+- Politiques SLA avec objectifs de réponse/résolution par priorité
+- Tableau de bord agent et configuration d'administration
+- Interface Inertia.js ou mode API JSON sans interface
+- Support PostgreSQL et SQLite
+- Gestionnaires HTTP indépendants du framework
+- Migrations SQL embarquées
 
-### Additional Features
+### Fonctionnalités
 
-- **Ticket splitting** — Split a reply into a new standalone ticket while preserving the original context
-- **Ticket snooze** — Snooze tickets with presets (1h, 4h, tomorrow, next week); a background goroutine scheduler auto-wakes them on schedule
-- **Saved views / custom queues** — Save, name, and share filter presets as reusable ticket views
-- **Embeddable support widget** — Lightweight `<script>` widget with KB search, ticket form, and status check
-- **Email threading** — Outbound emails include proper `In-Reply-To` and `References` headers for correct threading in mail clients
-- **Branded email templates** — Configurable logo, primary color, and footer text for all outbound emails
-- **Real-time updates** — Server-Sent Events (SSE) endpoint for live ticket updates with automatic polling fallback
-- **Knowledge base toggle** — Enable or disable the public knowledge base from admin settings
+- **Ticket splitting** — Diviser une réponse en un nouveau ticket autonome tout en préservant le contexte original
+- **Ticket snooze** — Mettre en veille les tickets avec des préréglages (1h, 4h, demain, semaine prochaine) ; un planificateur goroutine en arrière-plan les réveille automatiquement
+- **Saved views / custom queues** — Sauvegarder, nommer et partager des préréglages de filtres comme vues de tickets réutilisables
+- **Embeddable support widget** — Widget `<script>` léger avec recherche KB, formulaire de ticket et vérification de statut
+- **Email threading** — Les e-mails sortants incluent les en-têtes `In-Reply-To` et `References` corrects pour un chaînage approprié
+- **Branded email templates** — Logo configurable, couleur principale et texte de pied de page pour tous les e-mails sortants
+- **Real-time updates** — Endpoint Server-Sent Events (SSE) pour les mises à jour de tickets en direct avec repli automatique par sondage
+- **Knowledge base toggle** — Activer ou désactiver la base de connaissances publique depuis les paramètres administrateur
 
 ## Installation
 
@@ -157,72 +157,72 @@ func main() {
 
 ## Configuration
 
-| Field | Type | Default | Description |
+| Champ | Type | Défaut | Description |
 |-------|------|---------|-------------|
-| `RoutePrefix` | `string` | `/escalated` | URL prefix for all routes |
-| `UIEnabled` | `bool` | `true` | Mount Inertia UI routes; `false` for JSON API only |
-| `TablePrefix` | `string` | `escalated_` | Database table name prefix |
-| `AdminCheck` | `func(*http.Request) bool` | `false` | Returns true for admin users |
-| `AgentCheck` | `func(*http.Request) bool` | `false` | Returns true for agent users |
-| `UserIDFunc` | `func(*http.Request) int64` | `0` | Extracts current user's ID from request |
-| `DB` | `*sql.DB` | required | Database connection |
+| `RoutePrefix` | `string` | `/escalated` | Préfixe URL pour toutes les routes |
+| `UIEnabled` | `bool` | `true` | Monter les routes d'interface Inertia ; `false` pour API JSON uniquement |
+| `TablePrefix` | `string` | `escalated_` | Préfixe de nom de table de la base de données |
+| `AdminCheck` | `func(*http.Request) bool` | `false` | Renvoie true pour les utilisateurs administrateurs |
+| `AgentCheck` | `func(*http.Request) bool` | `false` | Renvoie true pour les utilisateurs agents |
+| `UserIDFunc` | `func(*http.Request) int64` | `0` | Extrait l'ID de l'utilisateur actuel de la requête |
+| `DB` | `*sql.DB` | required | Connexion à la base de données |
 
-## API Routes
+## Routes API
 
-All routes are prefixed with `RoutePrefix` (default `/escalated`).
+Toutes les routes sont préfixées avec `RoutePrefix` (défaut `/escalated`).
 
-### JSON API (always mounted)
+### JSON API (toujours montée)
 
-| Method | Path | Description |
+| Méthode | Chemin | Description |
 |--------|------|-------------|
-| `GET` | `/api/tickets` | List tickets (with filters) |
-| `POST` | `/api/tickets` | Create a ticket |
-| `GET` | `/api/tickets/{id}` | Get ticket with replies and activities |
-| `PATCH` | `/api/tickets/{id}` | Update a ticket |
-| `POST` | `/api/tickets/{id}/replies` | Add a reply |
-| `GET` | `/api/departments` | List departments |
-| `GET` | `/api/tags` | List tags |
+| `GET` | `/api/tickets` | Lister les tickets (avec filtres) |
+| `POST` | `/api/tickets` | Créer un ticket |
+| `GET` | `/api/tickets/{id}` | Obtenir le ticket avec réponses et activités |
+| `PATCH` | `/api/tickets/{id}` | Mettre à jour un ticket |
+| `POST` | `/api/tickets/{id}/replies` | Ajouter une réponse |
+| `GET` | `/api/departments` | Lister les départements |
+| `GET` | `/api/tags` | Lister les tags |
 
-### Customer UI (when `UIEnabled: true`)
+### Interface client (quand `UIEnabled: true`)
 
-| Method | Path | Description |
+| Méthode | Chemin | Description |
 |--------|------|-------------|
-| `GET` | `/tickets` | My tickets |
-| `POST` | `/tickets` | Submit a ticket |
-| `GET` | `/tickets/{id}` | View ticket |
-| `POST` | `/tickets/{id}/replies` | Reply to ticket |
+| `GET` | `/tickets` | Mes tickets |
+| `POST` | `/tickets` | Soumettre un ticket |
+| `GET` | `/tickets/{id}` | Voir le ticket |
+| `POST` | `/tickets/{id}/replies` | Répondre au ticket |
 
-### Agent UI (requires `AgentCheck`)
+### Interface agent (nécessite `AgentCheck`)
 
-| Method | Path | Description |
+| Méthode | Chemin | Description |
 |--------|------|-------------|
-| `GET` | `/agent/` | Agent dashboard |
-| `GET` | `/agent/tickets` | Ticket queue |
-| `GET` | `/agent/tickets/{id}` | Ticket detail |
-| `POST` | `/agent/tickets/{id}/assign` | Assign ticket |
-| `POST` | `/agent/tickets/{id}/replies` | Reply / internal note |
-| `POST` | `/agent/tickets/{id}/status` | Change status |
+| `GET` | `/agent/` | Tableau de bord de l'agent |
+| `GET` | `/agent/tickets` | File de tickets |
+| `GET` | `/agent/tickets/{id}` | Détail du ticket |
+| `POST` | `/agent/tickets/{id}/assign` | Affecter le ticket |
+| `POST` | `/agent/tickets/{id}/replies` | Réponse / note interne |
+| `POST` | `/agent/tickets/{id}/status` | Changer le statut |
 
-### Admin UI (requires `AdminCheck`)
+### Interface admin (nécessite `AdminCheck`)
 
-| Method | Path | Description |
+| Méthode | Chemin | Description |
 |--------|------|-------------|
-| `GET/POST/PATCH/DELETE` | `/admin/departments` | Manage departments |
-| `GET/POST/DELETE` | `/admin/tags` | Manage tags |
-| `GET/POST/DELETE` | `/admin/sla-policies` | Manage SLA policies |
+| `GET/POST/PATCH/DELETE` | `/admin/departments` | Gérer les départements |
+| `GET/POST/DELETE` | `/admin/tags` | Gérer les tags |
+| `GET/POST/DELETE` | `/admin/sla-policies` | Gérer les politiques SLA |
 
-## Custom Store
+## Store personnalisé
 
-Implement the `store.Store` interface to use a different database:
+Implémentez l'interface `store.Store` pour utiliser une base de données différente :
 
 ```go
 esc, _ := escalated.New(cfg)
 esc.Store = myCustomStore // satisfies store.Store interface
 ```
 
-## Ticket Statuses
+## Statuts des tickets
 
-| Value | Name |
+| Valeur | Nom |
 |-------|------|
 | 0 | open |
 | 1 | in_progress |
@@ -233,9 +233,9 @@ esc.Store = myCustomStore // satisfies store.Store interface
 | 6 | closed |
 | 7 | reopened |
 
-## Priorities
+## Priorités
 
-| Value | Name |
+| Valeur | Nom |
 |-------|------|
 | 0 | low |
 | 1 | medium |

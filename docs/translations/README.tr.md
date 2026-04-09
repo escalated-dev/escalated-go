@@ -17,30 +17,30 @@
 
 # Escalated Go
 
-Embeddable support ticket system for Go applications. Works with standard `net/http`, Chi, and any router that accepts `http.HandlerFunc`.
+Go uygulamaları için gömülebilir destek talep sistemi. Standart `net/http`, Chi ve `http.HandlerFunc` kabul eden herhangi bir yönlendirici ile çalışır.
 
 ## Özellikler
 
-- Tickets with statuses, priorities, types, and SLA tracking
-- Replies (public, internal notes, system messages)
-- Departments and tags
-- SLA policies with per-priority response/resolution targets
-- Agent dashboard and admin configuration
-- Inertia.js UI or headless JSON API mode
-- PostgreSQL and SQLite support
-- Framework-agnostic HTTP handlers
-- Embedded SQL migrations
+- Durumlar, öncelikler, türler ve SLA takibi ile talepler
+- Yanıtlar (genel, dahili notlar, sistem mesajları)
+- Departmanlar ve etiketler
+- Öncelik başına yanıt/çözüm hedefleri ile SLA politikaları
+- Temsilci panosu ve yönetici yapılandırması
+- Inertia.js arayüzü veya başsız JSON API modu
+- PostgreSQL ve SQLite desteği
+- Framework-bağımsız HTTP işleyicileri
+- Gömülü SQL göçleri
 
-### Additional Features
+### Özellikler
 
-- **Ticket splitting** — Split a reply into a new standalone ticket while preserving the original context
-- **Ticket snooze** — Snooze tickets with presets (1h, 4h, tomorrow, next week); a background goroutine scheduler auto-wakes them on schedule
-- **Saved views / custom queues** — Save, name, and share filter presets as reusable ticket views
-- **Embeddable support widget** — Lightweight `<script>` widget with KB search, ticket form, and status check
-- **Email threading** — Outbound emails include proper `In-Reply-To` and `References` headers for correct threading in mail clients
-- **Branded email templates** — Configurable logo, primary color, and footer text for all outbound emails
-- **Real-time updates** — Server-Sent Events (SSE) endpoint for live ticket updates with automatic polling fallback
-- **Knowledge base toggle** — Enable or disable the public knowledge base from admin settings
+- **Ticket splitting** — Orijinal bağlamı koruyarak bir yanıtı yeni bağımsız bir talebe bölme
+- **Ticket snooze** — Ön ayarlarla (1s, 4s, yarın, gelecek hafta) talepleri erteleme; arka plan goroutine zamanlayıcısı onları programa göre otomatik uyandırır
+- **Saved views / custom queues** — Filtre ön ayarlarını yeniden kullanılabilir talep görünümleri olarak kaydetme, adlandırma ve paylaşma
+- **Embeddable support widget** — KB arama, talep formu ve durum kontrolü ile hafif `<script>` widget'ı
+- **Email threading** — Giden e-postalar, posta istemcilerinde doğru zincirleme için uygun `In-Reply-To` ve `References` başlıklarını içerir
+- **Branded email templates** — Tüm giden e-postalar için yapılandırılabilir logo, birincil renk ve alt bilgi metni
+- **Real-time updates** — Otomatik yoklama yedeklemeli canlı talep güncellemeleri için Server-Sent Events (SSE) uç noktası
+- **Knowledge base toggle** — Yönetici ayarlarından genel bilgi tabanını etkinleştirme veya devre dışı bırakma
 
 ## Kurulum
 
@@ -157,72 +157,72 @@ func main() {
 
 ## Yapılandırma
 
-| Field | Type | Default | Description |
+| Alan | Tür | Varsayılan | Açıklama |
 |-------|------|---------|-------------|
-| `RoutePrefix` | `string` | `/escalated` | URL prefix for all routes |
-| `UIEnabled` | `bool` | `true` | Mount Inertia UI routes; `false` for JSON API only |
-| `TablePrefix` | `string` | `escalated_` | Database table name prefix |
-| `AdminCheck` | `func(*http.Request) bool` | `false` | Returns true for admin users |
-| `AgentCheck` | `func(*http.Request) bool` | `false` | Returns true for agent users |
-| `UserIDFunc` | `func(*http.Request) int64` | `0` | Extracts current user's ID from request |
-| `DB` | `*sql.DB` | required | Database connection |
+| `RoutePrefix` | `string` | `/escalated` | Tüm rotalar için URL öneki |
+| `UIEnabled` | `bool` | `true` | Inertia UI rotalarını bağla; `false` yalnızca JSON API için |
+| `TablePrefix` | `string` | `escalated_` | Veritabanı tablo adı öneki |
+| `AdminCheck` | `func(*http.Request) bool` | `false` | Yönetici kullanıcılar için true döndürür |
+| `AgentCheck` | `func(*http.Request) bool` | `false` | Temsilci kullanıcılar için true döndürür |
+| `UserIDFunc` | `func(*http.Request) int64` | `0` | İstekten mevcut kullanıcı kimliğini çıkarır |
+| `DB` | `*sql.DB` | required | Veritabanı bağlantısı |
 
-## API Routes
+## API Rotaları
 
-All routes are prefixed with `RoutePrefix` (default `/escalated`).
+Tüm rotalar `RoutePrefix` (varsayılan `/escalated`) ile öneklenir.
 
-### JSON API (always mounted)
+### JSON API (her zaman bağlı)
 
-| Method | Path | Description |
+| Yöntem | Yol | Açıklama |
 |--------|------|-------------|
-| `GET` | `/api/tickets` | List tickets (with filters) |
-| `POST` | `/api/tickets` | Create a ticket |
-| `GET` | `/api/tickets/{id}` | Get ticket with replies and activities |
-| `PATCH` | `/api/tickets/{id}` | Update a ticket |
-| `POST` | `/api/tickets/{id}/replies` | Add a reply |
-| `GET` | `/api/departments` | List departments |
-| `GET` | `/api/tags` | List tags |
+| `GET` | `/api/tickets` | Talepleri listele (filtrelerle) |
+| `POST` | `/api/tickets` | Talep oluştur |
+| `GET` | `/api/tickets/{id}` | Yanıtlar ve etkinliklerle talep getir |
+| `PATCH` | `/api/tickets/{id}` | Talebi güncelle |
+| `POST` | `/api/tickets/{id}/replies` | Yanıt ekle |
+| `GET` | `/api/departments` | Departmanları listele |
+| `GET` | `/api/tags` | Etiketleri listele |
 
-### Customer UI (when `UIEnabled: true`)
+### Müşteri Arayüzü (`UIEnabled: true` olduğunda)
 
-| Method | Path | Description |
+| Yöntem | Yol | Açıklama |
 |--------|------|-------------|
-| `GET` | `/tickets` | My tickets |
-| `POST` | `/tickets` | Submit a ticket |
-| `GET` | `/tickets/{id}` | View ticket |
-| `POST` | `/tickets/{id}/replies` | Reply to ticket |
+| `GET` | `/tickets` | Taleplerim |
+| `POST` | `/tickets` | Talep gönder |
+| `GET` | `/tickets/{id}` | Talebi görüntüle |
+| `POST` | `/tickets/{id}/replies` | Talebe yanıt ver |
 
-### Agent UI (requires `AgentCheck`)
+### Temsilci Arayüzü (`AgentCheck` gerektirir)
 
-| Method | Path | Description |
+| Yöntem | Yol | Açıklama |
 |--------|------|-------------|
-| `GET` | `/agent/` | Agent dashboard |
-| `GET` | `/agent/tickets` | Ticket queue |
-| `GET` | `/agent/tickets/{id}` | Ticket detail |
-| `POST` | `/agent/tickets/{id}/assign` | Assign ticket |
-| `POST` | `/agent/tickets/{id}/replies` | Reply / internal note |
-| `POST` | `/agent/tickets/{id}/status` | Change status |
+| `GET` | `/agent/` | Temsilci panosu |
+| `GET` | `/agent/tickets` | Talep kuyruğu |
+| `GET` | `/agent/tickets/{id}` | Talep detayı |
+| `POST` | `/agent/tickets/{id}/assign` | Talep ata |
+| `POST` | `/agent/tickets/{id}/replies` | Yanıt / dahili not |
+| `POST` | `/agent/tickets/{id}/status` | Durum değiştir |
 
-### Admin UI (requires `AdminCheck`)
+### Yönetici Arayüzü (`AdminCheck` gerektirir)
 
-| Method | Path | Description |
+| Yöntem | Yol | Açıklama |
 |--------|------|-------------|
-| `GET/POST/PATCH/DELETE` | `/admin/departments` | Manage departments |
-| `GET/POST/DELETE` | `/admin/tags` | Manage tags |
-| `GET/POST/DELETE` | `/admin/sla-policies` | Manage SLA policies |
+| `GET/POST/PATCH/DELETE` | `/admin/departments` | Departmanları yönet |
+| `GET/POST/DELETE` | `/admin/tags` | Etiketleri yönet |
+| `GET/POST/DELETE` | `/admin/sla-policies` | SLA politikalarını yönet |
 
-## Custom Store
+## Özel Depo
 
-Implement the `store.Store` interface to use a different database:
+Farklı bir veritabanı kullanmak için `store.Store` arayüzünü uygulayın:
 
 ```go
 esc, _ := escalated.New(cfg)
 esc.Store = myCustomStore // satisfies store.Store interface
 ```
 
-## Ticket Statuses
+## Talep Durumları
 
-| Value | Name |
+| Değer | Ad |
 |-------|------|
 | 0 | open |
 | 1 | in_progress |
@@ -233,9 +233,9 @@ esc.Store = myCustomStore // satisfies store.Store interface
 | 6 | closed |
 | 7 | reopened |
 
-## Priorities
+## Öncelikler
 
-| Value | Name |
+| Değer | Ad |
 |-------|------|
 | 0 | low |
 | 1 | medium |

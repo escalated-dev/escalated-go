@@ -17,30 +17,30 @@
 
 # Escalated Go
 
-Embeddable support ticket system for Go applications. Works with standard `net/http`, Chi, and any router that accepts `http.HandlerFunc`.
+نظام تذاكر دعم قابل للتضمين لتطبيقات Go. يعمل مع `net/http` القياسي و Chi وأي موجه يقبل `http.HandlerFunc`.
 
 ## الميزات
 
-- Tickets with statuses, priorities, types, and SLA tracking
-- Replies (public, internal notes, system messages)
-- Departments and tags
-- SLA policies with per-priority response/resolution targets
-- Agent dashboard and admin configuration
-- Inertia.js UI or headless JSON API mode
-- PostgreSQL and SQLite support
-- Framework-agnostic HTTP handlers
-- Embedded SQL migrations
+- تذاكر مع حالات وأولويات وأنواع وتتبع SLA
+- ردود (عامة، ملاحظات داخلية، رسائل نظام)
+- أقسام وعلامات
+- سياسات SLA مع أهداف استجابة/حل لكل أولوية
+- لوحة تحكم الوكيل وإعدادات المسؤول
+- واجهة مستخدم Inertia.js أو وضع JSON API بدون واجهة
+- دعم PostgreSQL و SQLite
+- معالجات HTTP مستقلة عن إطار العمل
+- ترحيلات SQL مضمنة
 
-### Additional Features
+### الميزات
 
-- **Ticket splitting** — Split a reply into a new standalone ticket while preserving the original context
-- **Ticket snooze** — Snooze tickets with presets (1h, 4h, tomorrow, next week); a background goroutine scheduler auto-wakes them on schedule
-- **Saved views / custom queues** — Save, name, and share filter presets as reusable ticket views
-- **Embeddable support widget** — Lightweight `<script>` widget with KB search, ticket form, and status check
-- **Email threading** — Outbound emails include proper `In-Reply-To` and `References` headers for correct threading in mail clients
-- **Branded email templates** — Configurable logo, primary color, and footer text for all outbound emails
-- **Real-time updates** — Server-Sent Events (SSE) endpoint for live ticket updates with automatic polling fallback
-- **Knowledge base toggle** — Enable or disable the public knowledge base from admin settings
+- **Ticket splitting** — تقسيم رد إلى تذكرة مستقلة جديدة مع الحفاظ على السياق الأصلي
+- **Ticket snooze** — تأجيل التذاكر مع إعدادات مسبقة (ساعة، 4 ساعات، غداً، الأسبوع القادم)؛ مجدول goroutine في الخلفية يوقظها تلقائياً حسب الجدول
+- **Saved views / custom queues** — حفظ وتسمية ومشاركة إعدادات التصفية المسبقة كعروض تذاكر قابلة لإعادة الاستخدام
+- **Embeddable support widget** — أداة `<script>` خفيفة مع بحث قاعدة المعرفة ونموذج التذكرة والتحقق من الحالة
+- **Email threading** — تتضمن رسائل البريد الصادرة رؤوس `In-Reply-To` و `References` الصحيحة لسلسلة الرسائل في عملاء البريد
+- **Branded email templates** — شعار قابل للتكوين ولون أساسي ونص تذييل لجميع رسائل البريد الصادرة
+- **Real-time updates** — نقطة نهاية Server-Sent Events (SSE) لتحديثات التذاكر المباشرة مع استطلاع احتياطي تلقائي
+- **Knowledge base toggle** — تمكين أو تعطيل قاعدة المعرفة العامة من إعدادات المسؤول
 
 ## التثبيت
 
@@ -157,72 +157,72 @@ func main() {
 
 ## الإعدادات
 
-| Field | Type | Default | Description |
+| الحقل | النوع | الافتراضي | الوصف |
 |-------|------|---------|-------------|
-| `RoutePrefix` | `string` | `/escalated` | URL prefix for all routes |
-| `UIEnabled` | `bool` | `true` | Mount Inertia UI routes; `false` for JSON API only |
-| `TablePrefix` | `string` | `escalated_` | Database table name prefix |
-| `AdminCheck` | `func(*http.Request) bool` | `false` | Returns true for admin users |
-| `AgentCheck` | `func(*http.Request) bool` | `false` | Returns true for agent users |
-| `UserIDFunc` | `func(*http.Request) int64` | `0` | Extracts current user's ID from request |
-| `DB` | `*sql.DB` | required | Database connection |
+| `RoutePrefix` | `string` | `/escalated` | بادئة URL لجميع المسارات |
+| `UIEnabled` | `bool` | `true` | تركيب مسارات واجهة Inertia؛ `false` لـ JSON API فقط |
+| `TablePrefix` | `string` | `escalated_` | بادئة اسم جدول قاعدة البيانات |
+| `AdminCheck` | `func(*http.Request) bool` | `false` | يعيد true للمستخدمين المسؤولين |
+| `AgentCheck` | `func(*http.Request) bool` | `false` | يعيد true لمستخدمي الوكلاء |
+| `UserIDFunc` | `func(*http.Request) int64` | `0` | يستخرج معرف المستخدم الحالي من الطلب |
+| `DB` | `*sql.DB` | required | اتصال قاعدة البيانات |
 
-## API Routes
+## مسارات API
 
-All routes are prefixed with `RoutePrefix` (default `/escalated`).
+جميع المسارات مسبوقة بـ `RoutePrefix` (الافتراضي `/escalated`).
 
-### JSON API (always mounted)
+### JSON API (مركب دائماً)
 
-| Method | Path | Description |
+| الطريقة | المسار | الوصف |
 |--------|------|-------------|
-| `GET` | `/api/tickets` | List tickets (with filters) |
-| `POST` | `/api/tickets` | Create a ticket |
-| `GET` | `/api/tickets/{id}` | Get ticket with replies and activities |
-| `PATCH` | `/api/tickets/{id}` | Update a ticket |
-| `POST` | `/api/tickets/{id}/replies` | Add a reply |
-| `GET` | `/api/departments` | List departments |
-| `GET` | `/api/tags` | List tags |
+| `GET` | `/api/tickets` | عرض التذاكر (مع فلاتر) |
+| `POST` | `/api/tickets` | إنشاء تذكرة |
+| `GET` | `/api/tickets/{id}` | الحصول على تذكرة مع الردود والأنشطة |
+| `PATCH` | `/api/tickets/{id}` | تحديث تذكرة |
+| `POST` | `/api/tickets/{id}/replies` | إضافة رد |
+| `GET` | `/api/departments` | عرض الأقسام |
+| `GET` | `/api/tags` | عرض العلامات |
 
-### Customer UI (when `UIEnabled: true`)
+### واجهة العميل (عندما `UIEnabled: true`)
 
-| Method | Path | Description |
+| الطريقة | المسار | الوصف |
 |--------|------|-------------|
-| `GET` | `/tickets` | My tickets |
-| `POST` | `/tickets` | Submit a ticket |
-| `GET` | `/tickets/{id}` | View ticket |
-| `POST` | `/tickets/{id}/replies` | Reply to ticket |
+| `GET` | `/tickets` | تذاكري |
+| `POST` | `/tickets` | إرسال تذكرة |
+| `GET` | `/tickets/{id}` | عرض التذكرة |
+| `POST` | `/tickets/{id}/replies` | الرد على التذكرة |
 
-### Agent UI (requires `AgentCheck`)
+### واجهة الوكيل (تتطلب `AgentCheck`)
 
-| Method | Path | Description |
+| الطريقة | المسار | الوصف |
 |--------|------|-------------|
-| `GET` | `/agent/` | Agent dashboard |
-| `GET` | `/agent/tickets` | Ticket queue |
-| `GET` | `/agent/tickets/{id}` | Ticket detail |
-| `POST` | `/agent/tickets/{id}/assign` | Assign ticket |
-| `POST` | `/agent/tickets/{id}/replies` | Reply / internal note |
-| `POST` | `/agent/tickets/{id}/status` | Change status |
+| `GET` | `/agent/` | لوحة تحكم الوكيل |
+| `GET` | `/agent/tickets` | قائمة التذاكر |
+| `GET` | `/agent/tickets/{id}` | تفاصيل التذكرة |
+| `POST` | `/agent/tickets/{id}/assign` | تعيين تذكرة |
+| `POST` | `/agent/tickets/{id}/replies` | رد / ملاحظة داخلية |
+| `POST` | `/agent/tickets/{id}/status` | تغيير الحالة |
 
-### Admin UI (requires `AdminCheck`)
+### واجهة المسؤول (تتطلب `AdminCheck`)
 
-| Method | Path | Description |
+| الطريقة | المسار | الوصف |
 |--------|------|-------------|
-| `GET/POST/PATCH/DELETE` | `/admin/departments` | Manage departments |
-| `GET/POST/DELETE` | `/admin/tags` | Manage tags |
-| `GET/POST/DELETE` | `/admin/sla-policies` | Manage SLA policies |
+| `GET/POST/PATCH/DELETE` | `/admin/departments` | إدارة الأقسام |
+| `GET/POST/DELETE` | `/admin/tags` | إدارة العلامات |
+| `GET/POST/DELETE` | `/admin/sla-policies` | إدارة سياسات SLA |
 
-## Custom Store
+## متجر مخصص
 
-Implement the `store.Store` interface to use a different database:
+نفّذ واجهة `store.Store` لاستخدام قاعدة بيانات مختلفة:
 
 ```go
 esc, _ := escalated.New(cfg)
 esc.Store = myCustomStore // satisfies store.Store interface
 ```
 
-## Ticket Statuses
+## حالات التذكرة
 
-| Value | Name |
+| القيمة | الاسم |
 |-------|------|
 | 0 | open |
 | 1 | in_progress |
@@ -233,9 +233,9 @@ esc.Store = myCustomStore // satisfies store.Store interface
 | 6 | closed |
 | 7 | reopened |
 
-## Priorities
+## الأولويات
 
-| Value | Name |
+| القيمة | الاسم |
 |-------|------|
 | 0 | low |
 | 1 | medium |
@@ -243,6 +243,6 @@ esc.Store = myCustomStore // satisfies store.Store interface
 | 3 | urgent |
 | 4 | critical |
 
-## الرخصة
+## الترخيص
 
 MIT
