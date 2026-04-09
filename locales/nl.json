@@ -1,0 +1,50 @@
+{
+  "status": {
+    "open": "Open",
+    "in_progress": "In behandeling",
+    "waiting_on_customer": "Wachten op klant",
+    "waiting_on_agent": "Wachten op medewerker",
+    "escalated": "Geescaleerd",
+    "resolved": "Opgelost",
+    "closed": "Gesloten",
+    "reopened": "Heropend",
+    "snoozed": "Uitgesteld",
+    "unsnoozed": "Heractiveerd"
+  },
+  "priority": {
+    "low": "Laag",
+    "medium": "Gemiddeld",
+    "high": "Hoog",
+    "urgent": "Urgent",
+    "critical": "Kritiek"
+  },
+  "activity": {
+    "status_changed": "Status gewijzigd",
+    "assigned": "Toegewezen",
+    "unassigned": "Niet toegewezen",
+    "priority_changed": "Prioriteit gewijzigd",
+    "tag_added": "Tag toegevoegd",
+    "tag_removed": "Tag verwijderd",
+    "sla_breached": "SLA geschonden",
+    "replied": "Beantwoord",
+    "note_added": "Notitie toegevoegd",
+    "department_changed": "Afdeling gewijzigd",
+    "ticket_split": "Ticket gesplitst",
+    "snoozed": "Uitgesteld",
+    "unsnoozed": "Heractiveerd"
+  },
+  "messages": {
+    "reply_sent": "Antwoord verzonden.",
+    "ticket_assigned": "Ticket toegewezen.",
+    "status_updated": "Status bijgewerkt.",
+    "priority_updated": "Prioriteit bijgewerkt.",
+    "tags_updated": "Tags bijgewerkt.",
+    "department_updated": "Afdeling bijgewerkt.",
+    "ticket_created": "Ticket succesvol aangemaakt.",
+    "ticket_closed": "Ticket gesloten.",
+    "ticket_reopened": "Ticket heropend.",
+    "settings_updated": "Instellingen bijgewerkt.",
+    "access_denied": "Toegang geweigerd.",
+    "not_found": "Gevraagde bron niet gevonden."
+  }
+}

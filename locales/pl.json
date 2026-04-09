@@ -1,0 +1,50 @@
+{
+  "status": {
+    "open": "Otwarty",
+    "in_progress": "W toku",
+    "waiting_on_customer": "Oczekiwanie na klienta",
+    "waiting_on_agent": "Oczekiwanie na agenta",
+    "escalated": "Eskalowany",
+    "resolved": "Rozwiazany",
+    "closed": "Zamkniety",
+    "reopened": "Ponownie otwarty",
+    "snoozed": "Odlozony",
+    "unsnoozed": "Przywrocony"
+  },
+  "priority": {
+    "low": "Niski",
+    "medium": "Sredni",
+    "high": "Wysoki",
+    "urgent": "Pilny",
+    "critical": "Krytyczny"
+  },
+  "activity": {
+    "status_changed": "Status zmieniony",
+    "assigned": "Przypisano",
+    "unassigned": "Nieprzypisany",
+    "priority_changed": "Priorytet zmieniony",
+    "tag_added": "Dodano tag",
+    "tag_removed": "Usunieto tag",
+    "sla_breached": "Naruszenie SLA",
+    "replied": "Odpowiedziano",
+    "note_added": "Dodano notatke",
+    "department_changed": "Zmieniono dzial",
+    "ticket_split": "Podzielono zgloszenie",
+    "snoozed": "Odlozony",
+    "unsnoozed": "Przywrocony"
+  },
+  "messages": {
+    "reply_sent": "Odpowiedz wyslana.",
+    "ticket_assigned": "Zgloszenie przypisane.",
+    "status_updated": "Status zaktualizowany.",
+    "priority_updated": "Priorytet zaktualizowany.",
+    "tags_updated": "Tagi zaktualizowane.",
+    "department_updated": "Dzial zaktualizowany.",
+    "ticket_created": "Zgloszenie utworzone pomyslnie.",
+    "ticket_closed": "Zgloszenie zamkniete.",
+    "ticket_reopened": "Zgloszenie ponownie otwarte.",
+    "settings_updated": "Ustawienia zaktualizowane.",
+    "access_denied": "Odmowa dostepu.",
+    "not_found": "Nie znaleziono zasobu."
+  }
+}

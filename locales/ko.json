@@ -1,0 +1,50 @@
+{
+  "status": {
+    "open": "열림",
+    "in_progress": "진행 중",
+    "waiting_on_customer": "고객 대기",
+    "waiting_on_agent": "상담원 대기",
+    "escalated": "에스컬레이션됨",
+    "resolved": "해결됨",
+    "closed": "종료",
+    "reopened": "재개됨",
+    "snoozed": "일시 중지",
+    "unsnoozed": "일시 중지 해제"
+  },
+  "priority": {
+    "low": "낮음",
+    "medium": "보통",
+    "high": "높음",
+    "urgent": "긴급",
+    "critical": "심각"
+  },
+  "activity": {
+    "status_changed": "상태 변경",
+    "assigned": "할당됨",
+    "unassigned": "미할당",
+    "priority_changed": "우선순위 변경",
+    "tag_added": "태그 추가됨",
+    "tag_removed": "태그 제거됨",
+    "sla_breached": "SLA 위반",
+    "replied": "답변됨",
+    "note_added": "메모 추가됨",
+    "department_changed": "부서 변경",
+    "ticket_split": "티켓 분할",
+    "snoozed": "일시 중지",
+    "unsnoozed": "일시 중지 해제"
+  },
+  "messages": {
+    "reply_sent": "답변이 전송되었습니다.",
+    "ticket_assigned": "티켓이 할당되었습니다.",
+    "status_updated": "상태가 업데이트되었습니다.",
+    "priority_updated": "우선순위가 업데이트되었습니다.",
+    "tags_updated": "태그가 업데이트되었습니다.",
+    "department_updated": "부서가 업데이트되었습니다.",
+    "ticket_created": "티켓이 성공적으로 생성되었습니다.",
+    "ticket_closed": "티켓이 종료되었습니다.",
+    "ticket_reopened": "티켓이 다시 열렸습니다.",
+    "settings_updated": "설정이 업데이트되었습니다.",
+    "access_denied": "접근이 거부되었습니다.",
+    "not_found": "요청한 리소스를 찾을 수 없습니다."
+  }
+}

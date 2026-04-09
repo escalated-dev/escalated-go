@@ -1,0 +1,50 @@
+{
+  "status": {
+    "open": "オープン",
+    "in_progress": "対応中",
+    "waiting_on_customer": "顧客待ち",
+    "waiting_on_agent": "エージェント待ち",
+    "escalated": "エスカレーション済み",
+    "resolved": "解決済み",
+    "closed": "クローズ",
+    "reopened": "再開",
+    "snoozed": "スヌーズ",
+    "unsnoozed": "スヌーズ解除"
+  },
+  "priority": {
+    "low": "低",
+    "medium": "中",
+    "high": "高",
+    "urgent": "緊急",
+    "critical": "重大"
+  },
+  "activity": {
+    "status_changed": "ステータス変更",
+    "assigned": "割り当て済み",
+    "unassigned": "未割り当て",
+    "priority_changed": "優先度変更",
+    "tag_added": "タグ追加",
+    "tag_removed": "タグ削除",
+    "sla_breached": "SLA違反",
+    "replied": "返信済み",
+    "note_added": "メモ追加",
+    "department_changed": "部門変更",
+    "ticket_split": "チケット分割",
+    "snoozed": "スヌーズ",
+    "unsnoozed": "スヌーズ解除"
+  },
+  "messages": {
+    "reply_sent": "返信を送信しました。",
+    "ticket_assigned": "チケットを割り当てました。",
+    "status_updated": "ステータスを更新しました。",
+    "priority_updated": "優先度を更新しました。",
+    "tags_updated": "タグを更新しました。",
+    "department_updated": "部門を更新しました。",
+    "ticket_created": "チケットを正常に作成しました。",
+    "ticket_closed": "チケットをクローズしました。",
+    "ticket_reopened": "チケットを再開しました。",
+    "settings_updated": "設定を更新しました。",
+    "access_denied": "アクセスが拒否されました。",
+    "not_found": "リクエストされたリソースが見つかりません。"
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "status": {
+    "open": "打开",
+    "in_progress": "处理中",
+    "waiting_on_customer": "等待客户",
+    "waiting_on_agent": "等待客服",
+    "escalated": "已升级",
+    "resolved": "已解决",
+    "closed": "已关闭",
+    "reopened": "已重开",
+    "snoozed": "已暂停",
+    "unsnoozed": "已恢复"
+  },
+  "priority": {
+    "low": "低",
+    "medium": "中",
+    "high": "高",
+    "urgent": "紧急",
+    "critical": "严重"
+  },
+  "activity": {
+    "status_changed": "状态变更",
+    "assigned": "已分配",
+    "unassigned": "未分配",
+    "priority_changed": "优先级变更",
+    "tag_added": "标签已添加",
+    "tag_removed": "标签已移除",
+    "sla_breached": "SLA已违反",
+    "replied": "已回复",
+    "note_added": "备注已添加",
+    "department_changed": "部门变更",
+    "ticket_split": "工单已拆分",
+    "snoozed": "已暂停",
+    "unsnoozed": "已恢复"
+  },
+  "messages": {
+    "reply_sent": "回复已发送。",
+    "ticket_assigned": "工单已分配。",
+    "status_updated": "状态已更新。",
+    "priority_updated": "优先级已更新。",
+    "tags_updated": "标签已更新。",
+    "department_updated": "部门已更新。",
+    "ticket_created": "工单创建成功。",
+    "ticket_closed": "工单已关闭。",
+    "ticket_reopened": "工单已重新打开。",
+    "settings_updated": "设置已更新。",
+    "access_denied": "访问被拒绝。",
+    "not_found": "未找到请求的资源。"
+  }
+}
