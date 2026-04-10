@@ -108,7 +108,7 @@ func main() {
 }
 ```
 
-## Quick Start with Standard Library
+## Standart Kütüphane ile Hızlı Başlangıç
 
 ```go
 package main

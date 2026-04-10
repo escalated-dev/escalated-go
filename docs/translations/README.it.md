@@ -108,7 +108,7 @@ func main() {
 }
 ```
 
-## Quick Start with Standard Library
+## Avvio Rapido con la Libreria Standard
 
 ```go
 package main
