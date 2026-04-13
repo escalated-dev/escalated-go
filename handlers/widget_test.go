@@ -187,6 +187,18 @@ func (m *widgetMockStore) DeleteChatRoutingRule(_ context.Context, _ int64) erro
 func (m *widgetMockStore) CountActiveChatsForAgent(_ context.Context, _ int64) (int, error) {
 	return 0, nil
 }
+func (m *widgetMockStore) CreateAttachment(_ context.Context, _ *models.Attachment) error {
+	return nil
+}
+func (m *widgetMockStore) GetAttachmentByID(_ context.Context, _ int64) (*models.Attachment, error) {
+	return nil, nil
+}
+func (m *widgetMockStore) GetAttachmentsByTicketID(_ context.Context, _ int64) ([]*models.Attachment, error) {
+	return nil, nil
+}
+func (m *widgetMockStore) GetAttachmentsByReplyID(_ context.Context, _ int64) ([]*models.Attachment, error) {
+	return nil, nil
+}
 
 func TestWidgetHandler_Config(t *testing.T) {
 	tests := []struct {

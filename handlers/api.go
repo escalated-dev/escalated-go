@@ -106,10 +106,27 @@ func (h *APIHandler) ShowTicket(w http.ResponseWriter, r *http.Request) {
 	replies, _ := h.store.ListReplies(r.Context(), models.ReplyFilters{TicketID: id})
 	activities, _ := h.store.ListActivities(r.Context(), id, 50)
 
+	// Load attachments for the ticket
+	ticketAttachments, _ := h.store.GetAttachmentsByTicketID(r.Context(), id)
+	populateAttachmentURLs(ticketAttachments, "/escalated")
+
+	// Attach per-reply attachments
+	for _, rpl := range replies {
+		replyAtts, _ := h.store.GetAttachmentsByReplyID(r.Context(), rpl.ID)
+		populateAttachmentURLs(replyAtts, "/escalated")
+		if len(replyAtts) > 0 {
+			rpl.Attachments = make([]models.Attachment, len(replyAtts))
+			for i, a := range replyAtts {
+				rpl.Attachments[i] = *a
+			}
+		}
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
-		"ticket":     t,
-		"replies":    replies,
-		"activities": activities,
+		"ticket":      t,
+		"replies":     replies,
+		"activities":  activities,
+		"attachments": ticketAttachments,
 	})
 }
 
@@ -309,6 +326,13 @@ func (h *APIHandler) ListTags(w http.ResponseWriter, r *http.Request) {
 }
 
 // --- helpers ---
+
+// populateAttachmentURLs sets the computed URL field on each attachment.
+func populateAttachmentURLs(attachments []*models.Attachment, routePrefix string) {
+	for _, a := range attachments {
+		a.URL = AttachmentURL(routePrefix, a.ID)
+	}
+}
 
 func writeJSON(w http.ResponseWriter, code int, data any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

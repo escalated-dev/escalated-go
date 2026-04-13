@@ -109,10 +109,11 @@ type Ticket struct {
 	Metadata json.RawMessage `json:"metadata,omitempty"`
 
 	// Loaded relationships (not persisted directly)
-	Department *Department `json:"department,omitempty"`
-	SLAPolicy  *SLAPolicy  `json:"sla_policy,omitempty"`
-	Tags       []Tag       `json:"tags,omitempty"`
-	Replies    []Reply     `json:"replies,omitempty"`
+	Department  *Department  `json:"department,omitempty"`
+	SLAPolicy   *SLAPolicy   `json:"sla_policy,omitempty"`
+	Tags        []Tag        `json:"tags,omitempty"`
+	Replies     []Reply      `json:"replies,omitempty"`
+	Attachments []Attachment `json:"attachments,omitempty"`
 }
 
 // IsOpen returns true if the ticket is in an open state.

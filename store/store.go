@@ -81,4 +81,10 @@ type Store interface {
 	// Activities
 	CreateActivity(ctx context.Context, a *models.Activity) error
 	ListActivities(ctx context.Context, ticketID int64, limit int) ([]*models.Activity, error)
+
+	// Attachments
+	CreateAttachment(ctx context.Context, a *models.Attachment) error
+	GetAttachmentByID(ctx context.Context, id int64) (*models.Attachment, error)
+	GetAttachmentsByTicketID(ctx context.Context, ticketID int64) ([]*models.Attachment, error)
+	GetAttachmentsByReplyID(ctx context.Context, replyID int64) ([]*models.Attachment, error)
 }

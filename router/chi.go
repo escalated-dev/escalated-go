@@ -23,8 +23,12 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	agentH := handlers.NewAgentHandler(s, ticketSvc, assignSvc, rend, cfg.UserIDFunc)
 	customerH := handlers.NewCustomerHandler(s, ticketSvc, rend, cfg.UserIDFunc)
 	adminH := handlers.NewAdminHandler(s, rend)
+	attachH := handlers.NewAttachmentHandler(s, cfg.RoutePrefix)
 
 	r.Route(cfg.RoutePrefix, func(r chi.Router) {
+		// Attachment downloads — always mounted
+		r.Get("/attachments/{id}/download", attachH.Download)
+
 		// JSON API — always mounted
 		r.Route("/api", func(r chi.Router) {
 			r.Get("/tickets", apiH.ListTickets)

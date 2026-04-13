@@ -93,12 +93,29 @@ func (h *AgentHandler) ShowTicket(w http.ResponseWriter, r *http.Request) {
 	depts, _ := h.store.ListDepartments(r.Context(), true)
 	tags, _ := h.store.ListTags(r.Context())
 
+	// Load attachments for the ticket
+	ticketAttachments, _ := h.store.GetAttachmentsByTicketID(r.Context(), id)
+	populateAttachmentURLs(ticketAttachments, "/escalated")
+
+	// Attach per-reply attachments
+	for _, rpl := range replies {
+		replyAtts, _ := h.store.GetAttachmentsByReplyID(r.Context(), rpl.ID)
+		populateAttachmentURLs(replyAtts, "/escalated")
+		if len(replyAtts) > 0 {
+			rpl.Attachments = make([]models.Attachment, len(replyAtts))
+			for i, a := range replyAtts {
+				rpl.Attachments[i] = *a
+			}
+		}
+	}
+
 	_ = h.renderer.Render(w, r, "Agent/Tickets/Show", map[string]any{
 		"ticket":      t,
 		"replies":     replies,
 		"activities":  activities,
 		"departments": depts,
 		"tags":        tags,
+		"attachments": ticketAttachments,
 	})
 }
 

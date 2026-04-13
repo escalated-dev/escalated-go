@@ -185,6 +185,18 @@ func (m *savedViewMockStore) DeleteChatRoutingRule(_ context.Context, _ int64) e
 func (m *savedViewMockStore) CountActiveChatsForAgent(_ context.Context, _ int64) (int, error) {
 	return 0, nil
 }
+func (m *savedViewMockStore) CreateAttachment(_ context.Context, _ *models.Attachment) error {
+	return nil
+}
+func (m *savedViewMockStore) GetAttachmentByID(_ context.Context, _ int64) (*models.Attachment, error) {
+	return nil, nil
+}
+func (m *savedViewMockStore) GetAttachmentsByTicketID(_ context.Context, _ int64) ([]*models.Attachment, error) {
+	return nil, nil
+}
+func (m *savedViewMockStore) GetAttachmentsByReplyID(_ context.Context, _ int64) ([]*models.Attachment, error) {
+	return nil, nil
+}
 
 func TestSavedViewHandler_Create(t *testing.T) {
 	tests := []struct {

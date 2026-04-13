@@ -283,6 +283,18 @@ func migrationStatements(p string) []string {
 			executed BOOLEAN NOT NULL DEFAULT FALSE,
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"delayed_actions"),
+
+		// 20. Attachments
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			ticket_id BIGINT NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
+			reply_id BIGINT REFERENCES %s(id) ON DELETE SET NULL,
+			original_filename VARCHAR(255) NOT NULL,
+			mime_type VARCHAR(255) NOT NULL,
+			size BIGINT NOT NULL DEFAULT 0,
+			storage_path TEXT NOT NULL,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"attachments", p+"tickets", p+"replies"),
 	}
 
 	// Indexes (CREATE INDEX IF NOT EXISTS is supported by PostgreSQL 9.5+ and SQLite 3.3+)
@@ -336,6 +348,9 @@ func migrationStatements(p string) []string {
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%swfl_wf ON %s (workflow_id)", p, p+"workflow_logs"),
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%swfl_tkt ON %s (ticket_id)", p, p+"workflow_logs"),
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%sda_pending ON %s (executed, execute_at)", p, p+"delayed_actions"),
+
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%satt_ticket ON %s (ticket_id)", p, p+"attachments"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%satt_reply ON %s (reply_id)", p, p+"attachments"),
 	}
 
 	return append(stmts, indexes...)

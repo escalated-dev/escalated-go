@@ -65,9 +65,26 @@ func (h *CustomerHandler) Show(w http.ResponseWriter, r *http.Request) {
 		Internal: &isInternal,
 	})
 
+	// Load attachments for the ticket
+	ticketAttachments, _ := h.store.GetAttachmentsByTicketID(r.Context(), id)
+	populateAttachmentURLs(ticketAttachments, "/escalated")
+
+	// Attach per-reply attachments
+	for _, rpl := range replies {
+		replyAtts, _ := h.store.GetAttachmentsByReplyID(r.Context(), rpl.ID)
+		populateAttachmentURLs(replyAtts, "/escalated")
+		if len(replyAtts) > 0 {
+			rpl.Attachments = make([]models.Attachment, len(replyAtts))
+			for i, a := range replyAtts {
+				rpl.Attachments[i] = *a
+			}
+		}
+	}
+
 	_ = h.renderer.Render(w, r, "Customer/Tickets/Show", map[string]any{
-		"ticket":  t,
-		"replies": replies,
+		"ticket":      t,
+		"replies":     replies,
+		"attachments": ticketAttachments,
 	})
 }
 
