@@ -18,6 +18,9 @@ type Reply struct {
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+
+	// Loaded relationships (not persisted directly)
+	Attachments []Attachment `json:"attachments,omitempty"`
 }
 
 // IsPublic returns true if this is a public (customer-visible) reply.

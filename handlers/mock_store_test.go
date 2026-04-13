@@ -227,3 +227,18 @@ func (m *handlerMockStore) DeleteChatRoutingRule(_ context.Context, _ int64) err
 func (m *handlerMockStore) CountActiveChatsForAgent(_ context.Context, _ int64) (int, error) {
 	return 0, nil
 }
+
+func (m *handlerMockStore) CreateAttachment(_ context.Context, a *models.Attachment) error {
+	a.ID = m.nextID
+	m.nextID++
+	return nil
+}
+func (m *handlerMockStore) GetAttachmentByID(_ context.Context, _ int64) (*models.Attachment, error) {
+	return nil, nil
+}
+func (m *handlerMockStore) GetAttachmentsByTicketID(_ context.Context, _ int64) ([]*models.Attachment, error) {
+	return nil, nil
+}
+func (m *handlerMockStore) GetAttachmentsByReplyID(_ context.Context, _ int64) ([]*models.Attachment, error) {
+	return nil, nil
+}

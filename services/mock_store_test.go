@@ -294,3 +294,18 @@ func (m *mockStore) CountActiveChatsForAgent(_ context.Context, agentID int64) (
 	}
 	return count, nil
 }
+
+func (m *mockStore) CreateAttachment(_ context.Context, a *models.Attachment) error {
+	a.ID = m.nextID
+	m.nextID++
+	return nil
+}
+func (m *mockStore) GetAttachmentByID(_ context.Context, _ int64) (*models.Attachment, error) {
+	return nil, nil
+}
+func (m *mockStore) GetAttachmentsByTicketID(_ context.Context, _ int64) ([]*models.Attachment, error) {
+	return nil, nil
+}
+func (m *mockStore) GetAttachmentsByReplyID(_ context.Context, _ int64) ([]*models.Attachment, error) {
+	return nil, nil
+}

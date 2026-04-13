@@ -758,3 +758,78 @@ func (s *PostgresStore) ReorderSavedViews(ctx context.Context, userID int64, ids
 	}
 	return nil
 }
+
+// --- Attachments ---
+
+func (s *PostgresStore) CreateAttachment(ctx context.Context, a *models.Attachment) error {
+	now := time.Now()
+	a.CreatedAt = now
+
+	q := fmt.Sprintf(`INSERT INTO %s
+		(ticket_id, reply_id, original_filename, mime_type, size, storage_path, created_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`, s.t("attachments"))
+
+	return s.db.QueryRowContext(ctx, q,
+		a.TicketID, a.ReplyID, a.OriginalFilename, a.MimeType, a.Size, a.StoragePath, a.CreatedAt,
+	).Scan(&a.ID)
+}
+
+func (s *PostgresStore) GetAttachmentByID(ctx context.Context, id int64) (*models.Attachment, error) {
+	q := fmt.Sprintf(`SELECT id, ticket_id, reply_id, original_filename, mime_type, size, storage_path, created_at
+		FROM %s WHERE id = $1`, s.t("attachments"))
+
+	a := &models.Attachment{}
+	err := s.db.QueryRowContext(ctx, q, id).Scan(
+		&a.ID, &a.TicketID, &a.ReplyID, &a.OriginalFilename, &a.MimeType, &a.Size, &a.StoragePath, &a.CreatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return a, err
+}
+
+func (s *PostgresStore) GetAttachmentsByTicketID(ctx context.Context, ticketID int64) ([]*models.Attachment, error) {
+	q := fmt.Sprintf(`SELECT id, ticket_id, reply_id, original_filename, mime_type, size, storage_path, created_at
+		FROM %s WHERE ticket_id = $1 ORDER BY created_at ASC`, s.t("attachments"))
+
+	rows, err := s.db.QueryContext(ctx, q, ticketID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var attachments []*models.Attachment
+	for rows.Next() {
+		a := &models.Attachment{}
+		if err := rows.Scan(
+			&a.ID, &a.TicketID, &a.ReplyID, &a.OriginalFilename, &a.MimeType, &a.Size, &a.StoragePath, &a.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		attachments = append(attachments, a)
+	}
+	return attachments, rows.Err()
+}
+
+func (s *PostgresStore) GetAttachmentsByReplyID(ctx context.Context, replyID int64) ([]*models.Attachment, error) {
+	q := fmt.Sprintf(`SELECT id, ticket_id, reply_id, original_filename, mime_type, size, storage_path, created_at
+		FROM %s WHERE reply_id = $1 ORDER BY created_at ASC`, s.t("attachments"))
+
+	rows, err := s.db.QueryContext(ctx, q, replyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var attachments []*models.Attachment
+	for rows.Next() {
+		a := &models.Attachment{}
+		if err := rows.Scan(
+			&a.ID, &a.TicketID, &a.ReplyID, &a.OriginalFilename, &a.MimeType, &a.Size, &a.StoragePath, &a.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		attachments = append(attachments, a)
+	}
+	return attachments, rows.Err()
+}

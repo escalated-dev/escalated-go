@@ -23,8 +23,12 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	agentH := handlers.NewAgentHandler(s, ticketSvc, assignSvc, rend, cfg.UserIDFunc)
 	customerH := handlers.NewCustomerHandler(s, ticketSvc, rend, cfg.UserIDFunc)
 	adminH := handlers.NewAdminHandler(s, rend)
+	attachH := handlers.NewAttachmentHandler(s, cfg.RoutePrefix)
 
 	prefix := cfg.RoutePrefix
+
+	// Attachment downloads — always mounted
+	mux.HandleFunc("GET "+prefix+"/attachments/{id}/download", attachH.Download)
 
 	// JSON API — always mounted
 	mux.HandleFunc("GET "+prefix+"/api/tickets", apiH.ListTickets)
