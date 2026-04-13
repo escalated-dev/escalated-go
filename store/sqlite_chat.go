@@ -102,6 +102,70 @@ func (s *SQLiteStore) ListChatSessions(ctx context.Context, f models.ChatSession
 	return result, rows.Err()
 }
 
+// --- Chat Messages ---
+
+func (s *SQLiteStore) CreateChatMessage(ctx context.Context, m *models.ChatMessage) error {
+	q := fmt.Sprintf(`INSERT INTO %s (chat_session_id, sender_type, sender_id, body, created_at) VALUES (?,?,?,?,?)`, s.t("chat_messages"))
+	m.CreatedAt = time.Now()
+	res, err := s.db.ExecContext(ctx, q, m.ChatSessionID, m.SenderType, m.SenderID, m.Body, m.CreatedAt)
+	if err != nil {
+		return err
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return err
+	}
+	m.ID = id
+	return nil
+}
+
+func (s *SQLiteStore) ListChatMessages(ctx context.Context, chatSessionID int64) ([]models.ChatMessage, error) {
+	q := fmt.Sprintf(`SELECT id, chat_session_id, sender_type, sender_id, body, created_at FROM %s WHERE chat_session_id = ? ORDER BY created_at ASC`, s.t("chat_messages"))
+	rows, err := s.db.QueryContext(ctx, q, chatSessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []models.ChatMessage
+	for rows.Next() {
+		var m models.ChatMessage
+		if err := rows.Scan(&m.ID, &m.ChatSessionID, &m.SenderType, &m.SenderID, &m.Body, &m.CreatedAt); err != nil {
+			return nil, err
+		}
+		result = append(result, m)
+	}
+	return result, rows.Err()
+}
+
+// --- Ticket Counts / Relations ---
+
+func (s *SQLiteStore) CountTicketsByRequester(ctx context.Context, requesterType string, requesterID int64) (int, error) {
+	q := fmt.Sprintf(`SELECT COUNT(*) FROM %s WHERE requester_type = ? AND requester_id = ?`, s.t("tickets"))
+	var count int
+	err := s.db.QueryRowContext(ctx, q, requesterType, requesterID).Scan(&count)
+	return count, err
+}
+
+func (s *SQLiteStore) ListRelatedTickets(ctx context.Context, ticketID int64) ([]models.RelatedTicket, error) {
+	q := fmt.Sprintf(`SELECT id, reference, subject, status FROM %s WHERE (merged_into_id = ? OR split_from_id = ? OR id = (SELECT merged_into_id FROM %s WHERE id = ?) OR id = (SELECT split_from_id FROM %s WHERE id = ?)) AND id != ?`, s.t("tickets"), s.t("tickets"), s.t("tickets"))
+	rows, err := s.db.QueryContext(ctx, q, ticketID, ticketID, ticketID, ticketID, ticketID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []models.RelatedTicket
+	for rows.Next() {
+		var rt models.RelatedTicket
+		if err := rows.Scan(&rt.ID, &rt.Reference, &rt.Subject, &rt.Status); err != nil {
+			return nil, err
+		}
+		result = append(result, rt)
+	}
+	return result, rows.Err()
+}
+
 // --- Chat Routing Rules ---
 
 func (s *SQLiteStore) CreateChatRoutingRule(ctx context.Context, r *models.ChatRoutingRule) error {

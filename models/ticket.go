@@ -116,12 +116,25 @@ type Ticket struct {
 	Attachments []Attachment `json:"attachments,omitempty"`
 
 	// Computed fields (populated at serialization time, not persisted)
-	RequesterName   *string    `json:"requester_name,omitempty"`
-	RequesterEmail  *string    `json:"requester_email,omitempty"`
-	LastReplyAt     *time.Time `json:"last_reply_at,omitempty"`
-	LastReplyAuthor *string    `json:"last_reply_author,omitempty"`
-	IsLiveChatFlag  bool       `json:"is_live_chat"`
-	IsSnoozedFlag   bool       `json:"is_snoozed"`
+	RequesterName        *string         `json:"requester_name,omitempty"`
+	RequesterEmail       *string         `json:"requester_email,omitempty"`
+	LastReplyAt          *time.Time      `json:"last_reply_at,omitempty"`
+	LastReplyAuthor      *string         `json:"last_reply_author,omitempty"`
+	IsLiveChatFlag       bool            `json:"is_live_chat"`
+	IsSnoozedFlag        bool            `json:"is_snoozed"`
+	ChatSessionID        *int64          `json:"chat_session_id,omitempty"`
+	ChatStartedAt        *time.Time      `json:"chat_started_at,omitempty"`
+	ChatMessages         []ChatMessage   `json:"chat_messages,omitempty"`
+	RequesterTicketCount *int            `json:"requester_ticket_count,omitempty"`
+	RelatedTickets       []RelatedTicket `json:"related_tickets,omitempty"`
+}
+
+// PopulateComputedOpts holds optional data used to populate computed fields.
+type PopulateComputedOpts struct {
+	ChatSession          *ChatSession
+	ChatMessages         []ChatMessage
+	RequesterTicketCount *int
+	RelatedTickets       []RelatedTicket
 }
 
 // PopulateComputed fills the computed JSON fields from existing ticket and
@@ -157,6 +170,31 @@ func (t *Ticket) PopulateComputed(replies []*Reply) {
 
 	// is_snoozed: snoozed_until is set and in the future
 	t.IsSnoozedFlag = t.SnoozedUntil != nil && t.SnoozedUntil.After(time.Now())
+}
+
+// PopulateComputedFull calls PopulateComputed and also fills chat, requester
+// count, and related ticket fields from the provided options.
+func (t *Ticket) PopulateComputedFull(replies []*Reply, opts PopulateComputedOpts) {
+	t.PopulateComputed(replies)
+
+	if opts.ChatSession != nil {
+		t.ChatSessionID = &opts.ChatSession.ID
+		t.ChatStartedAt = &opts.ChatSession.CreatedAt
+		// Prefer the session-level metadata; fall back to ticket ChatMetadata.
+		t.ChatMetadata = opts.ChatSession.Metadata()
+	}
+
+	if len(opts.ChatMessages) > 0 {
+		t.ChatMessages = opts.ChatMessages
+	}
+
+	if opts.RequesterTicketCount != nil {
+		t.RequesterTicketCount = opts.RequesterTicketCount
+	}
+
+	if len(opts.RelatedTickets) > 0 {
+		t.RelatedTickets = opts.RelatedTickets
+	}
 }
 
 // IsOpen returns true if the ticket is in an open state.
@@ -247,6 +285,14 @@ func GenerateReference(prefix string) string {
 	_, _ = rand.Read(b)
 	seq := strings.ToUpper(fmt.Sprintf("%X", b))
 	return fmt.Sprintf("%s-%s-%s", prefix, timestamp, seq)
+}
+
+// RelatedTicket is a lightweight representation of a linked ticket.
+type RelatedTicket struct {
+	ID        int64  `json:"id"`
+	Reference string `json:"reference"`
+	Subject   string `json:"subject"`
+	Status    int    `json:"status"`
 }
 
 // TicketFilters holds query parameters for listing tickets.

@@ -78,6 +78,14 @@ type Store interface {
 	DeleteChatRoutingRule(ctx context.Context, id int64) error
 	CountActiveChatsForAgent(ctx context.Context, agentID int64) (int, error)
 
+	// Chat Messages
+	CreateChatMessage(ctx context.Context, m *models.ChatMessage) error
+	ListChatMessages(ctx context.Context, chatSessionID int64) ([]models.ChatMessage, error)
+
+	// Ticket Counts / Relations
+	CountTicketsByRequester(ctx context.Context, requesterType string, requesterID int64) (int, error)
+	ListRelatedTickets(ctx context.Context, ticketID int64) ([]models.RelatedTicket, error)
+
 	// Activities
 	CreateActivity(ctx context.Context, a *models.Activity) error
 	ListActivities(ctx context.Context, ticketID int64, limit int) ([]*models.Activity, error)

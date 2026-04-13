@@ -2,6 +2,7 @@ package models
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -38,10 +39,46 @@ type Activity struct {
 
 	Details json.RawMessage `json:"details,omitempty"`
 
-	CreatedAt time.Time `json:"created_at"`
+	CreatedAt      time.Time `json:"created_at"`
+	CreatedAtHuman string    `json:"created_at_human,omitempty"`
 }
 
 // IsSystemActivity returns true if no causer was recorded (system-generated).
 func (a *Activity) IsSystemActivity() bool {
 	return a.CauserType == nil
+}
+
+// PopulateHumanTime sets CreatedAtHuman to a human-friendly relative time
+// string (e.g. "2 hours ago", "3 days ago").
+func (a *Activity) PopulateHumanTime() {
+	a.CreatedAtHuman = HumanTime(a.CreatedAt)
+}
+
+// HumanTime returns a human-friendly relative time string.
+func HumanTime(t time.Time) string {
+	d := time.Since(t)
+	switch {
+	case d < time.Minute:
+		return "just now"
+	case d < time.Hour:
+		m := int(d.Minutes())
+		if m == 1 {
+			return "1 minute ago"
+		}
+		return fmt.Sprintf("%d minutes ago", m)
+	case d < 24*time.Hour:
+		h := int(d.Hours())
+		if h == 1 {
+			return "1 hour ago"
+		}
+		return fmt.Sprintf("%d hours ago", h)
+	case d < 30*24*time.Hour:
+		days := int(d.Hours() / 24)
+		if days == 1 {
+			return "1 day ago"
+		}
+		return fmt.Sprintf("%d days ago", days)
+	default:
+		return t.Format("Jan 2, 2006")
+	}
 }
