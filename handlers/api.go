@@ -129,7 +129,6 @@ func (h *APIHandler) ShowTicket(w http.ResponseWriter, r *http.Request) {
 
 	t.PopulateComputed(replies)
 
-
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ticket":      t,
 		"replies":     replies,
