@@ -21,6 +21,9 @@ type Reply struct {
 
 	// Loaded relationships (not persisted directly)
 	Attachments []Attachment `json:"attachments,omitempty"`
+
+	// Computed (populated by handlers, not persisted)
+	AuthorName *string `json:"author_name,omitempty"`
 }
 
 // IsPublic returns true if this is a public (customer-visible) reply.
