@@ -295,6 +295,21 @@ func (m *mockStore) CountActiveChatsForAgent(_ context.Context, agentID int64) (
 	return count, nil
 }
 
+func (m *mockStore) CreateChatMessage(_ context.Context, msg *models.ChatMessage) error {
+	msg.ID = m.nextID
+	m.nextID++
+	return nil
+}
+func (m *mockStore) ListChatMessages(_ context.Context, _ int64) ([]models.ChatMessage, error) {
+	return nil, nil
+}
+func (m *mockStore) CountTicketsByRequester(_ context.Context, _ string, _ int64) (int, error) {
+	return 0, nil
+}
+func (m *mockStore) ListRelatedTickets(_ context.Context, _ int64) ([]models.RelatedTicket, error) {
+	return nil, nil
+}
+
 func (m *mockStore) CreateAttachment(_ context.Context, a *models.Attachment) error {
 	a.ID = m.nextID
 	m.nextID++

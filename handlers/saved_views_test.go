@@ -185,6 +185,18 @@ func (m *savedViewMockStore) DeleteChatRoutingRule(_ context.Context, _ int64) e
 func (m *savedViewMockStore) CountActiveChatsForAgent(_ context.Context, _ int64) (int, error) {
 	return 0, nil
 }
+func (m *savedViewMockStore) CreateChatMessage(_ context.Context, _ *models.ChatMessage) error {
+	return nil
+}
+func (m *savedViewMockStore) ListChatMessages(_ context.Context, _ int64) ([]models.ChatMessage, error) {
+	return nil, nil
+}
+func (m *savedViewMockStore) CountTicketsByRequester(_ context.Context, _ string, _ int64) (int, error) {
+	return 0, nil
+}
+func (m *savedViewMockStore) ListRelatedTickets(_ context.Context, _ int64) ([]models.RelatedTicket, error) {
+	return nil, nil
+}
 func (m *savedViewMockStore) CreateAttachment(_ context.Context, _ *models.Attachment) error {
 	return nil
 }

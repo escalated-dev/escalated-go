@@ -111,6 +111,11 @@ func (h *APIHandler) ShowTicket(w http.ResponseWriter, r *http.Request) {
 	replies, _ := h.store.ListReplies(r.Context(), models.ReplyFilters{TicketID: id})
 	activities, _ := h.store.ListActivities(r.Context(), id, 50)
 
+	// Populate human-readable timestamps on activities.
+	for _, a := range activities {
+		a.PopulateHumanTime()
+	}
+
 	// Load attachments for the ticket
 	ticketAttachments, _ := h.store.GetAttachmentsByTicketID(r.Context(), id)
 	populateAttachmentURLs(ticketAttachments, "/escalated")
@@ -127,7 +132,30 @@ func (h *APIHandler) ShowTicket(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	t.PopulateComputed(replies)
+	// Build computed-field options for the detail response.
+	opts := models.PopulateComputedOpts{}
+
+	// Chat session and messages
+	if chatSession, _ := h.store.GetChatSessionByTicket(r.Context(), id); chatSession != nil {
+		opts.ChatSession = chatSession
+		if msgs, _ := h.store.ListChatMessages(r.Context(), chatSession.ID); len(msgs) > 0 {
+			opts.ChatMessages = msgs
+		}
+	}
+
+	// Requester ticket count
+	if t.RequesterType != nil && t.RequesterID != nil {
+		if count, err := h.store.CountTicketsByRequester(r.Context(), *t.RequesterType, *t.RequesterID); err == nil {
+			opts.RequesterTicketCount = &count
+		}
+	}
+
+	// Related tickets (merged/split links)
+	if related, _ := h.store.ListRelatedTickets(r.Context(), id); len(related) > 0 {
+		opts.RelatedTickets = related
+	}
+
+	t.PopulateComputedFull(replies, opts)
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ticket":      t,
