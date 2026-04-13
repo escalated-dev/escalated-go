@@ -122,6 +122,7 @@ func (h *AgentHandler) ShowTicket(w http.ResponseWriter, r *http.Request) {
 
 	t.PopulateComputed(replies)
 
+
 	_ = h.renderer.Render(w, r, "Agent/Tickets/Show", map[string]any{
 		"ticket":      t,
 		"replies":     replies,
