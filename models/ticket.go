@@ -114,6 +114,49 @@ type Ticket struct {
 	Tags        []Tag        `json:"tags,omitempty"`
 	Replies     []Reply      `json:"replies,omitempty"`
 	Attachments []Attachment `json:"attachments,omitempty"`
+
+	// Computed fields (populated at serialization time, not persisted)
+	RequesterName  *string    `json:"requester_name,omitempty"`
+	RequesterEmail *string    `json:"requester_email,omitempty"`
+	LastReplyAt    *time.Time `json:"last_reply_at,omitempty"`
+	LastReplyAuthor *string   `json:"last_reply_author,omitempty"`
+	IsLiveChatFlag bool       `json:"is_live_chat"`
+	IsSnoozedFlag  bool       `json:"is_snoozed"`
+}
+
+// PopulateComputed fills the computed JSON fields from existing ticket and
+// reply data so the frontend receives the values it expects.
+func (t *Ticket) PopulateComputed(replies []*Reply) {
+	// requester_name / requester_email: prefer guest fields, fall back to
+	// RequesterType-based lookup (handled by the caller if needed).
+	if t.GuestName != nil {
+		t.RequesterName = t.GuestName
+	}
+	if t.GuestEmail != nil {
+		t.RequesterEmail = t.GuestEmail
+	}
+
+	// last_reply_at / last_reply_author: find the most recent reply.
+	if len(replies) > 0 {
+		var latest *Reply
+		for _, r := range replies {
+			if latest == nil || r.CreatedAt.After(latest.CreatedAt) {
+				latest = r
+			}
+		}
+		if latest != nil {
+			t.LastReplyAt = &latest.CreatedAt
+			if latest.AuthorName != nil {
+				t.LastReplyAuthor = latest.AuthorName
+			}
+		}
+	}
+
+	// is_live_chat
+	t.IsLiveChatFlag = t.IsLiveChat()
+
+	// is_snoozed: snoozed_until is set and in the future
+	t.IsSnoozedFlag = t.SnoozedUntil != nil && t.SnoozedUntil.After(time.Now())
 }
 
 // IsOpen returns true if the ticket is in an open state.

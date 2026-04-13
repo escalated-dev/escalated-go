@@ -78,6 +78,11 @@ func (h *APIHandler) ListTickets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Populate computed fields for each ticket.
+	for _, t := range tickets {
+		t.PopulateComputed(nil)
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"tickets": tickets,
 		"total":   total,
@@ -121,6 +126,9 @@ func (h *APIHandler) ShowTicket(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+
+	t.PopulateComputed(replies)
+
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ticket":      t,
@@ -172,6 +180,7 @@ func (h *APIHandler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	t.PopulateComputed(nil)
 	writeJSON(w, http.StatusCreated, map[string]any{"ticket": t})
 }
 
@@ -220,6 +229,7 @@ func (h *APIHandler) UpdateTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	t.PopulateComputed(nil)
 	writeJSON(w, http.StatusOK, map[string]any{"ticket": t})
 }
 
@@ -302,6 +312,7 @@ func (h *APIHandler) SplitTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	newTicket.PopulateComputed(nil)
 	writeJSON(w, http.StatusCreated, map[string]any{"ticket": newTicket})
 }
 

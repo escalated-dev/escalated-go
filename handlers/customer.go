@@ -38,6 +38,10 @@ func (h *CustomerHandler) Index(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	for _, t := range tickets {
+		t.PopulateComputed(nil)
+	}
+
 	_ = h.renderer.Render(w, r, "Customer/Tickets/Index", map[string]any{
 		"tickets": tickets,
 		"total":   total,
@@ -81,6 +85,9 @@ func (h *CustomerHandler) Show(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	t.PopulateComputed(replies)
+
+
 	_ = h.renderer.Render(w, r, "Customer/Tickets/Show", map[string]any{
 		"ticket":      t,
 		"replies":     replies,
@@ -117,6 +124,7 @@ func (h *CustomerHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	t.PopulateComputed(nil)
 	writeJSON(w, http.StatusCreated, map[string]any{"ticket": t})
 }
 

@@ -42,6 +42,13 @@ func (h *AgentHandler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	unassF := models.TicketFilters{Unassigned: true, Limit: 20}
 	unassigned, unassTotal, _ := h.store.ListTickets(r.Context(), unassF)
 
+	for _, t := range myTickets {
+		t.PopulateComputed(nil)
+	}
+	for _, t := range unassigned {
+		t.PopulateComputed(nil)
+	}
+
 	_ = h.renderer.Render(w, r, "Agent/Dashboard", map[string]any{
 		"my_tickets":       myTickets,
 		"my_total":         myTotal,
@@ -65,6 +72,10 @@ func (h *AgentHandler) ListTickets(w http.ResponseWriter, r *http.Request) {
 
 	depts, _ := h.store.ListDepartments(r.Context(), true)
 	tags, _ := h.store.ListTags(r.Context())
+
+	for _, t := range tickets {
+		t.PopulateComputed(nil)
+	}
 
 	_ = h.renderer.Render(w, r, "Agent/Tickets/Index", map[string]any{
 		"tickets":     tickets,
@@ -108,6 +119,9 @@ func (h *AgentHandler) ShowTicket(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+
+	t.PopulateComputed(replies)
+
 
 	_ = h.renderer.Render(w, r, "Agent/Tickets/Show", map[string]any{
 		"ticket":      t,
