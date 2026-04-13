@@ -116,12 +116,12 @@ type Ticket struct {
 	Attachments []Attachment `json:"attachments,omitempty"`
 
 	// Computed fields (populated at serialization time, not persisted)
-	RequesterName  *string    `json:"requester_name,omitempty"`
-	RequesterEmail *string    `json:"requester_email,omitempty"`
-	LastReplyAt    *time.Time `json:"last_reply_at,omitempty"`
-	LastReplyAuthor *string   `json:"last_reply_author,omitempty"`
-	IsLiveChatFlag bool       `json:"is_live_chat"`
-	IsSnoozedFlag  bool       `json:"is_snoozed"`
+	RequesterName   *string    `json:"requester_name,omitempty"`
+	RequesterEmail  *string    `json:"requester_email,omitempty"`
+	LastReplyAt     *time.Time `json:"last_reply_at,omitempty"`
+	LastReplyAuthor *string    `json:"last_reply_author,omitempty"`
+	IsLiveChatFlag  bool       `json:"is_live_chat"`
+	IsSnoozedFlag   bool       `json:"is_snoozed"`
 }
 
 // PopulateComputed fills the computed JSON fields from existing ticket and
