@@ -28,16 +28,16 @@ func (w *Workflow) ComputeTrigger() {
 
 // WorkflowLog records the execution result of a workflow.
 type WorkflowLog struct {
-	ID                int64           `json:"-"`
-	WorkflowID        int64           `json:"-"`
-	TicketID          int64           `json:"-"`
-	TriggerEvent      string          `json:"-"`
-	ConditionsMatched bool            `json:"-"`
+	ID                 int64           `json:"-"`
+	WorkflowID         int64           `json:"-"`
+	TicketID           int64           `json:"-"`
+	TriggerEvent       string          `json:"-"`
+	ConditionsMatched  bool            `json:"-"`
 	ActionsExecutedRaw json.RawMessage `json:"-"`
-	ErrorMessage      *string         `json:"-"`
-	StartedAt         *time.Time      `json:"-"`
-	CompletedAt       *time.Time      `json:"-"`
-	CreatedAt         time.Time       `json:"-"`
+	ErrorMessage       *string         `json:"-"`
+	StartedAt          *time.Time      `json:"-"`
+	CompletedAt        *time.Time      `json:"-"`
+	CreatedAt          time.Time       `json:"-"`
 
 	// Relationship data (populated via JOIN)
 	WorkflowName    *string `json:"-"`
