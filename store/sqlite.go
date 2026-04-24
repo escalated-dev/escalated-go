@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -860,4 +861,54 @@ func (s *SQLiteStore) GetAttachmentsByReplyID(ctx context.Context, replyID int64
 		attachments = append(attachments, a)
 	}
 	return attachments, rows.Err()
+}
+
+// --- Contacts (Pattern B public-ticket dedupe) ---
+
+func (s *SQLiteStore) GetContactByEmail(ctx context.Context, normalizedEmail string) (*models.Contact, error) {
+	q := fmt.Sprintf(`SELECT id, email, name, user_id, metadata, created_at, updated_at
+		FROM %s WHERE email = ?`, s.t("contacts"))
+
+	c := &models.Contact{}
+	var metadataRaw sql.NullString
+	err := s.db.QueryRowContext(ctx, q, normalizedEmail).Scan(
+		&c.ID, &c.Email, &c.Name, &c.UserID, &metadataRaw, &c.CreatedAt, &c.UpdatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if metadataRaw.Valid && metadataRaw.String != "" {
+		_ = json.Unmarshal([]byte(metadataRaw.String), &c.Metadata)
+	}
+	return c, nil
+}
+
+func (s *SQLiteStore) CreateContact(ctx context.Context, c *models.Contact) error {
+	now := time.Now()
+	c.CreatedAt = now
+	c.UpdatedAt = now
+	metadata := "{}"
+	if c.Metadata != nil {
+		b, err := json.Marshal(c.Metadata)
+		if err == nil {
+			metadata = string(b)
+		}
+	}
+	q := fmt.Sprintf(`INSERT INTO %s (email, name, user_id, metadata, created_at, updated_at)
+		VALUES (?,?,?,?,?,?)`, s.t("contacts"))
+	res, err := s.db.ExecContext(ctx, q, c.Email, c.Name, c.UserID, metadata, c.CreatedAt, c.UpdatedAt)
+	if err != nil {
+		return err
+	}
+	c.ID, err = res.LastInsertId()
+	return err
+}
+
+func (s *SQLiteStore) UpdateContactName(ctx context.Context, id int64, name string) error {
+	q := fmt.Sprintf(`UPDATE %s SET name = ?, updated_at = ? WHERE id = ?`, s.t("contacts"))
+	_, err := s.db.ExecContext(ctx, q, name, time.Now(), id)
+	return err
 }

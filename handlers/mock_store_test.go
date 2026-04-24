@@ -257,3 +257,12 @@ func (m *handlerMockStore) GetAttachmentsByTicketID(_ context.Context, _ int64) 
 func (m *handlerMockStore) GetAttachmentsByReplyID(_ context.Context, _ int64) ([]*models.Attachment, error) {
 	return nil, nil
 }
+func (m *handlerMockStore) GetContactByEmail(_ context.Context, _ string) (*models.Contact, error) {
+	return nil, nil
+}
+func (m *handlerMockStore) CreateContact(_ context.Context, _ *models.Contact) error {
+	return nil
+}
+func (m *handlerMockStore) UpdateContactName(_ context.Context, _ int64, _ string) error {
+	return nil
+}

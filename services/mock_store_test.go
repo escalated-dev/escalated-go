@@ -324,3 +324,15 @@ func (m *mockStore) GetAttachmentsByTicketID(_ context.Context, _ int64) ([]*mod
 func (m *mockStore) GetAttachmentsByReplyID(_ context.Context, _ int64) ([]*models.Attachment, error) {
 	return nil, nil
 }
+
+func (m *mockStore) GetContactByEmail(_ context.Context, _ string) (*models.Contact, error) {
+	return nil, nil
+}
+func (m *mockStore) CreateContact(_ context.Context, c *models.Contact) error {
+	c.ID = m.nextID
+	m.nextID++
+	return nil
+}
+func (m *mockStore) UpdateContactName(_ context.Context, _ int64, _ string) error {
+	return nil
+}

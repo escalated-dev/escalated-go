@@ -59,6 +59,23 @@ func (ts *TicketService) Create(ctx context.Context, in CreateTicketInput) (*mod
 		t.GuestToken = &token
 	}
 
+	// Dedupe repeat guests by email (Pattern B): ensure a Contact row
+	// exists for this email. Inline guest_* fields remain set for the
+	// backwards-compat dual-read period. Any store error here is
+	// non-fatal — ticket creation must never block on the Contact
+	// lookup.
+	//
+	// TODO: once the Ticket CRUD SQL is updated to project contact_id
+	// through every SELECT/INSERT, set t.ContactID = &contact.ID here.
+	// Tracked as a follow-up alongside the inline-columns deprecation.
+	if t.RequesterType == nil && t.GuestEmail != nil && *t.GuestEmail != "" {
+		name := ""
+		if t.GuestName != nil {
+			name = *t.GuestName
+		}
+		_, _ = ts.resolveContact(ctx, *t.GuestEmail, name)
+	}
+
 	// Apply SLA policy
 	if err := ts.applySLA(ctx, t); err != nil {
 		// SLA errors are non-fatal — log and continue
@@ -329,4 +346,44 @@ func (ts *TicketService) applySLA(ctx context.Context, t *models.Ticket) error {
 	}
 
 	return nil
+}
+
+// resolveContact finds or creates a Contact by email. The email is
+// normalized (trim + lowercase) before lookup. If an existing row has
+// a blank name and a non-blank name is provided, the existing row's
+// name is updated in place.
+//
+// Mirrors the Pattern B reference impl used across the other
+// framework PRs (see contact model's DecideContactAction helper).
+func (ts *TicketService) resolveContact(ctx context.Context, email, name string) (*models.Contact, error) {
+	normalized := models.NormalizeEmail(email)
+	if normalized == "" {
+		return nil, nil
+	}
+
+	existing, err := ts.store.GetContactByEmail(ctx, normalized)
+	if err != nil {
+		return nil, err
+	}
+
+	action := models.DecideContactAction(existing, name)
+	switch action {
+	case models.ContactActionReturnExisting:
+		return existing, nil
+	case models.ContactActionUpdateName:
+		if err := ts.store.UpdateContactName(ctx, existing.ID, name); err != nil {
+			return existing, nil // non-fatal
+		}
+		existing.Name = &name
+		return existing, nil
+	default: // create
+		c := &models.Contact{Email: normalized}
+		if name != "" {
+			c.Name = &name
+		}
+		if err := ts.store.CreateContact(ctx, c); err != nil {
+			return nil, err
+		}
+		return c, nil
+	}
 }
