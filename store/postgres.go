@@ -38,16 +38,16 @@ func (s *PostgresStore) CreateTicket(ctx context.Context, t *models.Ticket) erro
 
 	q := fmt.Sprintf(`INSERT INTO %s
 		(reference, subject, description, status, priority, ticket_type,
-		 requester_type, requester_id, guest_name, guest_email, guest_token,
+		 requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		 assigned_to, department_id, sla_policy_id, merged_into_id,
 		 sla_first_response_due_at, sla_resolution_due_at, sla_breached,
 		 first_response_at, resolved_at, closed_at, metadata, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
 		RETURNING id`, s.t("tickets"))
 
 	return s.db.QueryRowContext(ctx, q,
 		t.Reference, t.Subject, t.Description, t.Status, t.Priority, t.TicketType,
-		t.RequesterType, t.RequesterID, t.GuestName, t.GuestEmail, t.GuestToken,
+		t.RequesterType, t.RequesterID, t.GuestName, t.GuestEmail, t.GuestToken, t.ContactID,
 		t.AssignedTo, t.DepartmentID, t.SLAPolicyID, t.MergedIntoID,
 		t.SLAFirstResponseDueAt, t.SLAResolutionDueAt, t.SLABreached,
 		t.FirstResponseAt, t.ResolvedAt, t.ClosedAt, t.Metadata, t.CreatedAt, t.UpdatedAt,
@@ -56,7 +56,7 @@ func (s *PostgresStore) CreateTicket(ctx context.Context, t *models.Ticket) erro
 
 func (s *PostgresStore) GetTicket(ctx context.Context, id int64) (*models.Ticket, error) {
 	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type,
-		requester_type, requester_id, guest_name, guest_email, guest_token,
+		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
 		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at
@@ -65,7 +65,7 @@ func (s *PostgresStore) GetTicket(ctx context.Context, id int64) (*models.Ticket
 	t := &models.Ticket{}
 	err := s.db.QueryRowContext(ctx, q, id).Scan(
 		&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType,
-		&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken,
+		&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken, &t.ContactID,
 		&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
 		&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
 		&t.FirstResponseAt, &t.ResolvedAt, &t.ClosedAt, &t.Metadata, &t.CreatedAt, &t.UpdatedAt,
@@ -78,7 +78,7 @@ func (s *PostgresStore) GetTicket(ctx context.Context, id int64) (*models.Ticket
 
 func (s *PostgresStore) GetTicketByReference(ctx context.Context, ref string) (*models.Ticket, error) {
 	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type,
-		requester_type, requester_id, guest_name, guest_email, guest_token,
+		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
 		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at
@@ -87,7 +87,7 @@ func (s *PostgresStore) GetTicketByReference(ctx context.Context, ref string) (*
 	t := &models.Ticket{}
 	err := s.db.QueryRowContext(ctx, q, ref).Scan(
 		&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType,
-		&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken,
+		&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken, &t.ContactID,
 		&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
 		&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
 		&t.FirstResponseAt, &t.ResolvedAt, &t.ClosedAt, &t.Metadata, &t.CreatedAt, &t.UpdatedAt,
@@ -188,7 +188,7 @@ func (s *PostgresStore) ListTickets(ctx context.Context, f models.TicketFilters)
 	}
 
 	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type,
-		requester_type, requester_id, guest_name, guest_email, guest_token,
+		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
 		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at
@@ -206,7 +206,7 @@ func (s *PostgresStore) ListTickets(ctx context.Context, f models.TicketFilters)
 		t := &models.Ticket{}
 		if err := rows.Scan(
 			&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType,
-			&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken,
+			&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken, &t.ContactID,
 			&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
 			&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
 			&t.FirstResponseAt, &t.ResolvedAt, &t.ClosedAt, &t.Metadata, &t.CreatedAt, &t.UpdatedAt,
@@ -651,7 +651,7 @@ func (s *PostgresStore) ListActivities(ctx context.Context, ticketID int64, limi
 
 func (s *PostgresStore) ListSnoozedDueBefore(ctx context.Context, before time.Time) ([]*models.Ticket, error) {
 	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type,
-		requester_type, requester_id, guest_name, guest_email, guest_token,
+		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
 		snoozed_until, snoozed_by, status_before_snooze,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
@@ -670,7 +670,7 @@ func (s *PostgresStore) ListSnoozedDueBefore(ctx context.Context, before time.Ti
 		t := &models.Ticket{}
 		if err := rows.Scan(
 			&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType,
-			&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken,
+			&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken, &t.ContactID,
 			&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
 			&t.SnoozedUntil, &t.SnoozedBy, &t.StatusBeforeSnooze,
 			&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,

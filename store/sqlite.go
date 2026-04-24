@@ -39,15 +39,15 @@ func (s *SQLiteStore) CreateTicket(ctx context.Context, t *models.Ticket) error 
 
 	q := fmt.Sprintf(`INSERT INTO %s
 		(reference, subject, description, status, priority, ticket_type,
-		 requester_type, requester_id, guest_name, guest_email, guest_token,
+		 requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		 assigned_to, department_id, sla_policy_id, merged_into_id,
 		 sla_first_response_due_at, sla_resolution_due_at, sla_breached,
 		 first_response_at, resolved_at, closed_at, metadata, created_at, updated_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, s.t("tickets"))
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, s.t("tickets"))
 
 	res, err := s.db.ExecContext(ctx, q,
 		t.Reference, t.Subject, t.Description, t.Status, t.Priority, t.TicketType,
-		t.RequesterType, t.RequesterID, t.GuestName, t.GuestEmail, t.GuestToken,
+		t.RequesterType, t.RequesterID, t.GuestName, t.GuestEmail, t.GuestToken, t.ContactID,
 		t.AssignedTo, t.DepartmentID, t.SLAPolicyID, t.MergedIntoID,
 		t.SLAFirstResponseDueAt, t.SLAResolutionDueAt, t.SLABreached,
 		t.FirstResponseAt, t.ResolvedAt, t.ClosedAt, t.Metadata, t.CreatedAt, t.UpdatedAt,
@@ -61,7 +61,7 @@ func (s *SQLiteStore) CreateTicket(ctx context.Context, t *models.Ticket) error 
 
 func (s *SQLiteStore) GetTicket(ctx context.Context, id int64) (*models.Ticket, error) {
 	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type,
-		requester_type, requester_id, guest_name, guest_email, guest_token,
+		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
 		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at
@@ -70,7 +70,7 @@ func (s *SQLiteStore) GetTicket(ctx context.Context, id int64) (*models.Ticket, 
 	t := &models.Ticket{}
 	err := s.db.QueryRowContext(ctx, q, id).Scan(
 		&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType,
-		&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken,
+		&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken, &t.ContactID,
 		&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
 		&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
 		&t.FirstResponseAt, &t.ResolvedAt, &t.ClosedAt, &t.Metadata, &t.CreatedAt, &t.UpdatedAt,
@@ -83,7 +83,7 @@ func (s *SQLiteStore) GetTicket(ctx context.Context, id int64) (*models.Ticket, 
 
 func (s *SQLiteStore) GetTicketByReference(ctx context.Context, ref string) (*models.Ticket, error) {
 	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type,
-		requester_type, requester_id, guest_name, guest_email, guest_token,
+		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
 		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at
@@ -92,7 +92,7 @@ func (s *SQLiteStore) GetTicketByReference(ctx context.Context, ref string) (*mo
 	t := &models.Ticket{}
 	err := s.db.QueryRowContext(ctx, q, ref).Scan(
 		&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType,
-		&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken,
+		&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken, &t.ContactID,
 		&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
 		&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
 		&t.FirstResponseAt, &t.ResolvedAt, &t.ClosedAt, &t.Metadata, &t.CreatedAt, &t.UpdatedAt,
@@ -188,7 +188,7 @@ func (s *SQLiteStore) ListTickets(ctx context.Context, f models.TicketFilters) (
 	}
 
 	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type,
-		requester_type, requester_id, guest_name, guest_email, guest_token,
+		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
 		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at
@@ -206,7 +206,7 @@ func (s *SQLiteStore) ListTickets(ctx context.Context, f models.TicketFilters) (
 		t := &models.Ticket{}
 		if err := rows.Scan(
 			&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType,
-			&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken,
+			&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken, &t.ContactID,
 			&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
 			&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
 			&t.FirstResponseAt, &t.ResolvedAt, &t.ClosedAt, &t.Metadata, &t.CreatedAt, &t.UpdatedAt,
@@ -669,7 +669,7 @@ func (s *SQLiteStore) ListActivities(ctx context.Context, ticketID int64, limit 
 
 func (s *SQLiteStore) ListSnoozedDueBefore(ctx context.Context, before time.Time) ([]*models.Ticket, error) {
 	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type,
-		requester_type, requester_id, guest_name, guest_email, guest_token,
+		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
 		snoozed_until, snoozed_by, status_before_snooze,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
@@ -688,7 +688,7 @@ func (s *SQLiteStore) ListSnoozedDueBefore(ctx context.Context, before time.Time
 		t := &models.Ticket{}
 		if err := rows.Scan(
 			&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType,
-			&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken,
+			&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken, &t.ContactID,
 			&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
 			&t.SnoozedUntil, &t.SnoozedBy, &t.StatusBeforeSnooze,
 			&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,

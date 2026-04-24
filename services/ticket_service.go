@@ -59,21 +59,19 @@ func (ts *TicketService) Create(ctx context.Context, in CreateTicketInput) (*mod
 		t.GuestToken = &token
 	}
 
-	// Dedupe repeat guests by email (Pattern B): ensure a Contact row
-	// exists for this email. Inline guest_* fields remain set for the
-	// backwards-compat dual-read period. Any store error here is
+	// Dedupe repeat guests by email (Pattern B) and link the ticket
+	// to the resolved Contact. Inline guest_* fields remain set for
+	// the backwards-compat dual-read period. Any store error is
 	// non-fatal — ticket creation must never block on the Contact
 	// lookup.
-	//
-	// TODO: once the Ticket CRUD SQL is updated to project contact_id
-	// through every SELECT/INSERT, set t.ContactID = &contact.ID here.
-	// Tracked as a follow-up alongside the inline-columns deprecation.
 	if t.RequesterType == nil && t.GuestEmail != nil && *t.GuestEmail != "" {
 		name := ""
 		if t.GuestName != nil {
 			name = *t.GuestName
 		}
-		_, _ = ts.resolveContact(ctx, *t.GuestEmail, name)
+		if contact, err := ts.resolveContact(ctx, *t.GuestEmail, name); err == nil && contact != nil {
+			t.ContactID = &contact.ID
+		}
 	}
 
 	// Apply SLA policy
