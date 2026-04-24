@@ -210,6 +210,7 @@ All routes are prefixed with `RoutePrefix` (default `/escalated`).
 | `GET/POST/PATCH/DELETE` | `/admin/departments` | Manage departments |
 | `GET/POST/DELETE` | `/admin/tags` | Manage tags |
 | `GET/POST/DELETE` | `/admin/sla-policies` | Manage SLA policies |
+| `GET/PUT` | `/admin/settings/public-tickets` | Runtime guest-policy mode (unassigned / guest_user / prompt_signup). See [docs.escalated.dev/public-tickets](https://docs.escalated.dev/public-tickets). |
 
 ## Custom Store
 
