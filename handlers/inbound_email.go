@@ -12,28 +12,33 @@ import (
 
 // InboundEmailHandler is the single ingress for inbound-email
 // webhooks. Dispatches to the matching parser (selected via
-// ?adapter=... query or X-Escalated-Adapter header), then resolves
-// the parsed message to a ticket via email.InboundRouter.
+// ?adapter=... query or X-Escalated-Adapter header), then hands the
+// parsed message to email.InboundEmailService which orchestrates
+// resolve-or-create + reply-add + noise skipping.
 //
 // Guarded by a constant-time shared-secret check on the
 // X-Escalated-Inbound-Secret header — hosts configure this via the
 // same secret that signs Reply-To addresses (symmetric).
 type InboundEmailHandler struct {
-	router  *email.InboundRouter
+	service *email.InboundEmailService
 	parsers map[string]email.InboundEmailParser
 	secret  string
 }
 
-// NewInboundEmailHandler constructs a handler wired to a router +
-// the provided parsers. Parsers are registered by their Name().
-func NewInboundEmailHandler(s email.TicketLookup, domain, secret string, parsers ...email.InboundEmailParser) *InboundEmailHandler {
-	router := email.NewInboundRouter(s, domain, secret)
+// NewInboundEmailHandler constructs a handler wired to an inbound
+// service + the provided parsers. Parsers are registered by their
+// Name().
+//
+// Host apps build the service once at startup (passing their
+// TicketService shim + TicketLookup + mail domain + secret) so the
+// service can share a writer across requests.
+func NewInboundEmailHandler(service *email.InboundEmailService, secret string, parsers ...email.InboundEmailParser) *InboundEmailHandler {
 	byName := make(map[string]email.InboundEmailParser, len(parsers))
 	for _, p := range parsers {
 		byName[p.Name()] = p
 	}
 	return &InboundEmailHandler{
-		router:  router,
+		service: service,
 		parsers: byName,
 		secret:  secret,
 	}
@@ -41,10 +46,11 @@ func NewInboundEmailHandler(s email.TicketLookup, domain, secret string, parsers
 
 // Inbound is the HTTP handler for POST /escalated/webhook/email/inbound.
 // Returns:
-//   - 200 OK { status, ticketId? } on successful routing.
+//   - 200 OK { status, outcome, ticket_id, reply_id, pending_attachment_downloads }
+//     on successful processing.
 //   - 401 Unauthorized on secret mismatch.
 //   - 400 Bad Request on unknown adapter or invalid payload.
-//   - 500 Internal Server Error on store errors from the router.
+//   - 500 Internal Server Error on store errors from the service.
 func (h *InboundEmailHandler) Inbound(w http.ResponseWriter, r *http.Request) {
 	if !h.verifySecret(r) {
 		writeInboundJSON(w, http.StatusUnauthorized, map[string]string{
@@ -84,23 +90,46 @@ func (h *InboundEmailHandler) Inbound(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ticket, err := h.router.ResolveTicket(r.Context(), message)
+	result, err := h.service.Process(r.Context(), message)
 	if err != nil {
-		log.Printf("[InboundEmailHandler] router error: %v", err)
-		writeInboundJSON(w, http.StatusInternalServerError, map[string]string{"error": "routing failed"})
+		log.Printf("[InboundEmailHandler] processing error: %v", err)
+		writeInboundJSON(w, http.StatusInternalServerError, map[string]string{"error": "processing failed"})
 		return
 	}
 
-	status := "unmatched"
-	var ticketID int64
-	if ticket != nil {
-		status = "matched"
-		ticketID = ticket.ID
-	}
 	writeInboundJSON(w, http.StatusOK, map[string]interface{}{
-		"status":    status,
-		"ticket_id": ticketID,
+		"status":                       statusForOutcome(result.Outcome),
+		"outcome":                      string(result.Outcome),
+		"ticket_id":                    result.TicketID,
+		"reply_id":                     result.ReplyID,
+		"pending_attachment_downloads": pendingToJSON(result.PendingAttachmentDownloads),
 	})
+}
+
+func statusForOutcome(o email.Outcome) string {
+	switch o {
+	case email.OutcomeRepliedToExisting:
+		return "matched"
+	case email.OutcomeCreatedNew:
+		return "created"
+	case email.OutcomeSkipped:
+		return "skipped"
+	default:
+		return "unknown"
+	}
+}
+
+func pendingToJSON(in []email.PendingAttachment) []map[string]interface{} {
+	out := make([]map[string]interface{}, 0, len(in))
+	for _, a := range in {
+		out = append(out, map[string]interface{}{
+			"name":         a.Name,
+			"content_type": a.ContentType,
+			"size_bytes":   a.SizeBytes,
+			"download_url": a.DownloadURL,
+		})
+	}
+	return out
 }
 
 func (h *InboundEmailHandler) verifySecret(r *http.Request) bool {
