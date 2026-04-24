@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"html/template"
 	"strings"
+
+	"github.com/escalated-dev/escalated-go/services/email"
 )
 
 // EmailBranding holds branding configuration for outbound emails.
@@ -40,8 +42,62 @@ func GenerateMessageID(ticketRef string, replyID int64, domain string) string {
 
 // GenerateTicketMessageID creates the root Message-ID for a ticket.
 // Format: <ticket-{ticketRef}@{domain}>
+//
+// Deprecated: prefer GenerateTicketMessageIDByID so the Message-ID
+// matches the canonical MessageIdUtil format used by all other
+// Escalated frameworks and by the inbound-routing adapters.
 func GenerateTicketMessageID(ticketRef string, domain string) string {
 	return fmt.Sprintf("<ticket-%s@%s>", strings.ToLower(ticketRef), domain)
+}
+
+// GenerateMessageIDByID wraps email.BuildMessageID — pass 0 for
+// replyID on the initial ticket form.
+func GenerateMessageIDByID(ticketID int64, replyID int64, domain string) string {
+	return email.BuildMessageID(ticketID, replyID, domain)
+}
+
+// GenerateTicketMessageIDByID returns the canonical ticket-root
+// Message-ID for a given ticket id.
+func GenerateTicketMessageIDByID(ticketID int64, domain string) string {
+	return email.BuildMessageID(ticketID, 0, domain)
+}
+
+// BuildSignedReplyTo returns a canonical reply+{id}.{hmac8}@{domain}
+// address, or "" when secret is empty (signing disabled).
+//
+// Inbound provider webhooks verify the HMAC prefix via
+// email.VerifyReplyTo to route replies back to the correct ticket
+// even when mail clients strip the Message-ID chain.
+func BuildSignedReplyTo(ticketID int64, secret, domain string) string {
+	if secret == "" {
+		return ""
+	}
+	return email.BuildReplyTo(ticketID, secret, domain)
+}
+
+// BuildThreadingHeadersByID is the int64-keyed counterpart to
+// BuildThreadingHeaders. Emits canonical <ticket-{id}(-reply-{replyId})?@{domain}>
+// Message-IDs. Pass parentMessageID="" and previousRefs=nil for the
+// initial ticket-root form.
+func BuildThreadingHeadersByID(ticketID, replyID int64, domain, parentMessageID string, previousRefs []string) EmailThreadingHeaders {
+	messageID := email.BuildMessageID(ticketID, replyID, domain)
+
+	headers := EmailThreadingHeaders{
+		MessageID: messageID,
+		InReplyTo: parentMessageID,
+	}
+
+	seen := make(map[string]bool)
+	for _, ref := range previousRefs {
+		if !seen[ref] {
+			headers.References = append(headers.References, ref)
+			seen[ref] = true
+		}
+	}
+	if parentMessageID != "" && !seen[parentMessageID] {
+		headers.References = append(headers.References, parentMessageID)
+	}
+	return headers
 }
 
 // BuildThreadingHeaders constructs the threading headers for a reply email.
