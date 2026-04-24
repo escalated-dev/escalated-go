@@ -38,6 +38,7 @@ Embeddable support ticket system for Go applications. Works with standard `net/h
 - **Saved views / custom queues** — Save, name, and share filter presets as reusable ticket views
 - **Embeddable support widget** — Lightweight `<script>` widget with KB search, ticket form, and status check
 - **Email threading** — Outbound emails include proper `In-Reply-To` and `References` headers for correct threading in mail clients
+- **Inbound email** — Single webhook endpoint with Postmark + Mailgun parsers, signed Reply-To verification, and Message-ID-based ticket resolution
 - **Branded email templates** — Configurable logo, primary color, and footer text for all outbound emails
 - **Real-time updates** — Server-Sent Events (SSE) endpoint for live ticket updates with automatic polling fallback
 - **Knowledge base toggle** — Enable or disable the public knowledge base from admin settings
@@ -107,6 +108,30 @@ func main() {
     http.ListenAndServe(":8080", r)
 }
 ```
+
+## Inbound email
+
+Point your Postmark or Mailgun inbound webhook at:
+
+```
+POST /escalated/webhook/email/inbound?adapter=postmark
+POST /escalated/webhook/email/inbound?adapter=mailgun
+```
+
+The adapter can be selected via the query parameter or the `X-Escalated-Adapter` header. Your provider must attach the shared secret as an `X-Escalated-Inbound-Secret` header, which is compared with `hmac.Equal` (timing-safe).
+
+Configure the symmetric secret + mail domain (used for signed `Reply-To` + canonical `Message-ID` headers):
+
+```go
+cfg := email.Config{
+    MailDomain:    os.Getenv("ESCALATED_MAIL_DOMAIN"),
+    InboundSecret: os.Getenv("ESCALATED_INBOUND_SECRET"),
+}
+```
+
+The service resolves inbound messages to existing tickets via, in order: canonical `Message-ID` headers, signed `Reply-To` verification, and subject-reference tags. Unmatched messages with real content create a new ticket; SNS subscription confirmations and empty body+subject messages are skipped.
+
+See the [inbound email docs](https://docs.escalated.dev/inbound-email) for provider setup, the response shape, and a ready-to-paste curl test recipe.
 
 ## Quick Start with Standard Library
 
