@@ -38,7 +38,7 @@ Embeddable support ticket system for Go applications. Works with standard `net/h
 - **Saved views / custom queues** — Save, name, and share filter presets as reusable ticket views
 - **Embeddable support widget** — Lightweight `<script>` widget with KB search, ticket form, and status check
 - **Email threading** — Outbound emails include proper `In-Reply-To` and `References` headers for correct threading in mail clients
-- **Inbound email** — Single webhook endpoint with Postmark + Mailgun parsers, signed Reply-To verification, and Message-ID-based ticket resolution
+- **Inbound email** — Single webhook endpoint with Postmark + Mailgun + AWS SES parsers, signed Reply-To verification, and Message-ID-based ticket resolution
 - **Branded email templates** — Configurable logo, primary color, and footer text for all outbound emails
 - **Real-time updates** — Server-Sent Events (SSE) endpoint for live ticket updates with automatic polling fallback
 - **Knowledge base toggle** — Enable or disable the public knowledge base from admin settings
@@ -111,11 +111,12 @@ func main() {
 
 ## Inbound email
 
-Point your Postmark or Mailgun inbound webhook at:
+Point your Postmark, Mailgun, or AWS SES (via SNS HTTP subscription) inbound webhook at:
 
 ```
 POST /escalated/webhook/email/inbound?adapter=postmark
 POST /escalated/webhook/email/inbound?adapter=mailgun
+POST /escalated/webhook/email/inbound?adapter=ses
 ```
 
 The adapter can be selected via the query parameter or the `X-Escalated-Adapter` header. Your provider must attach the shared secret as an `X-Escalated-Inbound-Secret` header, which is compared with `hmac.Equal` (timing-safe).
