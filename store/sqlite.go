@@ -912,3 +912,33 @@ func (s *SQLiteStore) UpdateContactName(ctx context.Context, id int64, name stri
 	_, err := s.db.ExecContext(ctx, q, name, time.Now(), id)
 	return err
 }
+
+// GetSetting returns the stored value for the given key, or "" with nil
+// error when the key is missing.
+func (s *SQLiteStore) GetSetting(ctx context.Context, key string) (string, error) {
+	q := fmt.Sprintf("SELECT value FROM %s WHERE key = ?", s.t("settings"))
+	var value sql.NullString
+	err := s.db.QueryRowContext(ctx, q, key).Scan(&value)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	if !value.Valid {
+		return "", nil
+	}
+	return value.String, nil
+}
+
+// SetSetting upserts the key/value pair via SQLite's INSERT ... ON
+// CONFLICT syntax (supported since 3.24.0 / 2018). Relies on the
+// unique index on key.
+func (s *SQLiteStore) SetSetting(ctx context.Context, key, value string) error {
+	q := fmt.Sprintf(`INSERT INTO %s (key, value, created_at, updated_at)
+		VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+		ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`,
+		s.t("settings"))
+	_, err := s.db.ExecContext(ctx, q, key, value)
+	return err
+}
