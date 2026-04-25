@@ -11,9 +11,9 @@ import (
 // See escalated-developer-context/domain-model/workflows-automations-macros.md
 // for the canonical taxonomy.
 type Automation struct {
-	ID          int64           `json:"id"`
-	Name        string          `json:"name"`
-	Description *string         `json:"description,omitempty"`
+	ID          int64   `json:"id"`
+	Name        string  `json:"name"`
+	Description *string `json:"description,omitempty"`
 	// Conditions: list of {field, operator, value} clauses (AND).
 	Conditions json.RawMessage `json:"conditions"`
 	// Actions: list of {type, value} clauses, executed on each matching ticket.

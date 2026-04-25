@@ -147,7 +147,7 @@ func (r *AutomationRunner) findMatchingTickets(a models.Automation) ([]models.Ti
 		case "subject_contains":
 			clauses = append(clauses, "subject LIKE ?")
 			args = append(args, "%"+toString(c.Value)+"%")
-		// Unknown fields skipped silently for forward-compat.
+			// Unknown fields skipped silently for forward-compat.
 		}
 	}
 
