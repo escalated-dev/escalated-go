@@ -25,6 +25,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	adminH := handlers.NewAdminHandler(s, rend)
 	attachH := handlers.NewAttachmentHandler(s, cfg.RoutePrefix)
 	autoH := handlers.NewAutomationHandler(cfg.DB, services.NewAutomationRunner(cfg.DB, nil))
+	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
 
 	r.Route(cfg.RoutePrefix, func(r chi.Router) {
 		// Attachment downloads — always mounted
@@ -62,6 +63,10 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Post("/tickets/{id}/assign", agentH.AssignTicket)
 				r.Post("/tickets/{id}/replies", agentH.Reply)
 				r.Post("/tickets/{id}/status", agentH.ChangeStatus)
+
+				// Macros (agent-applied one-click bundles).
+				r.Get("/macros", macroH.AgentList)
+				r.Post("/tickets/{ticketId}/macros/{macroId}/apply", macroH.AgentApply)
 			})
 
 			// Admin routes
@@ -86,6 +91,12 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Patch("/automations/{id}", autoH.Update)
 				r.Delete("/automations/{id}", autoH.Delete)
 				r.Post("/automations/run", autoH.Run)
+
+				// Macros admin CRUD.
+				r.Get("/macros", macroH.AdminList)
+				r.Post("/macros", macroH.Create)
+				r.Patch("/macros/{id}", macroH.Update)
+				r.Delete("/macros/{id}", macroH.Delete)
 			})
 		}
 	})
