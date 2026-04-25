@@ -24,6 +24,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	customerH := handlers.NewCustomerHandler(s, ticketSvc, rend, cfg.UserIDFunc)
 	adminH := handlers.NewAdminHandler(s, rend)
 	attachH := handlers.NewAttachmentHandler(s, cfg.RoutePrefix)
+	autoH := handlers.NewAutomationHandler(cfg.DB, services.NewAutomationRunner(cfg.DB, nil))
 
 	r.Route(cfg.RoutePrefix, func(r chi.Router) {
 		// Attachment downloads — always mounted
@@ -76,6 +77,15 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Get("/sla-policies", adminH.ListSLAPolicies)
 				r.Post("/sla-policies", adminH.CreateSLAPolicy)
 				r.Delete("/sla-policies/{id}", adminH.DeleteSLAPolicy)
+
+				// Time-based admin Automations (distinct from event-driven
+				// Workflows and agent-applied Macros — see
+				// escalated-developer-context).
+				r.Get("/automations", autoH.List)
+				r.Post("/automations", autoH.Create)
+				r.Patch("/automations/{id}", autoH.Update)
+				r.Delete("/automations/{id}", autoH.Delete)
+				r.Post("/automations/run", autoH.Run)
 			})
 		}
 	})
