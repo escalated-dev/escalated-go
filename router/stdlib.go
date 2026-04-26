@@ -24,6 +24,7 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	customerH := handlers.NewCustomerHandler(s, ticketSvc, rend, cfg.UserIDFunc)
 	adminH := handlers.NewAdminHandler(s, rend)
 	attachH := handlers.NewAttachmentHandler(s, cfg.RoutePrefix)
+	autoH := handlers.NewAutomationHandler(cfg.DB, services.NewAutomationRunner(cfg.DB, nil))
 
 	prefix := cfg.RoutePrefix
 
@@ -67,5 +68,12 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 		mux.Handle("GET "+prefix+"/admin/sla-policies", adminMW(http.HandlerFunc(adminH.ListSLAPolicies)))
 		mux.Handle("POST "+prefix+"/admin/sla-policies", adminMW(http.HandlerFunc(adminH.CreateSLAPolicy)))
 		mux.Handle("DELETE "+prefix+"/admin/sla-policies/{id}", adminMW(http.HandlerFunc(adminH.DeleteSLAPolicy)))
+
+		// Time-based admin Automations.
+		mux.Handle("GET "+prefix+"/admin/automations", adminMW(http.HandlerFunc(autoH.List)))
+		mux.Handle("POST "+prefix+"/admin/automations", adminMW(http.HandlerFunc(autoH.Create)))
+		mux.Handle("PATCH "+prefix+"/admin/automations/{id}", adminMW(http.HandlerFunc(autoH.Update)))
+		mux.Handle("DELETE "+prefix+"/admin/automations/{id}", adminMW(http.HandlerFunc(autoH.Delete)))
+		mux.Handle("POST "+prefix+"/admin/automations/run", adminMW(http.HandlerFunc(autoH.Run)))
 	}
 }
