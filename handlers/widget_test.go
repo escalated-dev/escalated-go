@@ -211,6 +211,15 @@ func (m *widgetMockStore) GetAttachmentsByTicketID(_ context.Context, _ int64) (
 func (m *widgetMockStore) GetAttachmentsByReplyID(_ context.Context, _ int64) ([]*models.Attachment, error) {
 	return nil, nil
 }
+func (m *widgetMockStore) GetContactByEmail(_ context.Context, _ string) (*models.Contact, error) {
+	return nil, nil
+}
+func (m *widgetMockStore) CreateContact(_ context.Context, _ *models.Contact) error {
+	return nil
+}
+func (m *widgetMockStore) UpdateContactName(_ context.Context, _ int64, _ string) error {
+	return nil
+}
 
 func TestWidgetHandler_Config(t *testing.T) {
 	tests := []struct {

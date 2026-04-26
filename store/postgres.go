@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -37,16 +38,16 @@ func (s *PostgresStore) CreateTicket(ctx context.Context, t *models.Ticket) erro
 
 	q := fmt.Sprintf(`INSERT INTO %s
 		(reference, subject, description, status, priority, ticket_type,
-		 requester_type, requester_id, guest_name, guest_email, guest_token,
+		 requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		 assigned_to, department_id, sla_policy_id, merged_into_id,
 		 sla_first_response_due_at, sla_resolution_due_at, sla_breached,
 		 first_response_at, resolved_at, closed_at, metadata, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
 		RETURNING id`, s.t("tickets"))
 
 	return s.db.QueryRowContext(ctx, q,
 		t.Reference, t.Subject, t.Description, t.Status, t.Priority, t.TicketType,
-		t.RequesterType, t.RequesterID, t.GuestName, t.GuestEmail, t.GuestToken,
+		t.RequesterType, t.RequesterID, t.GuestName, t.GuestEmail, t.GuestToken, t.ContactID,
 		t.AssignedTo, t.DepartmentID, t.SLAPolicyID, t.MergedIntoID,
 		t.SLAFirstResponseDueAt, t.SLAResolutionDueAt, t.SLABreached,
 		t.FirstResponseAt, t.ResolvedAt, t.ClosedAt, t.Metadata, t.CreatedAt, t.UpdatedAt,
@@ -55,7 +56,7 @@ func (s *PostgresStore) CreateTicket(ctx context.Context, t *models.Ticket) erro
 
 func (s *PostgresStore) GetTicket(ctx context.Context, id int64) (*models.Ticket, error) {
 	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type,
-		requester_type, requester_id, guest_name, guest_email, guest_token,
+		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
 		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at
@@ -64,7 +65,7 @@ func (s *PostgresStore) GetTicket(ctx context.Context, id int64) (*models.Ticket
 	t := &models.Ticket{}
 	err := s.db.QueryRowContext(ctx, q, id).Scan(
 		&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType,
-		&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken,
+		&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken, &t.ContactID,
 		&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
 		&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
 		&t.FirstResponseAt, &t.ResolvedAt, &t.ClosedAt, &t.Metadata, &t.CreatedAt, &t.UpdatedAt,
@@ -77,7 +78,7 @@ func (s *PostgresStore) GetTicket(ctx context.Context, id int64) (*models.Ticket
 
 func (s *PostgresStore) GetTicketByReference(ctx context.Context, ref string) (*models.Ticket, error) {
 	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type,
-		requester_type, requester_id, guest_name, guest_email, guest_token,
+		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
 		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at
@@ -86,7 +87,7 @@ func (s *PostgresStore) GetTicketByReference(ctx context.Context, ref string) (*
 	t := &models.Ticket{}
 	err := s.db.QueryRowContext(ctx, q, ref).Scan(
 		&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType,
-		&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken,
+		&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken, &t.ContactID,
 		&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
 		&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
 		&t.FirstResponseAt, &t.ResolvedAt, &t.ClosedAt, &t.Metadata, &t.CreatedAt, &t.UpdatedAt,
@@ -187,7 +188,7 @@ func (s *PostgresStore) ListTickets(ctx context.Context, f models.TicketFilters)
 	}
 
 	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type,
-		requester_type, requester_id, guest_name, guest_email, guest_token,
+		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
 		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at
@@ -205,7 +206,7 @@ func (s *PostgresStore) ListTickets(ctx context.Context, f models.TicketFilters)
 		t := &models.Ticket{}
 		if err := rows.Scan(
 			&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType,
-			&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken,
+			&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken, &t.ContactID,
 			&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
 			&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
 			&t.FirstResponseAt, &t.ResolvedAt, &t.ClosedAt, &t.Metadata, &t.CreatedAt, &t.UpdatedAt,
@@ -650,7 +651,7 @@ func (s *PostgresStore) ListActivities(ctx context.Context, ticketID int64, limi
 
 func (s *PostgresStore) ListSnoozedDueBefore(ctx context.Context, before time.Time) ([]*models.Ticket, error) {
 	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type,
-		requester_type, requester_id, guest_name, guest_email, guest_token,
+		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
 		snoozed_until, snoozed_by, status_before_snooze,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
@@ -669,7 +670,7 @@ func (s *PostgresStore) ListSnoozedDueBefore(ctx context.Context, before time.Ti
 		t := &models.Ticket{}
 		if err := rows.Scan(
 			&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType,
-			&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken,
+			&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken, &t.ContactID,
 			&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
 			&t.SnoozedUntil, &t.SnoozedBy, &t.StatusBeforeSnooze,
 			&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
@@ -832,4 +833,49 @@ func (s *PostgresStore) GetAttachmentsByReplyID(ctx context.Context, replyID int
 		attachments = append(attachments, a)
 	}
 	return attachments, rows.Err()
+}
+
+// --- Contacts (Pattern B public-ticket dedupe) ---
+
+func (s *PostgresStore) GetContactByEmail(ctx context.Context, normalizedEmail string) (*models.Contact, error) {
+	q := fmt.Sprintf(`SELECT id, email, name, user_id, metadata, created_at, updated_at
+		FROM %s WHERE email = $1`, s.t("contacts"))
+
+	c := &models.Contact{}
+	var metadataRaw sql.NullString
+	err := s.db.QueryRowContext(ctx, q, normalizedEmail).Scan(
+		&c.ID, &c.Email, &c.Name, &c.UserID, &metadataRaw, &c.CreatedAt, &c.UpdatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if metadataRaw.Valid && metadataRaw.String != "" {
+		_ = json.Unmarshal([]byte(metadataRaw.String), &c.Metadata)
+	}
+	return c, nil
+}
+
+func (s *PostgresStore) CreateContact(ctx context.Context, c *models.Contact) error {
+	now := time.Now()
+	c.CreatedAt = now
+	c.UpdatedAt = now
+	metadata := "{}"
+	if c.Metadata != nil {
+		b, err := json.Marshal(c.Metadata)
+		if err == nil {
+			metadata = string(b)
+		}
+	}
+	q := fmt.Sprintf(`INSERT INTO %s (email, name, user_id, metadata, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`, s.t("contacts"))
+	return s.db.QueryRowContext(ctx, q, c.Email, c.Name, c.UserID, metadata, c.CreatedAt, c.UpdatedAt).Scan(&c.ID)
+}
+
+func (s *PostgresStore) UpdateContactName(ctx context.Context, id int64, name string) error {
+	q := fmt.Sprintf(`UPDATE %s SET name = $1, updated_at = $2 WHERE id = $3`, s.t("contacts"))
+	_, err := s.db.ExecContext(ctx, q, name, time.Now(), id)
+	return err
 }

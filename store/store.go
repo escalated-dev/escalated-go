@@ -95,4 +95,9 @@ type Store interface {
 	GetAttachmentByID(ctx context.Context, id int64) (*models.Attachment, error)
 	GetAttachmentsByTicketID(ctx context.Context, ticketID int64) ([]*models.Attachment, error)
 	GetAttachmentsByReplyID(ctx context.Context, replyID int64) ([]*models.Attachment, error)
+
+	// Contacts (Pattern B public-ticket dedupe — see docs/superpowers/plans/2026-04-24-public-tickets-rollout-status.md)
+	GetContactByEmail(ctx context.Context, normalizedEmail string) (*models.Contact, error)
+	CreateContact(ctx context.Context, c *models.Contact) error
+	UpdateContactName(ctx context.Context, id int64, name string) error
 }

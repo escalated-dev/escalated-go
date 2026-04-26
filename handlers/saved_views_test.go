@@ -209,6 +209,15 @@ func (m *savedViewMockStore) GetAttachmentsByTicketID(_ context.Context, _ int64
 func (m *savedViewMockStore) GetAttachmentsByReplyID(_ context.Context, _ int64) ([]*models.Attachment, error) {
 	return nil, nil
 }
+func (m *savedViewMockStore) GetContactByEmail(_ context.Context, _ string) (*models.Contact, error) {
+	return nil, nil
+}
+func (m *savedViewMockStore) CreateContact(_ context.Context, _ *models.Contact) error {
+	return nil
+}
+func (m *savedViewMockStore) UpdateContactName(_ context.Context, _ int64, _ string) error {
+	return nil
+}
 
 func TestSavedViewHandler_Create(t *testing.T) {
 	tests := []struct {

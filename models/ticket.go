@@ -69,10 +69,15 @@ type Ticket struct {
 	RequesterType *string `json:"requester_type,omitempty"`
 	RequesterID   *int64  `json:"requester_id,omitempty"`
 
-	// Guest ticket fields
+	// Guest ticket fields (Pattern A, preserved for backwards compat)
 	GuestName  *string `json:"guest_name,omitempty"`
 	GuestEmail *string `json:"guest_email,omitempty"`
 	GuestToken *string `json:"guest_token,omitempty"`
+
+	// First-class Contact FK (Pattern B convergence). Populated for
+	// new public submissions; backfilled from GuestEmail for existing
+	// rows. Nullable — host-app user tickets leave it nil.
+	ContactID *int64 `json:"contact_id,omitempty"`
 
 	// Assignee
 	AssignedTo *int64 `json:"assigned_to,omitempty"`

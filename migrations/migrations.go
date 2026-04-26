@@ -75,6 +75,7 @@ func migrationStatements(p string) []string {
 			guest_name VARCHAR(255),
 			guest_email VARCHAR(255),
 			guest_token VARCHAR(64),
+			contact_id BIGINT,
 			assigned_to BIGINT,
 			department_id BIGINT REFERENCES %s(id) ON DELETE SET NULL,
 			sla_policy_id BIGINT REFERENCES %s(id) ON DELETE SET NULL,
@@ -295,6 +296,32 @@ func migrationStatements(p string) []string {
 			storage_path TEXT NOT NULL,
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"attachments", p+"tickets", p+"replies"),
+
+		// 21. Contacts (Pattern B — first-class identity for guest
+		// requesters, deduped by email). See escalated-dev/escalated
+		// docs/superpowers/plans/2026-04-24-public-tickets-rollout-status.md
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			email VARCHAR(320) NOT NULL UNIQUE,
+			name VARCHAR(255),
+			user_id BIGINT,
+			metadata TEXT NOT NULL DEFAULT '{}',
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"contacts"),
+
+		// NOTE: contact_id is already included in the tickets
+		// CREATE TABLE above. Deployments that ran prior migrations
+		// before this commit must manually add the column:
+		//
+		//     Postgres: ALTER TABLE escalated_tickets ADD COLUMN
+		//               IF NOT EXISTS contact_id BIGINT;
+		//     SQLite:   ALTER TABLE escalated_tickets ADD COLUMN
+		//               contact_id INTEGER;  (pre-check column existence)
+		//
+		// The repo convention is fresh-install only; an operator-run
+		// ALTER is intentional rather than baking a cross-dialect
+		// IF-NOT-EXISTS into the migration runner.
 	}
 
 	// Indexes (CREATE INDEX IF NOT EXISTS is supported by PostgreSQL 9.5+ and SQLite 3.3+)
@@ -351,6 +378,8 @@ func migrationStatements(p string) []string {
 
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%satt_ticket ON %s (ticket_id)", p, p+"attachments"),
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%satt_reply ON %s (reply_id)", p, p+"attachments"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%stkt_contact ON %s (contact_id)", p, p+"tickets"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%scontact_user ON %s (user_id)", p, p+"contacts"),
 	}
 
 	return append(stmts, indexes...)
@@ -381,6 +410,7 @@ func sqliteMigrationStatements(p string) []string {
 		s = strings.ReplaceAll(s, "VARCHAR(45)", "TEXT")
 		s = strings.ReplaceAll(s, "VARCHAR(32)", "TEXT")
 		s = strings.ReplaceAll(s, "VARCHAR(7)", "TEXT")
+		s = strings.ReplaceAll(s, "VARCHAR(320)", "TEXT")
 		result = append(result, s)
 	}
 	return result

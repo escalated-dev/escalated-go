@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -38,15 +39,15 @@ func (s *SQLiteStore) CreateTicket(ctx context.Context, t *models.Ticket) error 
 
 	q := fmt.Sprintf(`INSERT INTO %s
 		(reference, subject, description, status, priority, ticket_type,
-		 requester_type, requester_id, guest_name, guest_email, guest_token,
+		 requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		 assigned_to, department_id, sla_policy_id, merged_into_id,
 		 sla_first_response_due_at, sla_resolution_due_at, sla_breached,
 		 first_response_at, resolved_at, closed_at, metadata, created_at, updated_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, s.t("tickets"))
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, s.t("tickets"))
 
 	res, err := s.db.ExecContext(ctx, q,
 		t.Reference, t.Subject, t.Description, t.Status, t.Priority, t.TicketType,
-		t.RequesterType, t.RequesterID, t.GuestName, t.GuestEmail, t.GuestToken,
+		t.RequesterType, t.RequesterID, t.GuestName, t.GuestEmail, t.GuestToken, t.ContactID,
 		t.AssignedTo, t.DepartmentID, t.SLAPolicyID, t.MergedIntoID,
 		t.SLAFirstResponseDueAt, t.SLAResolutionDueAt, t.SLABreached,
 		t.FirstResponseAt, t.ResolvedAt, t.ClosedAt, t.Metadata, t.CreatedAt, t.UpdatedAt,
@@ -60,7 +61,7 @@ func (s *SQLiteStore) CreateTicket(ctx context.Context, t *models.Ticket) error 
 
 func (s *SQLiteStore) GetTicket(ctx context.Context, id int64) (*models.Ticket, error) {
 	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type,
-		requester_type, requester_id, guest_name, guest_email, guest_token,
+		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
 		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at
@@ -69,7 +70,7 @@ func (s *SQLiteStore) GetTicket(ctx context.Context, id int64) (*models.Ticket, 
 	t := &models.Ticket{}
 	err := s.db.QueryRowContext(ctx, q, id).Scan(
 		&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType,
-		&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken,
+		&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken, &t.ContactID,
 		&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
 		&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
 		&t.FirstResponseAt, &t.ResolvedAt, &t.ClosedAt, &t.Metadata, &t.CreatedAt, &t.UpdatedAt,
@@ -82,7 +83,7 @@ func (s *SQLiteStore) GetTicket(ctx context.Context, id int64) (*models.Ticket, 
 
 func (s *SQLiteStore) GetTicketByReference(ctx context.Context, ref string) (*models.Ticket, error) {
 	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type,
-		requester_type, requester_id, guest_name, guest_email, guest_token,
+		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
 		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at
@@ -91,7 +92,7 @@ func (s *SQLiteStore) GetTicketByReference(ctx context.Context, ref string) (*mo
 	t := &models.Ticket{}
 	err := s.db.QueryRowContext(ctx, q, ref).Scan(
 		&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType,
-		&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken,
+		&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken, &t.ContactID,
 		&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
 		&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
 		&t.FirstResponseAt, &t.ResolvedAt, &t.ClosedAt, &t.Metadata, &t.CreatedAt, &t.UpdatedAt,
@@ -187,7 +188,7 @@ func (s *SQLiteStore) ListTickets(ctx context.Context, f models.TicketFilters) (
 	}
 
 	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type,
-		requester_type, requester_id, guest_name, guest_email, guest_token,
+		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
 		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at
@@ -205,7 +206,7 @@ func (s *SQLiteStore) ListTickets(ctx context.Context, f models.TicketFilters) (
 		t := &models.Ticket{}
 		if err := rows.Scan(
 			&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType,
-			&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken,
+			&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken, &t.ContactID,
 			&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
 			&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
 			&t.FirstResponseAt, &t.ResolvedAt, &t.ClosedAt, &t.Metadata, &t.CreatedAt, &t.UpdatedAt,
@@ -668,7 +669,7 @@ func (s *SQLiteStore) ListActivities(ctx context.Context, ticketID int64, limit 
 
 func (s *SQLiteStore) ListSnoozedDueBefore(ctx context.Context, before time.Time) ([]*models.Ticket, error) {
 	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type,
-		requester_type, requester_id, guest_name, guest_email, guest_token,
+		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
 		snoozed_until, snoozed_by, status_before_snooze,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
@@ -687,7 +688,7 @@ func (s *SQLiteStore) ListSnoozedDueBefore(ctx context.Context, before time.Time
 		t := &models.Ticket{}
 		if err := rows.Scan(
 			&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType,
-			&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken,
+			&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken, &t.ContactID,
 			&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
 			&t.SnoozedUntil, &t.SnoozedBy, &t.StatusBeforeSnooze,
 			&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
@@ -860,4 +861,54 @@ func (s *SQLiteStore) GetAttachmentsByReplyID(ctx context.Context, replyID int64
 		attachments = append(attachments, a)
 	}
 	return attachments, rows.Err()
+}
+
+// --- Contacts (Pattern B public-ticket dedupe) ---
+
+func (s *SQLiteStore) GetContactByEmail(ctx context.Context, normalizedEmail string) (*models.Contact, error) {
+	q := fmt.Sprintf(`SELECT id, email, name, user_id, metadata, created_at, updated_at
+		FROM %s WHERE email = ?`, s.t("contacts"))
+
+	c := &models.Contact{}
+	var metadataRaw sql.NullString
+	err := s.db.QueryRowContext(ctx, q, normalizedEmail).Scan(
+		&c.ID, &c.Email, &c.Name, &c.UserID, &metadataRaw, &c.CreatedAt, &c.UpdatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if metadataRaw.Valid && metadataRaw.String != "" {
+		_ = json.Unmarshal([]byte(metadataRaw.String), &c.Metadata)
+	}
+	return c, nil
+}
+
+func (s *SQLiteStore) CreateContact(ctx context.Context, c *models.Contact) error {
+	now := time.Now()
+	c.CreatedAt = now
+	c.UpdatedAt = now
+	metadata := "{}"
+	if c.Metadata != nil {
+		b, err := json.Marshal(c.Metadata)
+		if err == nil {
+			metadata = string(b)
+		}
+	}
+	q := fmt.Sprintf(`INSERT INTO %s (email, name, user_id, metadata, created_at, updated_at)
+		VALUES (?,?,?,?,?,?)`, s.t("contacts"))
+	res, err := s.db.ExecContext(ctx, q, c.Email, c.Name, c.UserID, metadata, c.CreatedAt, c.UpdatedAt)
+	if err != nil {
+		return err
+	}
+	c.ID, err = res.LastInsertId()
+	return err
+}
+
+func (s *SQLiteStore) UpdateContactName(ctx context.Context, id int64, name string) error {
+	q := fmt.Sprintf(`UPDATE %s SET name = ?, updated_at = ? WHERE id = ?`, s.t("contacts"))
+	_, err := s.db.ExecContext(ctx, q, name, time.Now(), id)
+	return err
 }
