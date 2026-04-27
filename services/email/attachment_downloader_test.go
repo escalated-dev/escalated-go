@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/escalated-dev/escalated-go/models"
 )
@@ -292,6 +293,10 @@ func TestLocalFileStorage_Put_DifferentCallsProduceDifferentPaths(t *testing.T) 
 	storage, _ := NewLocalFileStorage(root)
 
 	p1, _ := storage.Put(context.Background(), "x.txt", strings.NewReader("a"), "text/plain")
+	// Windows time.Now() is sometimes coarse enough that two
+	// back-to-back Puts land in the same nanosecond; wait a tick
+	// so the nanos component of the prefix advances.
+	time.Sleep(time.Millisecond)
 	p2, _ := storage.Put(context.Background(), "x.txt", strings.NewReader("b"), "text/plain")
 
 	if p1 == p2 {
