@@ -97,6 +97,9 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Post("/macros", macroH.Create)
 				r.Patch("/macros/{id}", macroH.Update)
 				r.Delete("/macros/{id}", macroH.Delete)
+
+				r.Get("/settings/public-tickets", adminH.GetPublicTicketsSettings)
+				r.Put("/settings/public-tickets", adminH.UpdatePublicTicketsSettings)
 			})
 		}
 	})

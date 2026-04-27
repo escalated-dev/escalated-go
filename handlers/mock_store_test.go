@@ -13,14 +13,16 @@ type handlerMockStore struct {
 	tickets    map[int64]*models.Ticket
 	replies    map[int64]*models.Reply
 	activities []*models.Activity
+	settings   map[string]string
 	nextID     int64
 }
 
 func newHandlerMockStore() *handlerMockStore {
 	return &handlerMockStore{
-		tickets: make(map[int64]*models.Ticket),
-		replies: make(map[int64]*models.Reply),
-		nextID:  100,
+		tickets:  make(map[int64]*models.Ticket),
+		replies:  make(map[int64]*models.Reply),
+		settings: make(map[string]string),
+		nextID:   100,
 	}
 }
 
@@ -264,5 +266,14 @@ func (m *handlerMockStore) CreateContact(_ context.Context, _ *models.Contact) e
 	return nil
 }
 func (m *handlerMockStore) UpdateContactName(_ context.Context, _ int64, _ string) error {
+	return nil
+}
+
+func (m *handlerMockStore) GetSetting(_ context.Context, key string) (string, error) {
+	return m.settings[key], nil
+}
+
+func (m *handlerMockStore) SetSetting(_ context.Context, key, value string) error {
+	m.settings[key] = value
 	return nil
 }

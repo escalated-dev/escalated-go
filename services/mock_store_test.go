@@ -336,3 +336,5 @@ func (m *mockStore) CreateContact(_ context.Context, c *models.Contact) error {
 func (m *mockStore) UpdateContactName(_ context.Context, _ int64, _ string) error {
 	return nil
 }
+func (m *mockStore) GetSetting(_ context.Context, _ string) (string, error) { return "", nil }
+func (m *mockStore) SetSetting(_ context.Context, _, _ string) error        { return nil }

@@ -879,3 +879,33 @@ func (s *PostgresStore) UpdateContactName(ctx context.Context, id int64, name st
 	_, err := s.db.ExecContext(ctx, q, name, time.Now(), id)
 	return err
 }
+
+// GetSetting returns the stored value for the given key, or "" with nil
+// error when the key is missing. Callers can use the empty-string
+// return to apply a default without checking a boolean.
+func (s *PostgresStore) GetSetting(ctx context.Context, key string) (string, error) {
+	q := fmt.Sprintf("SELECT value FROM %s WHERE key = $1", s.t("settings"))
+	var value sql.NullString
+	err := s.db.QueryRowContext(ctx, q, key).Scan(&value)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	if !value.Valid {
+		return "", nil
+	}
+	return value.String, nil
+}
+
+// SetSetting upserts the key/value pair. Uses INSERT ... ON CONFLICT (key)
+// DO UPDATE for atomicity; relies on the unique index on key.
+func (s *PostgresStore) SetSetting(ctx context.Context, key, value string) error {
+	q := fmt.Sprintf(`INSERT INTO %s (key, value, created_at, updated_at)
+		VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+		ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP`,
+		s.t("settings"))
+	_, err := s.db.ExecContext(ctx, q, key, value)
+	return err
+}

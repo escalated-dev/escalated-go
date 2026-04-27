@@ -220,6 +220,8 @@ func (m *widgetMockStore) CreateContact(_ context.Context, _ *models.Contact) er
 func (m *widgetMockStore) UpdateContactName(_ context.Context, _ int64, _ string) error {
 	return nil
 }
+func (m *widgetMockStore) GetSetting(_ context.Context, _ string) (string, error) { return "", nil }
+func (m *widgetMockStore) SetSetting(_ context.Context, _, _ string) error        { return nil }
 
 func TestWidgetHandler_Config(t *testing.T) {
 	tests := []struct {

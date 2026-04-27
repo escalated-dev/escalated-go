@@ -218,6 +218,8 @@ func (m *savedViewMockStore) CreateContact(_ context.Context, _ *models.Contact)
 func (m *savedViewMockStore) UpdateContactName(_ context.Context, _ int64, _ string) error {
 	return nil
 }
+func (m *savedViewMockStore) GetSetting(_ context.Context, _ string) (string, error) { return "", nil }
+func (m *savedViewMockStore) SetSetting(_ context.Context, _, _ string) error        { return nil }
 
 func TestSavedViewHandler_Create(t *testing.T) {
 	tests := []struct {

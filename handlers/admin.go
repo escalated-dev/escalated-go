@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/escalated-dev/escalated-go/models"
@@ -209,6 +210,120 @@ func (h *AdminHandler) DeleteSLAPolicy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+// --- Public-ticket guest policy settings ---
+//
+// Three keys back the policy that decides the identity a public
+// submission is attributed to:
+//   - guest_policy_mode              ∈ { unassigned, guest_user, prompt_signup }
+//   - guest_policy_user_id           required when mode = guest_user (as decimal string)
+//   - guest_policy_signup_url_template  optional when mode = prompt_signup
+// Consumers read via store.Store.GetSetting so admins can switch modes
+// at runtime without a redeploy. Mirrors the .NET
+// AdminSettingsController.GetPublicTicketsSettings + UpdatePublicTicketsSettings.
+
+var validGuestPolicyModes = map[string]struct{}{
+	"unassigned":    {},
+	"guest_user":    {},
+	"prompt_signup": {},
+}
+
+// GetPublicTicketsSettings handles GET /admin/settings/public-tickets
+// and returns the three guest-policy fields as JSON. Missing keys fall
+// back to the shipped defaults (unassigned / no user / empty template).
+func (h *AdminHandler) GetPublicTicketsSettings(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	mode, err := h.store.GetSetting(ctx, "guest_policy_mode")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if mode == "" {
+		mode = "unassigned"
+	}
+	userIDRaw, err := h.store.GetSetting(ctx, "guest_policy_user_id")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	template, err := h.store.GetSetting(ctx, "guest_policy_signup_url_template")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	payload := map[string]any{
+		"guest_policy_mode":                mode,
+		"guest_policy_user_id":             parseOptionalPositiveInt(userIDRaw),
+		"guest_policy_signup_url_template": template,
+	}
+	writeJSON(w, http.StatusOK, payload)
+}
+
+// UpdatePublicTicketsSettings handles PUT /admin/settings/public-tickets.
+// Validates the mode against the known enum (falls back to unassigned
+// for unknown values), clears mode-specific fields on switch to
+// prevent stale guest_user_id leaking back into prompt_signup
+// behavior, and truncates signup URL templates at 500 chars.
+func (h *AdminHandler) UpdatePublicTicketsSettings(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		GuestPolicyMode              string  `json:"guest_policy_mode"`
+		GuestPolicyUserID            *int64  `json:"guest_policy_user_id"`
+		GuestPolicySignupURLTemplate *string `json:"guest_policy_signup_url_template"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		http.Error(w, "invalid JSON body", http.StatusBadRequest)
+		return
+	}
+
+	mode := in.GuestPolicyMode
+	if _, ok := validGuestPolicyModes[mode]; !ok {
+		mode = "unassigned"
+	}
+
+	ctx := r.Context()
+	if err := h.store.SetSetting(ctx, "guest_policy_mode", mode); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	var userIDValue string
+	if mode == "guest_user" && in.GuestPolicyUserID != nil && *in.GuestPolicyUserID > 0 {
+		userIDValue = strconv.FormatInt(*in.GuestPolicyUserID, 10)
+	}
+	if err := h.store.SetSetting(ctx, "guest_policy_user_id", userIDValue); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	var template string
+	if mode == "prompt_signup" && in.GuestPolicySignupURLTemplate != nil {
+		template = strings.TrimSpace(*in.GuestPolicySignupURLTemplate)
+		if len(template) > 500 {
+			template = template[:500]
+		}
+	}
+	if err := h.store.SetSetting(ctx, "guest_policy_signup_url_template", template); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	h.GetPublicTicketsSettings(w, r)
+}
+
+// parseOptionalPositiveInt returns *int64 when s is a positive integer,
+// nil otherwise. Used to surface empty-string / zero / invalid stored
+// values as JSON null so the Vue page can bind against a nullable.
+func parseOptionalPositiveInt(s string) *int64 {
+	if s == "" {
+		return nil
+	}
+	n, err := strconv.ParseInt(s, 10, 64)
+	if err != nil || n <= 0 {
+		return nil
+	}
+	return &n
 }
 
 // --- helpers ---

@@ -322,6 +322,19 @@ func migrationStatements(p string) []string {
 		// The repo convention is fresh-install only; an operator-run
 		// ALTER is intentional rather than baking a cross-dialect
 		// IF-NOT-EXISTS into the migration runner.
+
+		// 22. Settings — key/value runtime configuration. Backs the
+		// public-ticket guest policy (mode / user_id / signup URL
+		// template) plus any future runtime-switchable config. Mirrors
+		// the schema Symfony's EscalatedSetting and .NET's
+		// EscalatedSettings use.
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			key VARCHAR(255) NOT NULL,
+			value TEXT,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"settings"),
 	}
 
 	// Indexes (CREATE INDEX IF NOT EXISTS is supported by PostgreSQL 9.5+ and SQLite 3.3+)
@@ -380,6 +393,8 @@ func migrationStatements(p string) []string {
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%satt_reply ON %s (reply_id)", p, p+"attachments"),
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%stkt_contact ON %s (contact_id)", p, p+"tickets"),
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%scontact_user ON %s (user_id)", p, p+"contacts"),
+
+		fmt.Sprintf("CREATE UNIQUE INDEX IF NOT EXISTS idx_%ssettings_key ON %s (key)", p, p+"settings"),
 	}
 
 	return append(stmts, indexes...)

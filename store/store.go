@@ -100,4 +100,10 @@ type Store interface {
 	GetContactByEmail(ctx context.Context, normalizedEmail string) (*models.Contact, error)
 	CreateContact(ctx context.Context, c *models.Contact) error
 	UpdateContactName(ctx context.Context, id int64, name string) error
+
+	// Settings — key/value runtime configuration.
+	// GetSetting returns "" with nil error when the key is missing so
+	// callers can chain a default value without checking a boolean.
+	GetSetting(ctx context.Context, key string) (string, error)
+	SetSetting(ctx context.Context, key, value string) error
 }
