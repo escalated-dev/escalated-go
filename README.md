@@ -244,6 +244,25 @@ esc.Store = myCustomStore // satisfies store.Store interface
 | 3 | urgent |
 | 4 | critical |
 
+## Translations
+
+Strings come from the central [`escalated-locale`](https://github.com/escalated-dev/escalated-locale)
+Go module so they stay in sync with every other Escalated plugin. The thin
+loader at `internal/i18n` deep-merges optional local overrides on top of the
+upstream data:
+
+```go
+import "github.com/escalated-dev/escalated-go/internal/i18n"
+
+label := i18n.T("ticket.status.open", "fr", nil)
+msg   := i18n.T("validation.required", "en", map[string]any{"field": "Email"})
+```
+
+To override a single key without forking the locale file, drop a JSON file at
+`internal/i18n/overrides/{locale}.json` — only the keys you list there are
+overridden, everything else falls through to the central package. See
+`internal/i18n/overrides/README.md` for the full pattern.
+
 ## License
 
 MIT
