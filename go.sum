@@ -1,3 +1,5 @@
+github.com/escalated-dev/escalated-locale v0.1.1 h1:usaeu6WIhV6RhFenrz7+ZUNuwD98AHFV0jF7uPLJu8E=
+github.com/escalated-dev/escalated-locale v0.1.1/go.mod h1:Wm8oTeGRNDou3+BXW8NByt0lHym/qSbZOB9kMHpkzVw=
 github.com/go-chi/chi/v5 v5.2.5 h1:Eg4myHZBjyvJmAFjFvWgrqDTXFyOzjj7YIm3L3mu6Ug=
 github.com/go-chi/chi/v5 v5.2.5/go.mod h1:X7Gx4mteadT3eDOMTsXzmI4/rwUpOwBHLpAfupzFJP0=
 github.com/petaki/inertia-go v1.15.0 h1:0SVg1DWeKBAFwDFHklkwkyMm887ryhURXtTnrYJZ9Sc=
