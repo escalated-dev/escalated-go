@@ -3,6 +3,8 @@ package escalated
 import (
 	"database/sql"
 	"net/http"
+
+	"github.com/escalated-dev/escalated-go/handlers"
 )
 
 // Config holds the configuration for the Escalated support ticket system.
@@ -33,6 +35,13 @@ type Config struct {
 
 	// DB is the database connection used by the default store implementations.
 	DB *sql.DB
+
+	// UserDirectory is the host's bridge to its own users table.
+	// Required only for the admin users-management page
+	// (GET/PATCH /admin/users); when nil that page renders an empty
+	// list and the PATCH endpoint responds 501. See
+	// handlers.UserDirectory for the contract.
+	UserDirectory handlers.UserDirectory
 }
 
 // DefaultConfig returns a Config with sensible defaults.

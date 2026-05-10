@@ -26,6 +26,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	attachH := handlers.NewAttachmentHandler(s, cfg.RoutePrefix)
 	autoH := handlers.NewAutomationHandler(cfg.DB, services.NewAutomationRunner(cfg.DB, nil))
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
+	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 
 	r.Route(cfg.RoutePrefix, func(r chi.Router) {
 		// Attachment downloads — always mounted
@@ -100,6 +101,10 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 
 				r.Get("/settings/public-tickets", adminH.GetPublicTicketsSettings)
 				r.Put("/settings/public-tickets", adminH.UpdatePublicTicketsSettings)
+
+				// Users (host User table: list + grant/revoke admin/agent).
+				r.Get("/users", userH.Index)
+				r.Patch("/users/{user}/role", userH.UpdateRole)
 			})
 		}
 	})

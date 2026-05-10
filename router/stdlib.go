@@ -26,6 +26,7 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	attachH := handlers.NewAttachmentHandler(s, cfg.RoutePrefix)
 	autoH := handlers.NewAutomationHandler(cfg.DB, services.NewAutomationRunner(cfg.DB, nil))
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
+	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 
 	prefix := cfg.RoutePrefix
 
@@ -89,5 +90,9 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 
 		mux.Handle("GET "+prefix+"/admin/settings/public-tickets", adminMW(http.HandlerFunc(adminH.GetPublicTicketsSettings)))
 		mux.Handle("PUT "+prefix+"/admin/settings/public-tickets", adminMW(http.HandlerFunc(adminH.UpdatePublicTicketsSettings)))
+
+		// Users (host User table: list + grant/revoke admin/agent).
+		mux.Handle("GET "+prefix+"/admin/users", adminMW(http.HandlerFunc(userH.Index)))
+		mux.Handle("PATCH "+prefix+"/admin/users/{user}/role", adminMW(http.HandlerFunc(userH.UpdateRole)))
 	}
 }
