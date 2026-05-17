@@ -3,8 +3,11 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
+
+	"github.com/go-chi/chi/v5"
 
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/services"
@@ -241,5 +244,8 @@ func idFromPathName(r *http.Request, name string) (int64, error) {
 	if v := r.PathValue(name); v != "" {
 		return strconv.ParseInt(v, 10, 64)
 	}
-	return 0, http.ErrNoCookie // sentinel-only — never returned given the route shape
+	if v := chi.URLParam(r, name); v != "" {
+		return strconv.ParseInt(v, 10, 64)
+	}
+	return 0, fmt.Errorf("missing path param %q", name)
 }

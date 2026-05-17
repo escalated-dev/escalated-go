@@ -335,6 +335,41 @@ func migrationStatements(p string) []string {
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"settings"),
+
+		// 23–26. Skills (admin-managed routing + agent proficiency). See
+		// escalated-developer-context/domain-model/skills-management.md.
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			name VARCHAR(100) NOT NULL,
+			slug VARCHAR(100) NOT NULL,
+			description TEXT,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"skills"),
+
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			skill_id BIGINT NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
+			tag_id BIGINT NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
+			UNIQUE (skill_id, tag_id)
+		)`, p+"skill_routing_tags", p+"skills", p+"tags"),
+
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			skill_id BIGINT NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
+			department_id BIGINT NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
+			UNIQUE (skill_id, department_id)
+		)`, p+"skill_routing_departments", p+"skills", p+"departments"),
+
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			user_id BIGINT NOT NULL,
+			skill_id BIGINT NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
+			proficiency SMALLINT NOT NULL DEFAULT 3 CHECK (proficiency >= 1 AND proficiency <= 5),
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE (user_id, skill_id)
+		)`, p+"agent_skills", p+"skills"),
 	}
 
 	// Indexes (CREATE INDEX IF NOT EXISTS is supported by PostgreSQL 9.5+ and SQLite 3.3+)
@@ -395,6 +430,15 @@ func migrationStatements(p string) []string {
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%scontact_user ON %s (user_id)", p, p+"contacts"),
 
 		fmt.Sprintf("CREATE UNIQUE INDEX IF NOT EXISTS idx_%ssettings_key ON %s (key)", p, p+"settings"),
+
+		fmt.Sprintf("CREATE UNIQUE INDEX IF NOT EXISTS idx_%sskill_slug ON %s (slug)", p, p+"skills"),
+		fmt.Sprintf("CREATE UNIQUE INDEX IF NOT EXISTS idx_%sskill_name ON %s (name)", p, p+"skills"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%ssrt_skill ON %s (skill_id)", p, p+"skill_routing_tags"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%ssrt_tag ON %s (tag_id)", p, p+"skill_routing_tags"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%ssrd_skill ON %s (skill_id)", p, p+"skill_routing_departments"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%ssrd_dept ON %s (department_id)", p, p+"skill_routing_departments"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%sas_user ON %s (user_id)", p, p+"agent_skills"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%sas_skill ON %s (skill_id)", p, p+"agent_skills"),
 	}
 
 	return append(stmts, indexes...)
@@ -418,7 +462,9 @@ func sqliteMigrationStatements(p string) []string {
 	for _, s := range stmts {
 		s = strings.ReplaceAll(s, "BIGSERIAL", "INTEGER")
 		s = strings.ReplaceAll(s, "BIGINT", "INTEGER")
+		s = strings.ReplaceAll(s, "SMALLINT", "INTEGER")
 		s = strings.ReplaceAll(s, "BOOLEAN", "INTEGER")
+		s = strings.ReplaceAll(s, "VARCHAR(100)", "TEXT")
 		s = strings.ReplaceAll(s, "VARCHAR(255)", "TEXT")
 		s = strings.ReplaceAll(s, "VARCHAR(64)", "TEXT")
 		s = strings.ReplaceAll(s, "VARCHAR(50)", "TEXT")
