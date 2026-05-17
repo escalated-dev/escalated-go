@@ -232,7 +232,8 @@ func (h *SkillsHandler) UpdateSkill(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now()
 	name := strings.TrimSpace(in.Name)
-	slug := curSlug
+	_ = curSlug // kept for future no-op cases; allocateSlug currently always returns one
+	var slug string
 	if ns, err := h.allocateSlug(tx, r.Context(), name, id); err == nil {
 		slug = ns
 	} else {
