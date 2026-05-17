@@ -42,6 +42,10 @@ type Config struct {
 	// list and the PATCH endpoint responds 501. See
 	// handlers.UserDirectory for the contract.
 	UserDirectory handlers.UserDirectory
+
+	// SkillAgentDirectory lists agents for the Skills admin form. Optional;
+	// when nil, available_agents is empty. See handlers.SkillAgentDirectory.
+	SkillAgentDirectory handlers.SkillAgentDirectory
 }
 
 // DefaultConfig returns a Config with sensible defaults.

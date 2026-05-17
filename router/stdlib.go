@@ -27,6 +27,7 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	autoH := handlers.NewAutomationHandler(cfg.DB, services.NewAutomationRunner(cfg.DB, nil))
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
+	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
 
 	prefix := cfg.RoutePrefix
 
@@ -87,6 +88,16 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 		mux.Handle("POST "+prefix+"/admin/macros", adminMW(http.HandlerFunc(macroH.Create)))
 		mux.Handle("PATCH "+prefix+"/admin/macros/{id}", adminMW(http.HandlerFunc(macroH.Update)))
 		mux.Handle("DELETE "+prefix+"/admin/macros/{id}", adminMW(http.HandlerFunc(macroH.Delete)))
+
+		// Skills admin (explicit routing + agent proficiency). Register
+		// /skills/new before /skills/{id}/… so "new" is not parsed as an id.
+		mux.Handle("GET "+prefix+"/admin/skills", adminMW(http.HandlerFunc(skillsH.ListSkills)))
+		mux.Handle("GET "+prefix+"/admin/skills/new", adminMW(http.HandlerFunc(skillsH.NewSkillForm)))
+		mux.Handle("POST "+prefix+"/admin/skills", adminMW(http.HandlerFunc(skillsH.StoreSkill)))
+		mux.Handle("GET "+prefix+"/admin/skills/{id}/edit", adminMW(http.HandlerFunc(skillsH.EditSkill)))
+		mux.Handle("PUT "+prefix+"/admin/skills/{id}", adminMW(http.HandlerFunc(skillsH.UpdateSkill)))
+		mux.Handle("PATCH "+prefix+"/admin/skills/{id}", adminMW(http.HandlerFunc(skillsH.UpdateSkill)))
+		mux.Handle("DELETE "+prefix+"/admin/skills/{id}", adminMW(http.HandlerFunc(skillsH.DestroySkill)))
 
 		mux.Handle("GET "+prefix+"/admin/settings/public-tickets", adminMW(http.HandlerFunc(adminH.GetPublicTicketsSettings)))
 		mux.Handle("PUT "+prefix+"/admin/settings/public-tickets", adminMW(http.HandlerFunc(adminH.UpdatePublicTicketsSettings)))

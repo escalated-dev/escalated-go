@@ -27,6 +27,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	autoH := handlers.NewAutomationHandler(cfg.DB, services.NewAutomationRunner(cfg.DB, nil))
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
+	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
 
 	r.Route(cfg.RoutePrefix, func(r chi.Router) {
 		// Attachment downloads — always mounted
@@ -98,6 +99,15 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Post("/macros", macroH.Create)
 				r.Patch("/macros/{id}", macroH.Update)
 				r.Delete("/macros/{id}", macroH.Delete)
+
+				// Skills admin — register /skills/new before /skills/{id}/edit.
+				r.Get("/skills", skillsH.ListSkills)
+				r.Get("/skills/new", skillsH.NewSkillForm)
+				r.Post("/skills", skillsH.StoreSkill)
+				r.Get("/skills/{id}/edit", skillsH.EditSkill)
+				r.Put("/skills/{id}", skillsH.UpdateSkill)
+				r.Patch("/skills/{id}", skillsH.UpdateSkill)
+				r.Delete("/skills/{id}", skillsH.DestroySkill)
 
 				r.Get("/settings/public-tickets", adminH.GetPublicTicketsSettings)
 				r.Put("/settings/public-tickets", adminH.UpdatePublicTicketsSettings)
