@@ -22,29 +22,32 @@ import (
 
 // Config controls the renderer + dispatcher behavior.
 type Config struct {
-	BaseURL                  string
-	DefaultTheme             string
-	TrackingEnabled          bool
-	ThemesDir                string // absolute path to <slug>.html template files
-	MarkdownToHTML           func(md string) string
-	Brand                    Brand
-	BatchSize                int
-	ClaimTimeoutMinutes      int
-	AutoPauseBounceRate      float64
-	AutoPauseThreshold       int
-	EnableNewsletters        bool
+	BaseURL             string
+	DefaultTheme        string
+	TrackingEnabled     bool
+	ThemesDir           string // absolute path to <slug>.html template files
+	MarkdownToHTML      func(md string) string
+	Brand               Brand
+	BatchSize           int
+	ClaimTimeoutMinutes int
+	AutoPauseBounceRate float64
+	AutoPauseThreshold  int
+	EnableNewsletters   bool
 }
 
 // Brand fields are rendered into themes via template variables.
 type Brand struct {
-	Name             string
-	Accent           string
-	LogoURL          string
-	PhysicalAddress  string
+	Name            string
+	Accent          string
+	LogoURL         string
+	PhysicalAddress string
 }
 
 var allowedSchemes = map[string]bool{"http": true, "https": true, "mailto": true, "tel": true}
-var anchorRE = regexp.MustCompile(`(?i)(<a\s[^>]*\bhref=)(["'])(.*?)\2`)
+
+// Go's RE2-based regexp package does not support backreferences, so we match
+// double-quoted and single-quoted href attributes with two separate alternations.
+var anchorRE = regexp.MustCompile(`(?i)(<a\s[^>]*\bhref=)(?:"([^"]*)"|'([^']*)')`)
 var mergeFieldRE = regexp.MustCompile(`\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}`)
 
 // Renderer turns a delivery + newsletter + contact into themed HTML.
@@ -80,11 +83,11 @@ func (r *Renderer) Render(d *models.NewsletterDelivery, n *models.Newsletter, c 
 	body = r.resolveMergeFields(body, c, d)
 
 	themed, err := r.renderTheme(themeSlug, map[string]any{
-		"Subject":           n.Subject,
-		"Body":              template.HTML(body),
-		"UnsubscribeURL":    r.UnsubscribeURL(d),
-		"ViewInBrowserURL":  r.ViewInBrowserURL(d),
-		"Brand":             r.cfg.Brand,
+		"Subject":          n.Subject,
+		"Body":             template.HTML(body),
+		"UnsubscribeURL":   r.UnsubscribeURL(d),
+		"ViewInBrowserURL": r.ViewInBrowserURL(d),
+		"Brand":            r.cfg.Brand,
 	})
 	if err != nil {
 		return "", err
@@ -178,7 +181,13 @@ func (r *Renderer) rewriteLinks(html string, d *models.NewsletterDelivery) strin
 		if len(m) < 4 {
 			return match
 		}
-		prefix, quote, href := m[1], m[2], m[3]
+		prefix := m[1]
+		var quote, href string
+		if m[2] != "" {
+			quote, href = `"`, m[2]
+		} else {
+			quote, href = `'`, m[3]
+		}
 		if href == "" || strings.HasPrefix(href, "#") {
 			return match
 		}

@@ -39,15 +39,15 @@ type NewsletterListMember struct {
 
 // NewsletterTemplate is a reusable Markdown body + theme combination.
 type NewsletterTemplate struct {
-	ID                 int64          `json:"id"`
-	Name               string         `json:"name"`
-	Theme              string         `json:"theme"`
-	SubjectTemplate    *string        `json:"subject_template,omitempty"`
-	BodyMarkdown       string         `json:"body_markdown"`
-	MergeFieldsSchema  map[string]any `json:"merge_fields_schema,omitempty"`
-	CreatedBy          *int64         `json:"created_by,omitempty"`
-	CreatedAt          time.Time      `json:"created_at"`
-	UpdatedAt          time.Time      `json:"updated_at"`
+	ID                int64          `json:"id"`
+	Name              string         `json:"name"`
+	Theme             string         `json:"theme"`
+	SubjectTemplate   *string        `json:"subject_template,omitempty"`
+	BodyMarkdown      string         `json:"body_markdown"`
+	MergeFieldsSchema map[string]any `json:"merge_fields_schema,omitempty"`
+	CreatedBy         *int64         `json:"created_by,omitempty"`
+	CreatedAt         time.Time      `json:"created_at"`
+	UpdatedAt         time.Time      `json:"updated_at"`
 }
 
 // NewsletterStatus is the lifecycle status of a newsletter.
@@ -103,20 +103,20 @@ const (
 
 // NewsletterDelivery is one row per recipient per campaign.
 type NewsletterDelivery struct {
-	ID             int64                    `json:"id"`
-	NewsletterID   int64                    `json:"newsletter_id"`
-	ContactID      int64                    `json:"contact_id"`
-	EmailAtSend    string                   `json:"email_at_send"`
-	Status         NewsletterDeliveryStatus `json:"status"`
-	TrackingToken  string                   `json:"tracking_token"`
-	SentAt         *time.Time               `json:"sent_at,omitempty"`
-	OpenedAt       *time.Time               `json:"opened_at,omitempty"`
-	LastClickedAt  *time.Time               `json:"last_clicked_at,omitempty"`
-	ClicksCount    int                      `json:"clicks_count"`
-	BounceReason   *string                  `json:"bounce_reason,omitempty"`
-	FailureReason  *string                  `json:"failure_reason,omitempty"`
-	AttemptCount   int                      `json:"attempt_count"`
-	ClaimedAt      *time.Time               `json:"claimed_at,omitempty"`
-	IsTest         bool                     `json:"is_test"`
-    CreatedAt      time.Time                `json:"created_at"`
+	ID            int64                    `json:"id"`
+	NewsletterID  int64                    `json:"newsletter_id"`
+	ContactID     int64                    `json:"contact_id"`
+	EmailAtSend   string                   `json:"email_at_send"`
+	Status        NewsletterDeliveryStatus `json:"status"`
+	TrackingToken string                   `json:"tracking_token"`
+	SentAt        *time.Time               `json:"sent_at,omitempty"`
+	OpenedAt      *time.Time               `json:"opened_at,omitempty"`
+	LastClickedAt *time.Time               `json:"last_clicked_at,omitempty"`
+	ClicksCount   int                      `json:"clicks_count"`
+	BounceReason  *string                  `json:"bounce_reason,omitempty"`
+	FailureReason *string                  `json:"failure_reason,omitempty"`
+	AttemptCount  int                      `json:"attempt_count"`
+	ClaimedAt     *time.Time               `json:"claimed_at,omitempty"`
+	IsTest        bool                     `json:"is_test"`
+	CreatedAt     time.Time                `json:"created_at"`
 }
