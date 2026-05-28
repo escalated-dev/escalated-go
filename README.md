@@ -212,6 +212,40 @@ All routes are prefixed with `RoutePrefix` (default `/escalated`).
 | `GET/POST/DELETE` | `/admin/sla-policies` | Manage SLA policies |
 | `GET/PUT` | `/admin/settings/public-tickets` | Runtime guest-policy mode (unassigned / guest_user / prompt_signup). See [docs.escalated.dev/public-tickets](https://docs.escalated.dev/public-tickets). |
 
+## Custom Ticket Actions
+
+Add host-defined action buttons to the agent ticket screen via
+`Config.TicketActions`. Each visible action is exposed on the ticket responses
+(`custom_actions`, plus a top-level `customActions` prop on the agent screen),
+and triggering it records an internal note and invokes `Config.OnCustomAction`:
+
+```go
+import "github.com/escalated-dev/escalated-go/actions"
+
+cfg := escalated.DefaultConfig()
+cfg.TicketActions = []actions.TicketAction{
+    {
+        Key:          "sync-crm",
+        Label:        "Sync CRM",
+        Variant:      "primary", // primary | secondary | danger
+        Confirmation: "Sync this ticket to the CRM?",
+        Metadata:     map[string]any{"icon": "refresh-cw"},
+        // Visible/Enabled are optional; nil means always visible/enabled.
+        Enabled: func(t *models.Ticket, userID int64) bool { return t.ResolvedAt == nil },
+    },
+}
+cfg.OnCustomAction = func(ctx context.Context, e actions.CustomActionEvent) error {
+    if e.Action == "sync-crm" {
+        // e.Ticket, e.UserID, e.Payload, e.Metadata
+    }
+    return nil
+}
+```
+
+Triggering an action (`POST {prefix}/agent/tickets/{id}/actions/{key}` or the
+`/api` equivalent) returns 404 if the action is unknown or not visible, 403 if
+it is disabled, otherwise records the audit note and calls `OnCustomAction`.
+
 ## Custom Store
 
 Implement the `store.Store` interface to use a different database:

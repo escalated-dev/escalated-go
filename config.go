@@ -1,9 +1,11 @@
 package escalated
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 
+	"github.com/escalated-dev/escalated-go/actions"
 	"github.com/escalated-dev/escalated-go/handlers"
 )
 
@@ -46,6 +48,16 @@ type Config struct {
 	// SkillAgentDirectory lists agents for the Skills admin form. Optional;
 	// when nil, available_agents is empty. See handlers.SkillAgentDirectory.
 	SkillAgentDirectory handlers.SkillAgentDirectory
+
+	// TicketActions registers host-defined custom action buttons for the agent
+	// ticket screen. Each visible action is exposed on the ticket responses and,
+	// when triggered, records an internal note and invokes OnCustomAction.
+	TicketActions []actions.TicketAction
+
+	// OnCustomAction, when set, is invoked after a custom ticket action is
+	// triggered (and the audit note recorded). This is where the host runs its
+	// own work (CRM sync, etc.).
+	OnCustomAction func(ctx context.Context, e actions.CustomActionEvent) error
 }
 
 // DefaultConfig returns a Config with sensible defaults.

@@ -132,6 +132,11 @@ type Ticket struct {
 	ChatMessages         []ChatMessage   `json:"chat_messages,omitempty"`
 	RequesterTicketCount *int            `json:"requester_ticket_count,omitempty"`
 	RelatedTickets       []RelatedTicket `json:"related_tickets,omitempty"`
+
+	// CustomActions holds host-defined custom ticket actions visible for this
+	// ticket/user (each with key, label, variant, confirmation, disabled,
+	// metadata, url, method). Populated by the handler at serialization time.
+	CustomActions []map[string]any `json:"custom_actions,omitempty"`
 }
 
 // PopulateComputedOpts holds optional data used to populate computed fields.

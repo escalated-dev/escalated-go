@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
+	"github.com/escalated-dev/escalated-go/actions"
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/renderer"
 	"github.com/escalated-dev/escalated-go/services"
@@ -17,6 +20,12 @@ type AgentHandler struct {
 	assignments *services.AssignmentService
 	renderer    renderer.Renderer
 	userID      func(r *http.Request) int64
+
+	// Actions, OnCustomAction, and RoutePrefix are wired by the router to
+	// support host-defined custom ticket actions. They may be nil/empty.
+	Actions        *actions.Registry
+	OnCustomAction func(ctx context.Context, e actions.CustomActionEvent) error
+	RoutePrefix    string
 }
 
 // NewAgentHandler creates a new AgentHandler.
@@ -123,13 +132,85 @@ func (h *AgentHandler) ShowTicket(w http.ResponseWriter, r *http.Request) {
 	t.PopulateComputed(replies)
 
 	_ = h.renderer.Render(w, r, "Agent/Tickets/Show", map[string]any{
-		"ticket":      t,
-		"replies":     replies,
-		"activities":  activities,
-		"departments": depts,
-		"tags":        tags,
-		"attachments": ticketAttachments,
+		"ticket":        t,
+		"replies":       replies,
+		"activities":    activities,
+		"departments":   depts,
+		"tags":          tags,
+		"attachments":   ticketAttachments,
+		"customActions": h.customActionsFor(t, h.userID(r), "agent"),
 	})
+}
+
+// customActionsFor serializes the visible custom actions for a ticket, adding
+// url + method. surface is "agent" or "api" (selects the URL prefix segment).
+func (h *AgentHandler) customActionsFor(t *models.Ticket, userID int64, surface string) []map[string]any {
+	if h.Actions == nil {
+		return []map[string]any{}
+	}
+	prefix := h.RoutePrefix
+	if prefix == "" {
+		prefix = "/escalated"
+	}
+	out := h.Actions.ForTicket(t, userID)
+	for _, a := range out {
+		a["url"] = fmt.Sprintf("%s/%s/tickets/%d/actions/%v", prefix, surface, t.ID, a["key"])
+		a["method"] = "post"
+	}
+	return out
+}
+
+// CustomAction handles POST /agent/tickets/{id}/actions/{action}.
+func (h *AgentHandler) CustomAction(w http.ResponseWriter, r *http.Request) {
+	id, err := idFromPath(r)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	if h.Actions == nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	t, err := h.tickets.Get(r.Context(), id)
+	if err != nil || t == nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	key := r.PathValue("action")
+	uid := h.userID(r)
+	action, ok := h.Actions.Find(key)
+	if !ok || !h.Actions.Visible(action, t, uid) {
+		http.Error(w, "custom action not found", http.StatusNotFound)
+		return
+	}
+	if !h.Actions.Enabled(action, t, uid) {
+		http.Error(w, "custom action is not enabled", http.StatusForbidden)
+		return
+	}
+
+	var in struct {
+		Payload map[string]any `json:"payload"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&in)
+
+	// Record an internal note for auditability (authored by the agent).
+	authorType := "User"
+	_, _ = h.tickets.AddReply(r.Context(), id, fmt.Sprintf("Custom action %q was triggered.", key), &authorType, &uid, true)
+
+	// Hand off to the host's handler, if any.
+	if h.OnCustomAction != nil {
+		_ = h.OnCustomAction(r.Context(), actions.CustomActionEvent{
+			Ticket:   t,
+			Action:   key,
+			UserID:   uid,
+			Payload:  in.Payload,
+			Metadata: action.Metadata,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"message": "Custom action dispatched.", "action": key})
 }
 
 // AssignTicket handles assigning a ticket to an agent.
