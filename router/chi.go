@@ -5,6 +5,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	escalated "github.com/escalated-dev/escalated-go"
+	"github.com/escalated-dev/escalated-go/actions"
 	"github.com/escalated-dev/escalated-go/handlers"
 	"github.com/escalated-dev/escalated-go/middleware"
 	"github.com/escalated-dev/escalated-go/services"
@@ -19,8 +20,17 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	ticketSvc := services.NewTicketService(s)
 	assignSvc := services.NewAssignmentService(s)
 
+	actionRegistry := actions.NewRegistry(cfg.TicketActions)
+
 	apiH := handlers.NewAPIHandler(s, ticketSvc, rend, cfg.UserIDFunc)
+	apiH.Actions = actionRegistry
+	apiH.OnCustomAction = cfg.OnCustomAction
+	apiH.RoutePrefix = cfg.RoutePrefix
+
 	agentH := handlers.NewAgentHandler(s, ticketSvc, assignSvc, rend, cfg.UserIDFunc)
+	agentH.Actions = actionRegistry
+	agentH.OnCustomAction = cfg.OnCustomAction
+	agentH.RoutePrefix = cfg.RoutePrefix
 	customerH := handlers.NewCustomerHandler(s, ticketSvc, rend, cfg.UserIDFunc)
 	adminH := handlers.NewAdminHandler(s, rend)
 	attachH := handlers.NewAttachmentHandler(s, cfg.RoutePrefix)
@@ -40,6 +50,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 			r.Get("/tickets/{id}", apiH.ShowTicket)
 			r.Patch("/tickets/{id}", apiH.UpdateTicket)
 			r.Post("/tickets/{id}/replies", apiH.CreateReply)
+			r.Post("/tickets/{id}/actions/{action}", apiH.CustomAction)
 			r.Get("/departments", apiH.ListDepartments)
 			r.Get("/tags", apiH.ListTags)
 		})
@@ -65,6 +76,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Post("/tickets/{id}/assign", agentH.AssignTicket)
 				r.Post("/tickets/{id}/replies", agentH.Reply)
 				r.Post("/tickets/{id}/status", agentH.ChangeStatus)
+				r.Post("/tickets/{id}/actions/{action}", agentH.CustomAction)
 
 				// Macros (agent-applied one-click bundles).
 				r.Get("/macros", macroH.AgentList)
