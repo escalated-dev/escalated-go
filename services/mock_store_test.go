@@ -169,12 +169,12 @@ func (m *mockStore) CreateSavedView(_ context.Context, _ *models.SavedView) erro
 func (m *mockStore) GetSavedView(_ context.Context, _ int64) (*models.SavedView, error) {
 	return nil, nil
 }
-func (m *mockStore) ListSavedViews(_ context.Context, _ int64, _ bool) ([]*models.SavedView, error) {
+func (m *mockStore) ListSavedViews(_ context.Context, _ models.UserID, _ bool) ([]*models.SavedView, error) {
 	return nil, nil
 }
 func (m *mockStore) UpdateSavedView(_ context.Context, _ *models.SavedView) error { return nil }
 func (m *mockStore) DeleteSavedView(_ context.Context, _ int64) error             { return nil }
-func (m *mockStore) ReorderSavedViews(_ context.Context, _ int64, _ []int64) error {
+func (m *mockStore) ReorderSavedViews(_ context.Context, _ models.UserID, _ []int64) error {
 	return nil
 }
 
@@ -285,7 +285,7 @@ func (m *mockStore) DeleteChatRoutingRule(_ context.Context, id int64) error {
 	return nil
 }
 
-func (m *mockStore) CountActiveChatsForAgent(_ context.Context, agentID int64) (int, error) {
+func (m *mockStore) CountActiveChatsForAgent(_ context.Context, agentID models.UserID) (int, error) {
 	count := 0
 	for _, s := range m.chatSessions {
 		if s.AgentID != nil && *s.AgentID == agentID && s.Status == models.ChatStatusActive {
@@ -303,7 +303,7 @@ func (m *mockStore) CreateChatMessage(_ context.Context, msg *models.ChatMessage
 func (m *mockStore) ListChatMessages(_ context.Context, _ int64) ([]models.ChatMessage, error) {
 	return nil, nil
 }
-func (m *mockStore) CountTicketsByRequester(_ context.Context, _ string, _ int64) (int, error) {
+func (m *mockStore) CountTicketsByRequester(_ context.Context, _ string, _ models.UserID) (int, error) {
 	return 0, nil
 }
 func (m *mockStore) ListRelatedTickets(_ context.Context, _ int64) ([]models.RelatedTicket, error) {

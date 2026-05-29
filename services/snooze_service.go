@@ -22,7 +22,7 @@ func NewSnoozeService(s store.Store) *SnoozeService {
 
 // SnoozeTicket snoozes a ticket until the given time. The ticket's current status
 // is saved so it can be restored when the snooze expires.
-func (ss *SnoozeService) SnoozeTicket(ctx context.Context, ticketID int64, until time.Time, snoozedBy *int64) error {
+func (ss *SnoozeService) SnoozeTicket(ctx context.Context, ticketID int64, until time.Time, snoozedBy *models.UserID) error {
 	t, err := ss.store.GetTicket(ctx, ticketID)
 	if err != nil {
 		return fmt.Errorf("fetching ticket: %w", err)
@@ -70,7 +70,7 @@ func (ss *SnoozeService) SnoozeTicket(ctx context.Context, ticketID int64, until
 }
 
 // UnsnoozeTicket restores a snoozed ticket to its previous status.
-func (ss *SnoozeService) UnsnoozeTicket(ctx context.Context, ticketID int64, causerID *int64) error {
+func (ss *SnoozeService) UnsnoozeTicket(ctx context.Context, ticketID int64, causerID *models.UserID) error {
 	t, err := ss.store.GetTicket(ctx, ticketID)
 	if err != nil {
 		return fmt.Errorf("fetching ticket: %w", err)

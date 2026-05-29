@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/renderer"
 	"github.com/escalated-dev/escalated-go/store"
 )
@@ -104,6 +105,6 @@ func applyDefaults(cfg *Config) {
 		cfg.AgentCheck = func(_ *http.Request) bool { return false }
 	}
 	if cfg.UserIDFunc == nil {
-		cfg.UserIDFunc = func(_ *http.Request) int64 { return 0 }
+		cfg.UserIDFunc = func(_ *http.Request) models.UserID { return "" }
 	}
 }

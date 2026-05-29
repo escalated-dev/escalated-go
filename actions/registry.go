@@ -20,10 +20,10 @@ type TicketAction struct {
 	Confirmation string
 	// Visible reports whether the action appears for this ticket/user.
 	// A nil func means always visible.
-	Visible func(t *models.Ticket, userID int64) bool
+	Visible func(t *models.Ticket, userID models.UserID) bool
 	// Enabled reports whether the button is clickable (vs shown but disabled).
 	// A nil func means always enabled.
-	Enabled func(t *models.Ticket, userID int64) bool
+	Enabled func(t *models.Ticket, userID models.UserID) bool
 	// Metadata is arbitrary data passed through to the UI and the event.
 	Metadata map[string]any
 }
@@ -32,7 +32,7 @@ type TicketAction struct {
 type CustomActionEvent struct {
 	Ticket   *models.Ticket
 	Action   string
-	UserID   int64
+	UserID   models.UserID
 	Payload  map[string]any
 	Metadata map[string]any
 }
@@ -64,18 +64,18 @@ func (r *Registry) Find(key string) (TicketAction, bool) {
 }
 
 // Visible reports whether the action is visible for the ticket/user.
-func (r *Registry) Visible(a TicketAction, t *models.Ticket, userID int64) bool {
+func (r *Registry) Visible(a TicketAction, t *models.Ticket, userID models.UserID) bool {
 	return a.Visible == nil || a.Visible(t, userID)
 }
 
 // Enabled reports whether the action is enabled for the ticket/user.
-func (r *Registry) Enabled(a TicketAction, t *models.Ticket, userID int64) bool {
+func (r *Registry) Enabled(a TicketAction, t *models.Ticket, userID models.UserID) bool {
 	return a.Enabled == nil || a.Enabled(t, userID)
 }
 
 // ForTicket returns the visible actions for a ticket/user, serialized for the
 // UI. The caller adds the "url" and "method" before sending to the client.
-func (r *Registry) ForTicket(t *models.Ticket, userID int64) []map[string]any {
+func (r *Registry) ForTicket(t *models.Ticket, userID models.UserID) []map[string]any {
 	out := make([]map[string]any, 0, len(r.ordered))
 	for _, a := range r.ordered {
 		if !r.Visible(a, t, userID) {

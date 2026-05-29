@@ -41,7 +41,7 @@ type ChatSession struct {
 	ID               int64           `json:"id"`
 	TicketID         int64           `json:"ticket_id"`
 	Status           int             `json:"status"`
-	AgentID          *int64          `json:"agent_id,omitempty"`
+	AgentID          *UserID         `json:"agent_id,omitempty"`
 	VisitorUserAgent *string         `json:"visitor_user_agent,omitempty"`
 	VisitorIP        *string         `json:"visitor_ip,omitempty"`
 	VisitorPageURL   *string         `json:"visitor_page_url,omitempty"`
@@ -96,7 +96,7 @@ type ChatMessage struct {
 
 // ChatSessionFilters holds query parameters for listing chat sessions.
 type ChatSessionFilters struct {
-	Status  *int   `json:"status,omitempty"`
-	AgentID *int64 `json:"agent_id,omitempty"`
-	Active  bool   `json:"active,omitempty"`
+	Status  *int    `json:"status,omitempty"`
+	AgentID *UserID `json:"agent_id,omitempty"`
+	Active  bool    `json:"active,omitempty"`
 }

@@ -29,7 +29,7 @@ type SkillRoutingDepartment struct {
 // AgentSkill is a row in escalated_agent_skills (user + proficiency).
 type AgentSkill struct {
 	ID          int64     `json:"id"`
-	UserID      int64     `json:"user_id"`
+	UserID      UserID    `json:"user_id"`
 	SkillID     int64     `json:"skill_id"`
 	Proficiency int       `json:"proficiency"`
 	CreatedAt   time.Time `json:"created_at"`
@@ -57,8 +57,8 @@ type SkillFormPayload struct {
 
 // SkillFormAgentRow is one agent line on the form (user_id + proficiency).
 type SkillFormAgentRow struct {
-	UserID      int64 `json:"user_id"`
-	Proficiency int   `json:"proficiency"`
+	UserID      UserID `json:"user_id"`
+	Proficiency int    `json:"proficiency"`
 }
 
 // SkillFormOption is a minimal id+name row for tag/department pickers.
@@ -69,7 +69,7 @@ type SkillFormOption struct {
 
 // SkillRoutingUser is returned by SkillRoutingService.FindMatchingAgents.
 type SkillRoutingUser struct {
-	ID    int64  `json:"id"`
+	ID    UserID `json:"id"`
 	Name  string `json:"name,omitempty"`
 	Email string `json:"email,omitempty"`
 }

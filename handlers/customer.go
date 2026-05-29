@@ -15,11 +15,11 @@ type CustomerHandler struct {
 	store    store.Store
 	tickets  *services.TicketService
 	renderer renderer.Renderer
-	userID   func(r *http.Request) int64
+	userID   func(r *http.Request) models.UserID
 }
 
 // NewCustomerHandler creates a new CustomerHandler.
-func NewCustomerHandler(s store.Store, ts *services.TicketService, rend renderer.Renderer, userIDFunc func(r *http.Request) int64) *CustomerHandler {
+func NewCustomerHandler(s store.Store, ts *services.TicketService, rend renderer.Renderer, userIDFunc func(r *http.Request) models.UserID) *CustomerHandler {
 	return &CustomerHandler{
 		store:    s,
 		tickets:  ts,

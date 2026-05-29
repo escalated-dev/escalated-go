@@ -43,7 +43,7 @@ func (f *fakeWriter) Create(_ context.Context, _ email.CreateTicketInputShim) (*
 	return f.createReturn, nil
 }
 
-func (f *fakeWriter) AddReply(_ context.Context, _ int64, _ string, _ *string, _ *int64, _ bool) (*models.Reply, error) {
+func (f *fakeWriter) AddReply(_ context.Context, _ int64, _ string, _ *string, _ *models.UserID, _ bool) (*models.Reply, error) {
 	f.replyCalls++
 	return f.replyReturn, nil
 }

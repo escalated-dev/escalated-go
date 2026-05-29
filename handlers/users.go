@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/renderer"
 )
 
@@ -69,15 +70,15 @@ type UserRoleUpdates struct {
 type UserHandler struct {
 	directory UserDirectory
 	renderer  renderer.Renderer
-	currentID func(r *http.Request) int64
+	currentID func(r *http.Request) models.UserID
 }
 
 // NewUserHandler constructs a UserHandler. directory may be nil when a
 // host hasn't wired one up — in that case the routes degrade gracefully
 // (Index renders an empty page; UpdateRole reports 501).
-func NewUserHandler(directory UserDirectory, rend renderer.Renderer, currentID func(r *http.Request) int64) *UserHandler {
+func NewUserHandler(directory UserDirectory, rend renderer.Renderer, currentID func(r *http.Request) models.UserID) *UserHandler {
 	if currentID == nil {
-		currentID = func(_ *http.Request) int64 { return 0 }
+		currentID = func(_ *http.Request) models.UserID { return "" }
 	}
 	return &UserHandler{directory: directory, renderer: rend, currentID: currentID}
 }
@@ -116,7 +117,7 @@ func (h *UserHandler) Index(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var currentUserID any
-	if uid := h.currentID(r); uid > 0 {
+	if uid := h.currentID(r); !uid.Empty() {
 		currentUserID = uid
 	}
 
@@ -181,7 +182,7 @@ func (h *UserHandler) UpdateRole(w http.ResponseWriter, r *http.Request) {
 	// Self-demote guard. Compare by id (the only stable handle we
 	// have) — the test must be against the request's current user.
 	if in.Role == "admin" && !value {
-		if currentID := h.currentID(r); currentID > 0 && currentID == target.ID {
+		if currentID := h.currentID(r); !currentID.Empty() && currentID == models.UserID(strconv.FormatInt(target.ID, 10)) {
 			writeJSON(w, http.StatusUnprocessableEntity, map[string]any{
 				"error": "You cannot remove your own admin role.",
 			})

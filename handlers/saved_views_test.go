@@ -46,7 +46,7 @@ func (m *savedViewMockStore) GetSavedView(_ context.Context, id int64) (*models.
 	return &cp, nil
 }
 
-func (m *savedViewMockStore) ListSavedViews(_ context.Context, userID int64, includeShared bool) ([]*models.SavedView, error) {
+func (m *savedViewMockStore) ListSavedViews(_ context.Context, userID models.UserID, includeShared bool) ([]*models.SavedView, error) {
 	var result []*models.SavedView
 	for _, sv := range m.views {
 		if sv.UserID == userID || (includeShared && sv.IsShared) {
@@ -71,7 +71,7 @@ func (m *savedViewMockStore) DeleteSavedView(_ context.Context, id int64) error 
 	return nil
 }
 
-func (m *savedViewMockStore) ReorderSavedViews(_ context.Context, _ int64, ids []int64) error {
+func (m *savedViewMockStore) ReorderSavedViews(_ context.Context, _ models.UserID, ids []int64) error {
 	for i, id := range ids {
 		if sv, ok := m.views[id]; ok {
 			sv.Position = i
@@ -182,7 +182,7 @@ func (m *savedViewMockStore) UpdateChatRoutingRule(_ context.Context, _ *models.
 	return nil
 }
 func (m *savedViewMockStore) DeleteChatRoutingRule(_ context.Context, _ int64) error { return nil }
-func (m *savedViewMockStore) CountActiveChatsForAgent(_ context.Context, _ int64) (int, error) {
+func (m *savedViewMockStore) CountActiveChatsForAgent(_ context.Context, _ models.UserID) (int, error) {
 	return 0, nil
 }
 func (m *savedViewMockStore) CreateChatMessage(_ context.Context, _ *models.ChatMessage) error {
@@ -191,7 +191,7 @@ func (m *savedViewMockStore) CreateChatMessage(_ context.Context, _ *models.Chat
 func (m *savedViewMockStore) ListChatMessages(_ context.Context, _ int64) ([]models.ChatMessage, error) {
 	return nil, nil
 }
-func (m *savedViewMockStore) CountTicketsByRequester(_ context.Context, _ string, _ int64) (int, error) {
+func (m *savedViewMockStore) CountTicketsByRequester(_ context.Context, _ string, _ models.UserID) (int, error) {
 	return 0, nil
 }
 func (m *savedViewMockStore) ListRelatedTickets(_ context.Context, _ int64) ([]models.RelatedTicket, error) {
@@ -242,7 +242,7 @@ func TestSavedViewHandler_Create(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ms := newSavedViewMockStore()
-			h := NewSavedViewHandler(ms, func(_ *http.Request) int64 { return 1 })
+			h := NewSavedViewHandler(ms, func(_ *http.Request) models.UserID { return "1" })
 
 			bodyBytes, _ := json.Marshal(tt.body)
 			req := httptest.NewRequest(http.MethodPost, "/api/saved-views", bytes.NewReader(bodyBytes))
@@ -259,11 +259,11 @@ func TestSavedViewHandler_Create(t *testing.T) {
 
 func TestSavedViewHandler_ListAndShow(t *testing.T) {
 	ms := newSavedViewMockStore()
-	ms.views[1] = &models.SavedView{ID: 1, Name: "My View", UserID: 1, Filters: json.RawMessage(`{}`)}
-	ms.views[2] = &models.SavedView{ID: 2, Name: "Shared View", UserID: 2, IsShared: true, Filters: json.RawMessage(`{}`)}
-	ms.views[3] = &models.SavedView{ID: 3, Name: "Private Other", UserID: 2, Filters: json.RawMessage(`{}`)}
+	ms.views[1] = &models.SavedView{ID: 1, Name: "My View", UserID: models.UserID("1"), Filters: json.RawMessage(`{}`)}
+	ms.views[2] = &models.SavedView{ID: 2, Name: "Shared View", UserID: models.UserID("2"), IsShared: true, Filters: json.RawMessage(`{}`)}
+	ms.views[3] = &models.SavedView{ID: 3, Name: "Private Other", UserID: models.UserID("2"), Filters: json.RawMessage(`{}`)}
 
-	h := NewSavedViewHandler(ms, func(_ *http.Request) int64 { return 1 })
+	h := NewSavedViewHandler(ms, func(_ *http.Request) models.UserID { return "1" })
 
 	// List should include own and shared views
 	req := httptest.NewRequest(http.MethodGet, "/api/saved-views", nil)
@@ -310,10 +310,10 @@ func TestSavedViewHandler_ListAndShow(t *testing.T) {
 
 func TestSavedViewHandler_Reorder(t *testing.T) {
 	ms := newSavedViewMockStore()
-	ms.views[1] = &models.SavedView{ID: 1, Name: "A", UserID: 1, Position: 0}
-	ms.views[2] = &models.SavedView{ID: 2, Name: "B", UserID: 1, Position: 1}
+	ms.views[1] = &models.SavedView{ID: 1, Name: "A", UserID: models.UserID("1"), Position: 0}
+	ms.views[2] = &models.SavedView{ID: 2, Name: "B", UserID: models.UserID("1"), Position: 1}
 
-	h := NewSavedViewHandler(ms, func(_ *http.Request) int64 { return 1 })
+	h := NewSavedViewHandler(ms, func(_ *http.Request) models.UserID { return "1" })
 
 	body, _ := json.Marshal(map[string]any{"ids": []int64{2, 1}})
 	req := httptest.NewRequest(http.MethodPost, "/api/saved-views/reorder", bytes.NewReader(body))

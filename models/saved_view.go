@@ -10,7 +10,7 @@ type SavedView struct {
 	ID       int64           `json:"id"`
 	Name     string          `json:"name"`
 	Filters  json.RawMessage `json:"filters"`
-	UserID   int64           `json:"user_id"`
+	UserID   UserID          `json:"user_id"`
 	IsShared bool            `json:"is_shared"`
 	Position int             `json:"position"`
 	Icon     string          `json:"icon,omitempty"`
@@ -26,8 +26,8 @@ type SavedViewFilters struct {
 	Priority     *int    `json:"priority,omitempty"`
 	TicketType   *string `json:"ticket_type,omitempty"`
 	DepartmentID *int64  `json:"department_id,omitempty"`
-	AssignedTo   *int64  `json:"assigned_to,omitempty"`
-	RequesterID  *int64  `json:"requester_id,omitempty"`
+	AssignedTo   *UserID `json:"assigned_to,omitempty"`
+	RequesterID  *UserID `json:"requester_id,omitempty"`
 	Search       string  `json:"search,omitempty"`
 	SLABreached  *bool   `json:"sla_breached,omitempty"`
 	Unassigned   bool    `json:"unassigned,omitempty"`

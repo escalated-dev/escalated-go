@@ -53,7 +53,7 @@ func (h *MacroHandler) AdminList(w http.ResponseWriter, r *http.Request) {
 	out := []models.Macro{}
 	for rows.Next() {
 		var m models.Macro
-		var createdBy sql.NullInt64
+		var createdBy sql.NullString
 		if err := rows.Scan(
 			&m.ID, &m.Name, &m.Description, &m.Actions, &m.IsShared,
 			&createdBy, &m.CreatedAt, &m.UpdatedAt,
@@ -62,7 +62,8 @@ func (h *MacroHandler) AdminList(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if createdBy.Valid {
-			m.CreatedBy = &createdBy.Int64
+			uid := models.UserID(createdBy.String)
+			m.CreatedBy = &uid
 		}
 		out = append(out, m)
 	}
@@ -88,8 +89,8 @@ func (h *MacroHandler) Create(w http.ResponseWriter, r *http.Request) {
 		isShared = *in.IsShared
 	}
 	creator := currentAgentID(r)
-	var creatorPtr *int64
-	if creator != 0 {
+	var creatorPtr *models.UserID
+	if !creator.Empty() {
 		creatorPtr = &creator
 	}
 
@@ -206,15 +207,21 @@ func (h *MacroHandler) AgentApply(w http.ResponseWriter, r *http.Request) {
 // currentAgentID extracts the authenticated agent's id from the request
 // context. The actual key depends on the host's auth middleware; falls
 // back to 0 (= anonymous / system) if not set.
-func currentAgentID(r *http.Request) int64 {
+func currentAgentID(r *http.Request) models.UserID {
 	v := r.Context().Value(ctxKeyUserID{})
-	if id, ok := v.(int64); ok {
+	if id, ok := v.(models.UserID); ok {
 		return id
 	}
-	if id, ok := v.(int); ok {
-		return int64(id)
+	if id, ok := v.(string); ok {
+		return models.UserID(id)
 	}
-	return 0
+	if id, ok := v.(int64); ok {
+		return models.UserID(strconv.FormatInt(id, 10))
+	}
+	if id, ok := v.(int); ok {
+		return models.UserID(strconv.FormatInt(int64(id), 10))
+	}
+	return ""
 }
 
 // ctxKeyUserID is the canonical context key the host auth middleware

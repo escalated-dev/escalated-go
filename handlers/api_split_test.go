@@ -59,7 +59,7 @@ func TestSplitTicketHandler(t *testing.T) {
 
 			svc := services.NewTicketService(ms)
 			rend := renderer.NewJSONRenderer()
-			h := NewAPIHandler(ms, svc, rend, func(_ *http.Request) int64 { return 1 })
+			h := NewAPIHandler(ms, svc, rend, func(_ *http.Request) models.UserID { return "1" })
 
 			var bodyBytes []byte
 			if tt.body != nil {

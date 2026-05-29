@@ -35,7 +35,7 @@ type Activity struct {
 
 	// Polymorphic causer — nil for system-generated events
 	CauserType *string `json:"causer_type,omitempty"`
-	CauserID   *int64  `json:"causer_id,omitempty"`
+	CauserID   *UserID `json:"causer_id,omitempty"`
 
 	Details json.RawMessage `json:"details,omitempty"`
 

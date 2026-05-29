@@ -268,9 +268,9 @@ func (h *AdminHandler) GetPublicTicketsSettings(w http.ResponseWriter, r *http.R
 // behavior, and truncates signup URL templates at 500 chars.
 func (h *AdminHandler) UpdatePublicTicketsSettings(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		GuestPolicyMode              string  `json:"guest_policy_mode"`
-		GuestPolicyUserID            *int64  `json:"guest_policy_user_id"`
-		GuestPolicySignupURLTemplate *string `json:"guest_policy_signup_url_template"`
+		GuestPolicyMode              string         `json:"guest_policy_mode"`
+		GuestPolicyUserID            *models.UserID `json:"guest_policy_user_id"`
+		GuestPolicySignupURLTemplate *string        `json:"guest_policy_signup_url_template"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		http.Error(w, "invalid JSON body", http.StatusBadRequest)
@@ -289,8 +289,8 @@ func (h *AdminHandler) UpdatePublicTicketsSettings(w http.ResponseWriter, r *htt
 	}
 
 	var userIDValue string
-	if mode == "guest_user" && in.GuestPolicyUserID != nil && *in.GuestPolicyUserID > 0 {
-		userIDValue = strconv.FormatInt(*in.GuestPolicyUserID, 10)
+	if mode == "guest_user" && in.GuestPolicyUserID != nil && !in.GuestPolicyUserID.Empty() {
+		userIDValue = string(*in.GuestPolicyUserID)
 	}
 	if err := h.store.SetSetting(ctx, "guest_policy_user_id", userIDValue); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

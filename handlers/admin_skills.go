@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -134,8 +135,8 @@ type skillWriteBody struct {
 }
 
 type skillWriteBodyAgent struct {
-	UserID      int64 `json:"user_id"`
-	Proficiency *int  `json:"proficiency"`
+	UserID      models.UserID `json:"user_id"`
+	Proficiency *int          `json:"proficiency"`
 }
 
 // StoreSkill handles POST /admin/skills.
@@ -306,9 +307,9 @@ func (h *SkillsHandler) validateWrite(ctx context.Context, in skillWriteBody, ex
 		return err
 	}
 
-	seenUser := make(map[int64]struct{})
+	seenUser := make(map[models.UserID]struct{})
 	for _, a := range in.Agents {
-		if a.UserID <= 0 {
+		if a.UserID.Empty() {
 			return errors.New("each agent requires a valid user_id")
 		}
 		if _, dup := seenUser[a.UserID]; dup {
@@ -329,13 +330,13 @@ func (h *SkillsHandler) validateWrite(ctx context.Context, in skillWriteBody, ex
 		if err != nil {
 			return err
 		}
-		allowed := make(map[int64]struct{}, len(list))
+		allowed := make(map[models.UserID]struct{}, len(list))
 		for _, u := range list {
-			allowed[u.ID] = struct{}{}
+			allowed[models.UserID(strconv.FormatInt(u.ID, 10))] = struct{}{}
 		}
 		for uid := range seenUser {
 			if _, ok := allowed[uid]; !ok {
-				return fmt.Errorf("user_id %d is not an available agent", uid)
+				return fmt.Errorf("user_id %s is not an available agent", uid)
 			}
 		}
 	}
@@ -545,7 +546,7 @@ func (h *SkillsHandler) loadSkillFormPayload(ctx context.Context, id int64) (*mo
 	}
 	defer rows3.Close()
 	for rows3.Next() {
-		var uid int64
+		var uid models.UserID
 		var prof int
 		if err := rows3.Scan(&uid, &prof); err != nil {
 			return nil, err

@@ -12,7 +12,7 @@ func TestRegistryForTicket(t *testing.T) {
 	t.Run("serializes a config action with defaults", func(t *testing.T) {
 		r := NewRegistry([]TicketAction{{Key: "sync-crm", Label: "Sync CRM"}})
 
-		got := r.ForTicket(ticket, 9)
+		got := r.ForTicket(ticket, models.UserID("9"))
 		if len(got) != 1 {
 			t.Fatalf("expected 1 action, got %d", len(got))
 		}
@@ -29,11 +29,11 @@ func TestRegistryForTicket(t *testing.T) {
 
 	t.Run("omits invisible and marks disabled", func(t *testing.T) {
 		r := NewRegistry([]TicketAction{
-			{Key: "hidden", Label: "Hidden", Visible: func(*models.Ticket, int64) bool { return false }},
-			{Key: "locked", Label: "Locked", Enabled: func(*models.Ticket, int64) bool { return false }},
+			{Key: "hidden", Label: "Hidden", Visible: func(*models.Ticket, models.UserID) bool { return false }},
+			{Key: "locked", Label: "Locked", Enabled: func(*models.Ticket, models.UserID) bool { return false }},
 		})
 
-		got := r.ForTicket(ticket, 9)
+		got := r.ForTicket(ticket, models.UserID("9"))
 		if len(got) != 1 || got[0]["key"] != "locked" {
 			t.Fatalf("expected only 'locked', got %+v", got)
 		}
@@ -53,7 +53,7 @@ func TestRegistryForTicket(t *testing.T) {
 		if _, ok := r.Find("missing"); ok {
 			t.Error("did not expect to find 'missing'")
 		}
-		if len(r.ForTicket(ticket, 1)) != 1 {
+		if len(r.ForTicket(ticket, models.UserID("1"))) != 1 {
 			t.Error("expected invalid (no-key) action to be skipped")
 		}
 	})

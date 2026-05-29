@@ -89,9 +89,10 @@ func main() {
         // Your agent check logic
         return r.Header.Get("X-Agent") == "true"
     }
-    cfg.UserIDFunc = func(r *http.Request) int64 {
-        // Extract user ID from session/JWT/etc.
-        return 0
+    cfg.UserIDFunc = func(r *http.Request) models.UserID {
+        // Extract user ID from session/JWT/etc. models.UserID is a string-
+        // backed type, so it works for integer and UUID/string user keys alike.
+        return models.UserID("")
     }
 
     esc, err := escalated.New(cfg)
@@ -164,8 +165,24 @@ func main() {
 | `TablePrefix` | `string` | `escalated_` | Database table name prefix |
 | `AdminCheck` | `func(*http.Request) bool` | `false` | Returns true for admin users |
 | `AgentCheck` | `func(*http.Request) bool` | `false` | Returns true for agent users |
-| `UserIDFunc` | `func(*http.Request) int64` | `0` | Extracts current user's ID from request |
+| `UserIDFunc` | `func(*http.Request) models.UserID` | `""` | Extracts current user's ID from request |
 | `DB` | `*sql.DB` | required | Database connection |
+
+### Host user key type (UUID / string users)
+
+Host user ids are stored as `models.UserID` (a string-backed type that accepts
+integers and UUID/strings, and JSON-encodes numeric ids as numbers for
+back-compat). The DB column type defaults to `BIGINT`. If your host app's user
+primary key is a **UUID or other string**, set `ESCALATED_USER_KEY_TYPE` before
+running migrations so the host-user columns are created as `VARCHAR(255)`:
+
+```bash
+# one of: int (default) | bigint | uuid | string
+export ESCALATED_USER_KEY_TYPE=uuid
+```
+
+Existing integer-keyed installs need no change — the default produces `BIGINT`
+columns and numeric JSON ids exactly as before.
 
 ## API Routes
 

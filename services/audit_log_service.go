@@ -10,7 +10,7 @@ import (
 type AuditLogStore interface {
 	CreateAuditLog(log *models.AuditLog) error
 	ListAuditLogsByEntity(entityType string, entityID int64, limit int) ([]*models.AuditLog, error)
-	ListAuditLogsByPerformer(performerType string, performerID int64, limit int) ([]*models.AuditLog, error)
+	ListAuditLogsByPerformer(performerType string, performerID models.UserID, limit int) ([]*models.AuditLog, error)
 }
 
 // AuditLogService records and queries audit trail entries.
@@ -24,7 +24,7 @@ func NewAuditLogService(store AuditLogStore) *AuditLogService {
 }
 
 // Log records an audit entry.
-func (s *AuditLogService) Log(action, entityType string, entityID *int64, performerType *string, performerID *int64, oldValues, newValues interface{}) error {
+func (s *AuditLogService) Log(action, entityType string, entityID *int64, performerType *string, performerID *models.UserID, oldValues, newValues interface{}) error {
 	entry := &models.AuditLog{
 		Action:        action,
 		EntityType:    entityType,
@@ -54,7 +54,7 @@ func (s *AuditLogService) LogsForEntity(entityType string, entityID int64, limit
 }
 
 // LogsByPerformer returns audit entries by a specific performer.
-func (s *AuditLogService) LogsByPerformer(performerType string, performerID int64, limit int) ([]*models.AuditLog, error) {
+func (s *AuditLogService) LogsByPerformer(performerType string, performerID models.UserID, limit int) ([]*models.AuditLog, error) {
 	if limit <= 0 {
 		limit = 50
 	}

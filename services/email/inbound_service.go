@@ -43,7 +43,7 @@ type PendingAttachment struct {
 // the ticket-write path. Implementations: services.TicketService.
 type TicketWriter interface {
 	Create(ctx context.Context, in CreateTicketInputShim) (*models.Ticket, error)
-	AddReply(ctx context.Context, ticketID int64, body string, authorType *string, authorID *int64, internal bool) (*models.Reply, error)
+	AddReply(ctx context.Context, ticketID int64, body string, authorType *string, authorID *models.UserID, internal bool) (*models.Reply, error)
 }
 
 // CreateTicketInputShim mirrors services.CreateTicketInput with a

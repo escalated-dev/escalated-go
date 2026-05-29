@@ -99,7 +99,7 @@ func TestSnoozeTicket(t *testing.T) {
 			tt.setup(ms)
 			svc := NewSnoozeService(ms)
 
-			agentID := int64(42)
+			agentID := models.UserID("42")
 			err := svc.SnoozeTicket(context.Background(), tt.id, tt.until, &agentID)
 			if tt.wantErr {
 				if err == nil {

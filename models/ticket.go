@@ -67,7 +67,7 @@ type Ticket struct {
 
 	// Requester (polymorphic in Rails — here we use type+id strings)
 	RequesterType *string `json:"requester_type,omitempty"`
-	RequesterID   *int64  `json:"requester_id,omitempty"`
+	RequesterID   *UserID `json:"requester_id,omitempty"`
 
 	// Guest ticket fields (Pattern A, preserved for backwards compat)
 	GuestName  *string `json:"guest_name,omitempty"`
@@ -80,7 +80,7 @@ type Ticket struct {
 	ContactID *int64 `json:"contact_id,omitempty"`
 
 	// Assignee
-	AssignedTo *int64 `json:"assigned_to,omitempty"`
+	AssignedTo *UserID `json:"assigned_to,omitempty"`
 
 	// Relationships
 	DepartmentID *int64 `json:"department_id,omitempty"`
@@ -90,7 +90,7 @@ type Ticket struct {
 
 	// Snooze fields
 	SnoozedUntil       *time.Time `json:"snoozed_until,omitempty"`
-	SnoozedBy          *int64     `json:"snoozed_by,omitempty"`
+	SnoozedBy          *UserID    `json:"snoozed_by,omitempty"`
 	StatusBeforeSnooze *int       `json:"status_before_snooze,omitempty"`
 
 	// SLA tracking
@@ -311,8 +311,8 @@ type TicketFilters struct {
 	Priority     *int    `json:"priority,omitempty"`
 	TicketType   *string `json:"ticket_type,omitempty"`
 	DepartmentID *int64  `json:"department_id,omitempty"`
-	AssignedTo   *int64  `json:"assigned_to,omitempty"`
-	RequesterID  *int64  `json:"requester_id,omitempty"`
+	AssignedTo   *UserID `json:"assigned_to,omitempty"`
+	RequesterID  *UserID `json:"requester_id,omitempty"`
 	Search       string  `json:"search,omitempty"`
 	SLABreached  *bool   `json:"sla_breached,omitempty"`
 	Unassigned   bool    `json:"unassigned,omitempty"`

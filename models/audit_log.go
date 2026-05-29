@@ -12,7 +12,7 @@ type AuditLog struct {
 	EntityType    string          `json:"entity_type"`
 	EntityID      *int64          `json:"entity_id,omitempty"`
 	PerformerType *string         `json:"performer_type,omitempty"`
-	PerformerID   *int64          `json:"performer_id,omitempty"`
+	PerformerID   *UserID         `json:"performer_id,omitempty"`
 	OldValues     json.RawMessage `json:"old_values,omitempty"`
 	NewValues     json.RawMessage `json:"new_values,omitempty"`
 	IPAddress     *string         `json:"ip_address,omitempty"`
