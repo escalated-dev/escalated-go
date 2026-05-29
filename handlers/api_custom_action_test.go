@@ -14,7 +14,7 @@ import (
 )
 
 func customActionHandler(ms *handlerMockStore, reg *actions.Registry, fired *string) *APIHandler {
-	h := NewAPIHandler(ms, services.NewTicketService(ms), renderer.NewJSONRenderer(), func(_ *http.Request) int64 { return 1 })
+	h := NewAPIHandler(ms, services.NewTicketService(ms), renderer.NewJSONRenderer(), func(_ *http.Request) models.UserID { return "1" })
 	h.Actions = reg
 	h.RoutePrefix = "/escalated"
 	if fired != nil {
@@ -70,7 +70,7 @@ func TestAPICustomAction(t *testing.T) {
 		reg := actions.NewRegistry([]actions.TicketAction{{
 			Key:     "sync-crm",
 			Label:   "Sync CRM",
-			Enabled: func(*models.Ticket, int64) bool { return false },
+			Enabled: func(*models.Ticket, models.UserID) bool { return false },
 		}})
 		h := customActionHandler(ms, reg, nil)
 

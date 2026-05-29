@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -125,7 +126,7 @@ func (s *PostgresStore) ListChatMessages(ctx context.Context, chatSessionID int6
 
 // --- Ticket Counts / Relations ---
 
-func (s *PostgresStore) CountTicketsByRequester(ctx context.Context, requesterType string, requesterID int64) (int, error) {
+func (s *PostgresStore) CountTicketsByRequester(ctx context.Context, requesterType string, requesterID models.UserID) (int, error) {
 	q := fmt.Sprintf(`SELECT COUNT(*) FROM %s WHERE requester_type = $1 AND requester_id = $2`, s.t("tickets"))
 	var count int
 	err := s.db.QueryRowContext(ctx, q, requesterType, requesterID).Scan(&count)
@@ -157,7 +158,7 @@ func (s *PostgresStore) CreateChatRoutingRule(ctx context.Context, r *models.Cha
 	q := fmt.Sprintf(`INSERT INTO %s (name, strategy, department_id, agent_ids, priority, max_concurrent_chats, is_active, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`, s.t("chat_routing_rules"))
 	r.CreatedAt = time.Now()
 	return s.db.QueryRowContext(ctx, q,
-		r.Name, r.Strategy, r.DepartmentID, pqInt64Array(r.AgentIDs), r.Priority, r.MaxConcurrentChats, r.IsActive, r.CreatedAt,
+		r.Name, r.Strategy, r.DepartmentID, pqUserIDArray(r.AgentIDs), r.Priority, r.MaxConcurrentChats, r.IsActive, r.CreatedAt,
 	).Scan(&r.ID)
 }
 
@@ -204,21 +205,26 @@ func (s *PostgresStore) DeleteChatRoutingRule(ctx context.Context, id int64) err
 	return err
 }
 
-func (s *PostgresStore) CountActiveChatsForAgent(ctx context.Context, agentID int64) (int, error) {
+func (s *PostgresStore) CountActiveChatsForAgent(ctx context.Context, agentID models.UserID) (int, error) {
 	q := fmt.Sprintf(`SELECT COUNT(*) FROM %s WHERE agent_id = $1 AND status = $2`, s.t("chat_sessions"))
 	var count int
 	err := s.db.QueryRowContext(ctx, q, agentID, models.ChatStatusActive).Scan(&count)
 	return count, err
 }
 
-// pqInt64Array is a helper for PostgreSQL int arrays (simplified).
-func pqInt64Array(ids []int64) string {
+// pqUserIDArray is a helper for PostgreSQL host-user id arrays (simplified).
+func pqUserIDArray(ids []models.UserID) string {
 	if len(ids) == 0 {
 		return "{}"
 	}
 	parts := make([]string, len(ids))
 	for i, id := range ids {
-		parts[i] = fmt.Sprintf("%d", id)
+		s := string(id)
+		if _, err := strconv.ParseInt(s, 10, 64); err == nil {
+			parts[i] = s
+			continue
+		}
+		parts[i] = `"` + strings.ReplaceAll(s, `"`, `\"`) + `"`
 	}
 	return "{" + strings.Join(parts, ",") + "}"
 }

@@ -19,7 +19,7 @@ type AgentHandler struct {
 	tickets     *services.TicketService
 	assignments *services.AssignmentService
 	renderer    renderer.Renderer
-	userID      func(r *http.Request) int64
+	userID      func(r *http.Request) models.UserID
 
 	// Actions, OnCustomAction, and RoutePrefix are wired by the router to
 	// support host-defined custom ticket actions. They may be nil/empty.
@@ -29,7 +29,7 @@ type AgentHandler struct {
 }
 
 // NewAgentHandler creates a new AgentHandler.
-func NewAgentHandler(s store.Store, ts *services.TicketService, as *services.AssignmentService, rend renderer.Renderer, userIDFunc func(r *http.Request) int64) *AgentHandler {
+func NewAgentHandler(s store.Store, ts *services.TicketService, as *services.AssignmentService, rend renderer.Renderer, userIDFunc func(r *http.Request) models.UserID) *AgentHandler {
 	return &AgentHandler{
 		store:       s,
 		tickets:     ts,
@@ -144,7 +144,7 @@ func (h *AgentHandler) ShowTicket(w http.ResponseWriter, r *http.Request) {
 
 // customActionsFor serializes the visible custom actions for a ticket, adding
 // url + method. surface is "agent" or "api" (selects the URL prefix segment).
-func (h *AgentHandler) customActionsFor(t *models.Ticket, userID int64, surface string) []map[string]any {
+func (h *AgentHandler) customActionsFor(t *models.Ticket, userID models.UserID, surface string) []map[string]any {
 	if h.Actions == nil {
 		return []map[string]any{}
 	}
@@ -222,7 +222,7 @@ func (h *AgentHandler) AssignTicket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var in struct {
-		AgentID int64 `json:"agent_id"`
+		AgentID models.UserID `json:"agent_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		http.Error(w, "invalid input", http.StatusBadRequest)

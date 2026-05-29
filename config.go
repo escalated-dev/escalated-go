@@ -7,6 +7,7 @@ import (
 
 	"github.com/escalated-dev/escalated-go/actions"
 	"github.com/escalated-dev/escalated-go/handlers"
+	"github.com/escalated-dev/escalated-go/models"
 )
 
 // Config holds the configuration for the Escalated support ticket system.
@@ -33,7 +34,7 @@ type Config struct {
 
 	// UserIDFunc extracts the current user's ID from a request.
 	// Used for assigning tickets, tracking activity causers, etc.
-	UserIDFunc func(r *http.Request) int64
+	UserIDFunc func(r *http.Request) models.UserID
 
 	// DB is the database connection used by the default store implementations.
 	DB *sql.DB
@@ -72,8 +73,8 @@ func DefaultConfig() Config {
 		AgentCheck: func(r *http.Request) bool {
 			return false
 		},
-		UserIDFunc: func(r *http.Request) int64 {
-			return 0
+		UserIDFunc: func(r *http.Request) models.UserID {
+			return ""
 		},
 	}
 }

@@ -5,7 +5,7 @@ import "time"
 // TwoFactor stores two-factor authentication configuration for a user.
 type TwoFactor struct {
 	ID            int64      `json:"id"`
-	UserID        int64      `json:"user_id"`
+	UserID        UserID     `json:"user_id"`
 	Method        string     `json:"method"`
 	Secret        *string    `json:"secret,omitempty"`
 	RecoveryCodes []string   `json:"recovery_codes,omitempty"`

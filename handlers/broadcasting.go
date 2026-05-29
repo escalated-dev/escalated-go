@@ -6,17 +6,18 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/services"
 )
 
 // BroadcastHandler serves the real-time event streaming endpoints.
 type BroadcastHandler struct {
 	broadcaster *services.Broadcaster
-	userID      func(r *http.Request) int64
+	userID      func(r *http.Request) models.UserID
 }
 
 // NewBroadcastHandler creates a new BroadcastHandler.
-func NewBroadcastHandler(b *services.Broadcaster, userIDFunc func(r *http.Request) int64) *BroadcastHandler {
+func NewBroadcastHandler(b *services.Broadcaster, userIDFunc func(r *http.Request) models.UserID) *BroadcastHandler {
 	return &BroadcastHandler{
 		broadcaster: b,
 		userID:      userIDFunc,
@@ -32,7 +33,7 @@ func (h *BroadcastHandler) SSE(w http.ResponseWriter, r *http.Request) {
 	}
 
 	uid := h.userID(r)
-	if uid <= 0 {
+	if uid.Empty() {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "authentication required"})
 		return
 	}
@@ -46,7 +47,7 @@ func (h *BroadcastHandler) SSE(w http.ResponseWriter, r *http.Request) {
 	// Always subscribe to the user's private channel
 	channels = append(channels, services.UserChannel(uid))
 
-	subscriberID := fmt.Sprintf("user-%d", uid)
+	subscriberID := fmt.Sprintf("user-%s", uid)
 	sub, err := h.broadcaster.Subscribe(subscriberID, channels)
 	if err != nil {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
@@ -80,7 +81,7 @@ func (h *BroadcastHandler) SSE(w http.ResponseWriter, r *http.Request) {
 // SubscribeChannel handles POST /api/events/subscribe - add a channel to current subscription.
 func (h *BroadcastHandler) SubscribeChannel(w http.ResponseWriter, r *http.Request) {
 	uid := h.userID(r)
-	if uid <= 0 {
+	if uid.Empty() {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "authentication required"})
 		return
 	}
@@ -93,7 +94,7 @@ func (h *BroadcastHandler) SubscribeChannel(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	subscriberID := fmt.Sprintf("user-%d", uid)
+	subscriberID := fmt.Sprintf("user-%s", uid)
 	if err := h.broadcaster.AddChannel(subscriberID, in.Channel); err != nil {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 		return
@@ -105,7 +106,7 @@ func (h *BroadcastHandler) SubscribeChannel(w http.ResponseWriter, r *http.Reque
 // UnsubscribeChannel handles POST /api/events/unsubscribe - remove a channel.
 func (h *BroadcastHandler) UnsubscribeChannel(w http.ResponseWriter, r *http.Request) {
 	uid := h.userID(r)
-	if uid <= 0 {
+	if uid.Empty() {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "authentication required"})
 		return
 	}
@@ -118,7 +119,7 @@ func (h *BroadcastHandler) UnsubscribeChannel(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	subscriberID := fmt.Sprintf("user-%d", uid)
+	subscriberID := fmt.Sprintf("user-%s", uid)
 	h.broadcaster.RemoveChannel(subscriberID, in.Channel)
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "unsubscribed"})

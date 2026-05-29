@@ -58,10 +58,10 @@ type Store interface {
 	// Saved Views
 	CreateSavedView(ctx context.Context, sv *models.SavedView) error
 	GetSavedView(ctx context.Context, id int64) (*models.SavedView, error)
-	ListSavedViews(ctx context.Context, userID int64, includeShared bool) ([]*models.SavedView, error)
+	ListSavedViews(ctx context.Context, userID models.UserID, includeShared bool) ([]*models.SavedView, error)
 	UpdateSavedView(ctx context.Context, sv *models.SavedView) error
 	DeleteSavedView(ctx context.Context, id int64) error
-	ReorderSavedViews(ctx context.Context, userID int64, ids []int64) error
+	ReorderSavedViews(ctx context.Context, userID models.UserID, ids []int64) error
 
 	// Chat Sessions
 	CreateChatSession(ctx context.Context, s *models.ChatSession) error
@@ -76,14 +76,14 @@ type Store interface {
 	ListActiveChatRoutingRules(ctx context.Context, departmentID *int64) ([]*models.ChatRoutingRule, error)
 	UpdateChatRoutingRule(ctx context.Context, r *models.ChatRoutingRule) error
 	DeleteChatRoutingRule(ctx context.Context, id int64) error
-	CountActiveChatsForAgent(ctx context.Context, agentID int64) (int, error)
+	CountActiveChatsForAgent(ctx context.Context, agentID models.UserID) (int, error)
 
 	// Chat Messages
 	CreateChatMessage(ctx context.Context, m *models.ChatMessage) error
 	ListChatMessages(ctx context.Context, chatSessionID int64) ([]models.ChatMessage, error)
 
 	// Ticket Counts / Relations
-	CountTicketsByRequester(ctx context.Context, requesterType string, requesterID int64) (int, error)
+	CountTicketsByRequester(ctx context.Context, requesterType string, requesterID models.UserID) (int, error)
 	ListRelatedTickets(ctx context.Context, ticketID int64) ([]models.RelatedTicket, error)
 
 	// Activities

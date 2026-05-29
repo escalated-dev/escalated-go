@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/services"
 	"github.com/escalated-dev/escalated-go/store"
 )
@@ -12,11 +13,11 @@ import (
 type ChatHandler struct {
 	store    store.Store
 	sessions *services.ChatSessionService
-	userID   func(r *http.Request) int64
+	userID   func(r *http.Request) models.UserID
 }
 
 // NewChatHandler creates a new ChatHandler.
-func NewChatHandler(s store.Store, cs *services.ChatSessionService, userIDFunc func(r *http.Request) int64) *ChatHandler {
+func NewChatHandler(s store.Store, cs *services.ChatSessionService, userIDFunc func(r *http.Request) models.UserID) *ChatHandler {
 	return &ChatHandler{
 		store:    s,
 		sessions: cs,

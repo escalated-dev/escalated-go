@@ -21,7 +21,7 @@ type APIHandler struct {
 	store    store.Store
 	tickets  *services.TicketService
 	renderer renderer.Renderer
-	userID   func(r *http.Request) int64
+	userID   func(r *http.Request) models.UserID
 
 	// Actions, OnCustomAction, and RoutePrefix are wired by the router to
 	// support host-defined custom ticket actions. They may be nil/empty.
@@ -31,7 +31,7 @@ type APIHandler struct {
 }
 
 // NewAPIHandler creates a new APIHandler.
-func NewAPIHandler(s store.Store, ts *services.TicketService, rend renderer.Renderer, userIDFunc func(r *http.Request) int64) *APIHandler {
+func NewAPIHandler(s store.Store, ts *services.TicketService, rend renderer.Renderer, userIDFunc func(r *http.Request) models.UserID) *APIHandler {
 	return &APIHandler{
 		store:    s,
 		tickets:  ts,
@@ -61,9 +61,8 @@ func (h *APIHandler) ListTickets(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if v := r.URL.Query().Get("assigned_to"); v != "" {
-		if i, err := strconv.ParseInt(v, 10, 64); err == nil {
-			f.AssignedTo = &i
-		}
+		uid := models.UserID(v)
+		f.AssignedTo = &uid
 	}
 	if r.URL.Query().Get("unassigned") == "true" {
 		f.Unassigned = true
@@ -177,7 +176,7 @@ func (h *APIHandler) ShowTicket(w http.ResponseWriter, r *http.Request) {
 
 // customActionsFor serializes the visible custom actions for a ticket, adding
 // url + method (pointing at the API surface).
-func (h *APIHandler) customActionsFor(t *models.Ticket, userID int64) []map[string]any {
+func (h *APIHandler) customActionsFor(t *models.Ticket, userID models.UserID) []map[string]any {
 	if h.Actions == nil {
 		return nil
 	}
@@ -265,8 +264,8 @@ func (h *APIHandler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 
 	uid := h.userID(r)
 	var reqType *string
-	var reqID *int64
-	if uid > 0 {
+	var reqID *models.UserID
+	if !uid.Empty() {
 		rt := "User"
 		reqType = &rt
 		reqID = &uid
@@ -363,8 +362,8 @@ func (h *APIHandler) CreateReply(w http.ResponseWriter, r *http.Request) {
 
 	uid := h.userID(r)
 	var authorType *string
-	var authorID *int64
-	if uid > 0 {
+	var authorID *models.UserID
+	if !uid.Empty() {
 		at := "User"
 		authorType = &at
 		authorID = &uid
@@ -402,8 +401,8 @@ func (h *APIHandler) SplitTicket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	uid := h.userID(r)
-	var causerID *int64
-	if uid > 0 {
+	var causerID *models.UserID
+	if !uid.Empty() {
 		causerID = &uid
 	}
 

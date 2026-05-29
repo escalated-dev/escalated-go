@@ -31,7 +31,7 @@ func TestSplitTicket(t *testing.T) {
 					TicketID: 1,
 					Body:     "This should be a separate issue",
 				}
-				causerID := int64(42)
+				causerID := models.UserID("42")
 				return SplitTicketInput{
 					TicketID: 1,
 					ReplyID:  10,

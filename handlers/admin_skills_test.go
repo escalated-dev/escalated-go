@@ -165,11 +165,11 @@ func TestSkillRoutingService_FindMatchingAgents(t *testing.T) {
 	if len(users) != 2 {
 		t.Fatalf("want 2 users got %d", len(users))
 	}
-	if users[0].ID != 10 {
-		t.Fatalf("first user: want id 10 (lower ticket load when proficiency equal) got %d", users[0].ID)
+	if users[0].ID != models.UserID("10") {
+		t.Fatalf("first user: want id 10 (lower ticket load when proficiency equal) got %q", users[0].ID)
 	}
-	if users[1].ID != 20 {
-		t.Fatalf("second user want 20 got %d", users[1].ID)
+	if users[1].ID != models.UserID("20") {
+		t.Fatalf("second user want 20 got %q", users[1].ID)
 	}
 }
 

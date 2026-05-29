@@ -732,7 +732,7 @@ func (s *SQLiteStore) GetSavedView(ctx context.Context, id int64) (*models.Saved
 	return sv, nil
 }
 
-func (s *SQLiteStore) ListSavedViews(ctx context.Context, userID int64, includeShared bool) ([]*models.SavedView, error) {
+func (s *SQLiteStore) ListSavedViews(ctx context.Context, userID models.UserID, includeShared bool) ([]*models.SavedView, error) {
 	var q string
 	var args []any
 	if includeShared {
@@ -773,7 +773,7 @@ func (s *SQLiteStore) DeleteSavedView(ctx context.Context, id int64) error {
 	return err
 }
 
-func (s *SQLiteStore) ReorderSavedViews(ctx context.Context, userID int64, ids []int64) error {
+func (s *SQLiteStore) ReorderSavedViews(ctx context.Context, userID models.UserID, ids []int64) error {
 	for i, id := range ids {
 		q := fmt.Sprintf(`UPDATE %s SET position = ? WHERE id = ? AND user_id = ?`, s.t("saved_views"))
 		if _, err := s.db.ExecContext(ctx, q, i, id, userID); err != nil {

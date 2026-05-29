@@ -140,7 +140,7 @@ func (s *SQLiteStore) ListChatMessages(ctx context.Context, chatSessionID int64)
 
 // --- Ticket Counts / Relations ---
 
-func (s *SQLiteStore) CountTicketsByRequester(ctx context.Context, requesterType string, requesterID int64) (int, error) {
+func (s *SQLiteStore) CountTicketsByRequester(ctx context.Context, requesterType string, requesterID models.UserID) (int, error) {
 	q := fmt.Sprintf(`SELECT COUNT(*) FROM %s WHERE requester_type = ? AND requester_id = ?`, s.t("tickets"))
 	var count int
 	err := s.db.QueryRowContext(ctx, q, requesterType, requesterID).Scan(&count)
@@ -228,7 +228,7 @@ func (s *SQLiteStore) DeleteChatRoutingRule(ctx context.Context, id int64) error
 	return err
 }
 
-func (s *SQLiteStore) CountActiveChatsForAgent(ctx context.Context, agentID int64) (int, error) {
+func (s *SQLiteStore) CountActiveChatsForAgent(ctx context.Context, agentID models.UserID) (int, error) {
 	q := fmt.Sprintf(`SELECT COUNT(*) FROM %s WHERE agent_id = ? AND status = ?`, s.t("chat_sessions"))
 	var count int
 	err := s.db.QueryRowContext(ctx, q, agentID, models.ChatStatusActive).Scan(&count)

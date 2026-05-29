@@ -52,7 +52,7 @@ func (s *SkillRoutingService) FindMatchingAgents(ctx context.Context, ticket *mo
 		return nil, nil
 	}
 
-	userIDs := make([]int64, 0, len(candidates))
+	userIDs := make([]models.UserID, 0, len(candidates))
 	for uid := range candidates {
 		userIDs = append(userIDs, uid)
 	}
@@ -62,7 +62,7 @@ func (s *SkillRoutingService) FindMatchingAgents(ctx context.Context, ticket *mo
 	}
 
 	type scored struct {
-		id        int64
+		id        models.UserID
 		sumProf   int
 		ticketCnt int
 	}
@@ -179,7 +179,7 @@ func (s *SkillRoutingService) requiredSkillIDs(ctx context.Context, ticket *mode
 	return out, nil
 }
 
-func (s *SkillRoutingService) candidatesWithAllSkills(ctx context.Context, required []int64) (map[int64]int, error) {
+func (s *SkillRoutingService) candidatesWithAllSkills(ctx context.Context, required []int64) (map[models.UserID]int, error) {
 	n := len(required)
 	ph := strings.TrimSuffix(strings.Repeat("?,", n), ",")
 	args := make([]any, n+1)
@@ -203,9 +203,9 @@ func (s *SkillRoutingService) candidatesWithAllSkills(ctx context.Context, requi
 	}
 	defer rows.Close()
 
-	out := make(map[int64]int)
+	out := make(map[models.UserID]int)
 	for rows.Next() {
-		var uid int64
+		var uid models.UserID
 		var sumProf int
 		if err := rows.Scan(&uid, &sumProf); err != nil {
 			return nil, err
@@ -215,8 +215,8 @@ func (s *SkillRoutingService) candidatesWithAllSkills(ctx context.Context, requi
 	return out, rows.Err()
 }
 
-func (s *SkillRoutingService) openTicketLoads(ctx context.Context, userIDs []int64) (map[int64]int, error) {
-	out := make(map[int64]int)
+func (s *SkillRoutingService) openTicketLoads(ctx context.Context, userIDs []models.UserID) (map[models.UserID]int, error) {
+	out := make(map[models.UserID]int)
 	if len(userIDs) == 0 {
 		return out, nil
 	}
@@ -241,7 +241,7 @@ func (s *SkillRoutingService) openTicketLoads(ctx context.Context, userIDs []int
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var uid int64
+		var uid models.UserID
 		var cnt int
 		if err := rows.Scan(&uid, &cnt); err != nil {
 			return nil, err

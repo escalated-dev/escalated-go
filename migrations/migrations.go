@@ -5,8 +5,21 @@ package migrations
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"strings"
 )
+
+// UserIDColumnType returns the SQL column type for a host user id.
+// Default BIGINT (existing behavior). Set ESCALATED_USER_KEY_TYPE=uuid|string
+// (or varchar) to use VARCHAR(255) for UUID/string-keyed hosts.
+func UserIDColumnType() string {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("ESCALATED_USER_KEY_TYPE"))) {
+	case "uuid", "string", "varchar":
+		return "VARCHAR(255)"
+	default:
+		return "BIGINT"
+	}
+}
 
 // Migrate runs all Escalated migrations against the given database.
 // It is idempotent — tables are created with IF NOT EXISTS.
@@ -21,6 +34,7 @@ func Migrate(db *sql.DB, prefix string) error {
 }
 
 func migrationStatements(p string) []string {
+	userCol := UserIDColumnType()
 	// Use TEXT for JSON columns — works on both PostgreSQL (json/jsonb also accepts TEXT) and SQLite.
 	// PostgreSQL users can alter these to jsonb after migration if desired.
 	stmts := []string{
@@ -71,12 +85,12 @@ func migrationStatements(p string) []string {
 			priority INTEGER NOT NULL DEFAULT 1,
 			ticket_type VARCHAR(50) DEFAULT 'question',
 			requester_type VARCHAR(255),
-			requester_id BIGINT,
+			requester_id %s,
 			guest_name VARCHAR(255),
 			guest_email VARCHAR(255),
 			guest_token VARCHAR(64),
 			contact_id BIGINT,
-			assigned_to BIGINT,
+			assigned_to %s,
 			department_id BIGINT REFERENCES %s(id) ON DELETE SET NULL,
 			sla_policy_id BIGINT REFERENCES %s(id) ON DELETE SET NULL,
 			merged_into_id BIGINT,
@@ -89,7 +103,7 @@ func migrationStatements(p string) []string {
 			metadata TEXT DEFAULT '{}',
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-		)`, p+"tickets", p+"departments", p+"sla_policies"),
+		)`, p+"tickets", userCol, userCol, p+"departments", p+"sla_policies"),
 
 		// 5. Replies
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
@@ -97,13 +111,13 @@ func migrationStatements(p string) []string {
 			ticket_id BIGINT NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
 			body TEXT NOT NULL,
 			author_type VARCHAR(255),
-			author_id BIGINT,
+			author_id %s,
 			is_internal BOOLEAN NOT NULL DEFAULT FALSE,
 			is_system BOOLEAN NOT NULL DEFAULT FALSE,
 			is_pinned BOOLEAN NOT NULL DEFAULT FALSE,
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-		)`, p+"replies", p+"tickets"),
+		)`, p+"replies", userCol, p+"tickets"),
 
 		// 6. Ticket tags join table
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
@@ -118,10 +132,10 @@ func migrationStatements(p string) []string {
 			ticket_id BIGINT NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
 			action VARCHAR(255) NOT NULL,
 			causer_type VARCHAR(255),
-			causer_id BIGINT,
+			causer_id %s,
 			details TEXT DEFAULT '{}',
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-		)`, p+"ticket_activities", p+"tickets"),
+		)`, p+"ticket_activities", userCol, p+"tickets"),
 
 		// 8. Email Channels
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
@@ -204,13 +218,13 @@ func migrationStatements(p string) []string {
 			entity_type VARCHAR(50) NOT NULL,
 			entity_id BIGINT,
 			performer_type VARCHAR(50),
-			performer_id BIGINT,
+			performer_id %s,
 			old_values TEXT,
 			new_values TEXT,
 			ip_address VARCHAR(45),
 			user_agent VARCHAR(255),
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-		)`, p+"audit_logs"),
+		)`, p+"audit_logs", userCol),
 
 		// 14. Business Schedules
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
@@ -237,7 +251,7 @@ func migrationStatements(p string) []string {
 		// 16. Two Factors
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			id BIGSERIAL PRIMARY KEY,
-			user_id BIGINT NOT NULL,
+			user_id %s NOT NULL,
 			method VARCHAR(32) NOT NULL DEFAULT 'totp',
 			secret VARCHAR(255),
 			recovery_codes TEXT,
@@ -245,7 +259,7 @@ func migrationStatements(p string) []string {
 			verified_at TIMESTAMP,
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-		)`, p+"two_factors"),
+		)`, p+"two_factors", userCol),
 
 		// 17. Workflows
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
@@ -304,11 +318,11 @@ func migrationStatements(p string) []string {
 			id BIGSERIAL PRIMARY KEY,
 			email VARCHAR(320) NOT NULL UNIQUE,
 			name VARCHAR(255),
-			user_id BIGINT,
+			user_id %s,
 			metadata TEXT NOT NULL DEFAULT '{}',
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-		)`, p+"contacts"),
+		)`, p+"contacts", userCol),
 
 		// NOTE: contact_id is already included in the tickets
 		// CREATE TABLE above. Deployments that ran prior migrations
@@ -363,13 +377,13 @@ func migrationStatements(p string) []string {
 
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			id BIGSERIAL PRIMARY KEY,
-			user_id BIGINT NOT NULL,
+			user_id %s NOT NULL,
 			skill_id BIGINT NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
 			proficiency SMALLINT NOT NULL DEFAULT 3 CHECK (proficiency >= 1 AND proficiency <= 5),
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE (user_id, skill_id)
-		)`, p+"agent_skills", p+"skills"),
+		)`, p+"agent_skills", userCol, p+"skills"),
 	}
 
 	// Indexes (CREATE INDEX IF NOT EXISTS is supported by PostgreSQL 9.5+ and SQLite 3.3+)

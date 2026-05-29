@@ -106,7 +106,7 @@ func (cs *ChatSessionService) StartSession(ctx context.Context, in StartSessionI
 }
 
 // AssignAgent assigns an agent to a waiting chat session.
-func (cs *ChatSessionService) AssignAgent(ctx context.Context, session *models.ChatSession, agentID int64) error {
+func (cs *ChatSessionService) AssignAgent(ctx context.Context, session *models.ChatSession, agentID models.UserID) error {
 	now := time.Now()
 	session.AgentID = &agentID
 	session.Status = models.ChatStatusActive
@@ -119,7 +119,8 @@ func (cs *ChatSessionService) AssignAgent(ctx context.Context, session *models.C
 	// Also assign the ticket
 	t, err := cs.store.GetTicket(ctx, session.TicketID)
 	if err == nil && t != nil {
-		t.AssignedTo = &agentID
+		aid := agentID
+		t.AssignedTo = &aid
 		_ = cs.store.UpdateTicket(ctx, t)
 	}
 
@@ -134,7 +135,7 @@ func (cs *ChatSessionService) AssignAgent(ctx context.Context, session *models.C
 }
 
 // SendMessage creates a reply on the chat ticket and broadcasts it.
-func (cs *ChatSessionService) SendMessage(ctx context.Context, session *models.ChatSession, body string, authorType *string, authorID *int64) error {
+func (cs *ChatSessionService) SendMessage(ctx context.Context, session *models.ChatSession, body string, authorType *string, authorID *models.UserID) error {
 	r := &models.Reply{
 		TicketID:   session.TicketID,
 		Body:       body,
@@ -166,7 +167,7 @@ func (cs *ChatSessionService) SendMessage(ctx context.Context, session *models.C
 }
 
 // EndSession ends a chat session and transitions the ticket to open.
-func (cs *ChatSessionService) EndSession(ctx context.Context, session *models.ChatSession, causerID *int64) error {
+func (cs *ChatSessionService) EndSession(ctx context.Context, session *models.ChatSession, causerID *models.UserID) error {
 	now := time.Now()
 	session.Status = models.ChatStatusEnded
 	session.EndedAt = &now

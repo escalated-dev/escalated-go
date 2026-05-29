@@ -11,7 +11,7 @@ import (
 // TwoFactorStore defines the persistence interface for two-factor auth.
 type TwoFactorStore interface {
 	CreateTwoFactor(tf *models.TwoFactor) error
-	FindTwoFactorByUser(userID int64) (*models.TwoFactor, error)
+	FindTwoFactorByUser(userID models.UserID) (*models.TwoFactor, error)
 	UpdateTwoFactor(tf *models.TwoFactor) error
 }
 
@@ -26,7 +26,7 @@ func NewTwoFactorService(store TwoFactorStore) *TwoFactorService {
 }
 
 // Enable creates a new 2FA configuration for a user.
-func (s *TwoFactorService) Enable(userID int64, method string) (*models.TwoFactor, error) {
+func (s *TwoFactorService) Enable(userID models.UserID, method string) (*models.TwoFactor, error) {
 	if method == "" {
 		method = "totp"
 	}
@@ -44,7 +44,7 @@ func (s *TwoFactorService) Enable(userID int64, method string) (*models.TwoFacto
 }
 
 // FindByUser returns the active 2FA config for a user.
-func (s *TwoFactorService) FindByUser(userID int64) (*models.TwoFactor, error) {
+func (s *TwoFactorService) FindByUser(userID models.UserID) (*models.TwoFactor, error) {
 	return s.store.FindTwoFactorByUser(userID)
 }
 
