@@ -18,8 +18,11 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 
 	ticketSvc := services.NewTicketService(s)
 	assignSvc := services.NewAssignmentService(s)
+	subjectSvc := services.NewTicketSubjectService(s, cfg.TicketSubjectTypes, cfg.TicketSubjectResolver)
 
 	apiH := handlers.NewAPIHandler(s, ticketSvc, rend, cfg.UserIDFunc)
+	apiH.Subjects = subjectSvc
+	subjectH := handlers.NewTicketSubjectHandler(subjectSvc, ticketSvc)
 	agentH := handlers.NewAgentHandler(s, ticketSvc, assignSvc, rend, cfg.UserIDFunc)
 	customerH := handlers.NewCustomerHandler(s, ticketSvc, rend, cfg.UserIDFunc)
 	adminH := handlers.NewAdminHandler(s, rend)
@@ -40,6 +43,8 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	mux.HandleFunc("GET "+prefix+"/api/tickets/{id}", apiH.ShowTicket)
 	mux.HandleFunc("PATCH "+prefix+"/api/tickets/{id}", apiH.UpdateTicket)
 	mux.HandleFunc("POST "+prefix+"/api/tickets/{id}/replies", apiH.CreateReply)
+	mux.HandleFunc("POST "+prefix+"/api/tickets/{id}/subjects", subjectH.AttachSubject)
+	mux.HandleFunc("DELETE "+prefix+"/api/tickets/{id}/subjects/{subject}", subjectH.DetachSubject)
 	mux.HandleFunc("GET "+prefix+"/api/departments", apiH.ListDepartments)
 	mux.HandleFunc("GET "+prefix+"/api/tags", apiH.ListTags)
 
@@ -58,6 +63,8 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 		mux.Handle("POST "+prefix+"/agent/tickets/{id}/assign", agentMW(http.HandlerFunc(agentH.AssignTicket)))
 		mux.Handle("POST "+prefix+"/agent/tickets/{id}/replies", agentMW(http.HandlerFunc(agentH.Reply)))
 		mux.Handle("POST "+prefix+"/agent/tickets/{id}/status", agentMW(http.HandlerFunc(agentH.ChangeStatus)))
+		mux.Handle("POST "+prefix+"/agent/tickets/{id}/subjects", agentMW(http.HandlerFunc(subjectH.AttachSubject)))
+		mux.Handle("DELETE "+prefix+"/agent/tickets/{id}/subjects/{subject}", agentMW(http.HandlerFunc(subjectH.DetachSubject)))
 
 		// Macros (agent-applied one-click bundles).
 		mux.Handle("GET "+prefix+"/agent/macros", agentMW(http.HandlerFunc(macroH.AgentList)))

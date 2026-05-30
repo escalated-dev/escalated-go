@@ -59,6 +59,16 @@ type Config struct {
 	// triggered (and the audit note recorded). This is where the host runs its
 	// own work (CRM sync, etc.).
 	OnCustomAction func(ctx context.Context, e actions.CustomActionEvent) error
+
+	// TicketSubjectResolver loads a host model for presentation when serializing
+	// ticket subjects. When nil or when lookup fails, subjects render with
+	// title=type#id and missing=true.
+	TicketSubjectResolver func(subjectType, subjectID string) (models.TicketSubject, bool)
+
+	// TicketSubjectTypes is the allowlist of subject_type values permitted via the
+	// agent/API attach endpoints. Leave empty to disable API attaching; programmatic
+	// AttachSubject still works when the allowlist is empty.
+	TicketSubjectTypes []string
 }
 
 // DefaultConfig returns a Config with sensible defaults.

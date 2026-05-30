@@ -116,6 +116,22 @@ func (m *widgetMockStore) RemoveTagFromTicket(_ context.Context, _, _ int64) err
 func (m *widgetMockStore) GetTicketTags(_ context.Context, _ int64) ([]*models.Tag, error) {
 	return nil, nil
 }
+func (m *widgetMockStore) ListTicketSubjectLinks(_ context.Context, _ int64) ([]*models.TicketSubjectLink, error) {
+	return nil, nil
+}
+func (m *widgetMockStore) GetTicketSubjectLink(_ context.Context, _ int64) (*models.TicketSubjectLink, error) {
+	return nil, nil
+}
+func (m *widgetMockStore) UpsertTicketSubjectLink(_ context.Context, _ *models.TicketSubjectLink) error {
+	return nil
+}
+func (m *widgetMockStore) DeleteTicketSubjectLink(_ context.Context, _ int64) error { return nil }
+func (m *widgetMockStore) DeleteTicketSubjectLinksByTicket(_ context.Context, _ int64) error {
+	return nil
+}
+func (m *widgetMockStore) MaxTicketSubjectPosition(_ context.Context, _ int64) (int, error) {
+	return -1, nil
+}
 func (m *widgetMockStore) CreateSLAPolicy(_ context.Context, _ *models.SLAPolicy) error {
 	return nil
 }

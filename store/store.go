@@ -45,6 +45,14 @@ type Store interface {
 	RemoveTagFromTicket(ctx context.Context, ticketID, tagID int64) error
 	GetTicketTags(ctx context.Context, ticketID int64) ([]*models.Tag, error)
 
+	// Ticket subjects (host entities a ticket is about)
+	ListTicketSubjectLinks(ctx context.Context, ticketID int64) ([]*models.TicketSubjectLink, error)
+	GetTicketSubjectLink(ctx context.Context, id int64) (*models.TicketSubjectLink, error)
+	UpsertTicketSubjectLink(ctx context.Context, link *models.TicketSubjectLink) error
+	DeleteTicketSubjectLink(ctx context.Context, id int64) error
+	DeleteTicketSubjectLinksByTicket(ctx context.Context, ticketID int64) error
+	MaxTicketSubjectPosition(ctx context.Context, ticketID int64) (int, error)
+
 	// SLA Policies
 	CreateSLAPolicy(ctx context.Context, s *models.SLAPolicy) error
 	GetSLAPolicy(ctx context.Context, id int64) (*models.SLAPolicy, error)
