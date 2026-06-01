@@ -2,9 +2,23 @@ package services
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/escalated-dev/escalated-go/models"
 )
+
+const auditRedactedValue = "[REDACTED]"
+
+var auditSensitiveKeyFragments = []string{
+	"api_key",
+	"apikey",
+	"authorization",
+	"credential",
+	"password",
+	"recovery_code",
+	"secret",
+	"token",
+}
 
 // AuditLogStore defines the persistence interface for audit logs.
 type AuditLogStore interface {
@@ -34,11 +48,11 @@ func (s *AuditLogService) Log(action, entityType string, entityID *int64, perfor
 	}
 
 	if oldValues != nil {
-		data, _ := json.Marshal(oldValues)
+		data, _ := marshalAuditValues(oldValues)
 		entry.OldValues = data
 	}
 	if newValues != nil {
-		data, _ := json.Marshal(newValues)
+		data, _ := marshalAuditValues(newValues)
 		entry.NewValues = data
 	}
 
@@ -59,4 +73,50 @@ func (s *AuditLogService) LogsByPerformer(performerType string, performerID mode
 		limit = 50
 	}
 	return s.store.ListAuditLogsByPerformer(performerType, performerID, limit)
+}
+
+func marshalAuditValues(values interface{}) ([]byte, error) {
+	data, err := json.Marshal(values)
+	if err != nil {
+		return data, err
+	}
+
+	var decoded interface{}
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return data, nil
+	}
+
+	redactAuditValue(decoded)
+
+	return json.Marshal(decoded)
+}
+
+func redactAuditValue(value interface{}) {
+	switch typed := value.(type) {
+	case map[string]interface{}:
+		for key, nested := range typed {
+			if isAuditSensitiveKey(key) {
+				typed[key] = auditRedactedValue
+				continue
+			}
+
+			redactAuditValue(nested)
+		}
+	case []interface{}:
+		for _, nested := range typed {
+			redactAuditValue(nested)
+		}
+	}
+}
+
+func isAuditSensitiveKey(key string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(key, "-", "_"))
+
+	for _, fragment := range auditSensitiveKeyFragments {
+		if strings.Contains(normalized, fragment) {
+			return true
+		}
+	}
+
+	return false
 }
