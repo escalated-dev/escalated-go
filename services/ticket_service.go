@@ -55,7 +55,10 @@ func (ts *TicketService) Create(ctx context.Context, in CreateTicketInput) (*mod
 
 	// Generate guest token for unauthenticated tickets
 	if t.RequesterType == nil && t.GuestEmail != nil {
-		token := models.GenerateReference("GT")
+		token, err := models.GenerateGuestToken()
+		if err != nil {
+			return nil, err
+		}
 		t.GuestToken = &token
 	}
 

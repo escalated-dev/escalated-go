@@ -2,8 +2,10 @@ package models
 
 import (
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 )
@@ -303,6 +305,15 @@ type RelatedTicket struct {
 	Reference string `json:"reference"`
 	Subject   string `json:"subject"`
 	Status    int    `json:"status"`
+}
+
+// GenerateGuestToken creates a high-entropy bearer token for guest ticket access.
+func GenerateGuestToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := io.ReadFull(rand.Reader, b); err != nil {
+		return "", fmt.Errorf("generating guest token: %w", err)
+	}
+	return "GT-" + base64.RawURLEncoding.EncodeToString(b), nil
 }
 
 // TicketFilters holds query parameters for listing tickets.
