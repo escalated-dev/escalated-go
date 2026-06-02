@@ -139,6 +139,10 @@ type Ticket struct {
 	// ticket/user (each with key, label, variant, confirmation, disabled,
 	// metadata, url, method). Populated by the handler at serialization time.
 	CustomActions []map[string]any `json:"custom_actions,omitempty"`
+
+	// Subjects are host-app entities this ticket is about (Project, Customer, …),
+	// distinct from the requester and the subject line. Populated at serialization.
+	Subjects []TicketSubjectView `json:"subjects,omitempty"`
 }
 
 // PopulateComputedOpts holds optional data used to populate computed fields.

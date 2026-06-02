@@ -899,6 +899,95 @@ func (s *PostgresStore) GetSetting(ctx context.Context, key string) (string, err
 	return value.String, nil
 }
 
+// --- Ticket subjects ---
+
+func scanTicketSubjectLink(row interface {
+	Scan(dest ...any) error
+}) (*models.TicketSubjectLink, error) {
+	l := &models.TicketSubjectLink{}
+	err := row.Scan(
+		&l.ID, &l.TicketID, &l.SubjectType, &l.SubjectID, &l.Role, &l.Position,
+		&l.CreatedAt, &l.UpdatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return l, err
+}
+
+const ticketSubjectLinkCols = `id, ticket_id, subject_type, subject_id, role, position, created_at, updated_at`
+
+func (s *PostgresStore) ListTicketSubjectLinks(ctx context.Context, ticketID int64) ([]*models.TicketSubjectLink, error) {
+	q := fmt.Sprintf(`SELECT %s FROM %s WHERE ticket_id = $1 ORDER BY position, id`,
+		ticketSubjectLinkCols, s.t("ticket_subjects"))
+	rows, err := s.db.QueryContext(ctx, q, ticketID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var links []*models.TicketSubjectLink
+	for rows.Next() {
+		l := &models.TicketSubjectLink{}
+		if err := rows.Scan(
+			&l.ID, &l.TicketID, &l.SubjectType, &l.SubjectID, &l.Role, &l.Position,
+			&l.CreatedAt, &l.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		links = append(links, l)
+	}
+	return links, rows.Err()
+}
+
+func (s *PostgresStore) GetTicketSubjectLink(ctx context.Context, id int64) (*models.TicketSubjectLink, error) {
+	q := fmt.Sprintf(`SELECT %s FROM %s WHERE id = $1`, ticketSubjectLinkCols, s.t("ticket_subjects"))
+	row := s.db.QueryRowContext(ctx, q, id)
+	return scanTicketSubjectLink(row)
+}
+
+func (s *PostgresStore) UpsertTicketSubjectLink(ctx context.Context, link *models.TicketSubjectLink) error {
+	now := time.Now()
+	if link.CreatedAt.IsZero() {
+		link.CreatedAt = now
+	}
+	link.UpdatedAt = now
+
+	q := fmt.Sprintf(`INSERT INTO %s
+		(ticket_id, subject_type, subject_id, role, position, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7)
+		ON CONFLICT (ticket_id, subject_type, subject_id)
+		DO UPDATE SET role = EXCLUDED.role, position = EXCLUDED.position, updated_at = EXCLUDED.updated_at
+		RETURNING %s`, s.t("ticket_subjects"), ticketSubjectLinkCols)
+
+	return s.db.QueryRowContext(ctx, q,
+		link.TicketID, link.SubjectType, link.SubjectID, link.Role, link.Position,
+		link.CreatedAt, link.UpdatedAt,
+	).Scan(
+		&link.ID, &link.TicketID, &link.SubjectType, &link.SubjectID, &link.Role, &link.Position,
+		&link.CreatedAt, &link.UpdatedAt,
+	)
+}
+
+func (s *PostgresStore) DeleteTicketSubjectLink(ctx context.Context, id int64) error {
+	q := fmt.Sprintf(`DELETE FROM %s WHERE id = $1`, s.t("ticket_subjects"))
+	_, err := s.db.ExecContext(ctx, q, id)
+	return err
+}
+
+func (s *PostgresStore) DeleteTicketSubjectLinksByTicket(ctx context.Context, ticketID int64) error {
+	q := fmt.Sprintf(`DELETE FROM %s WHERE ticket_id = $1`, s.t("ticket_subjects"))
+	_, err := s.db.ExecContext(ctx, q, ticketID)
+	return err
+}
+
+func (s *PostgresStore) MaxTicketSubjectPosition(ctx context.Context, ticketID int64) (int, error) {
+	q := fmt.Sprintf(`SELECT COALESCE(MAX(position), -1) FROM %s WHERE ticket_id = $1`, s.t("ticket_subjects"))
+	var max int
+	err := s.db.QueryRowContext(ctx, q, ticketID).Scan(&max)
+	return max, err
+}
+
 // SetSetting upserts the key/value pair. Uses INSERT ... ON CONFLICT (key)
 // DO UPDATE for atomicity; relies on the unique index on key.
 func (s *PostgresStore) SetSetting(ctx context.Context, key, value string) error {

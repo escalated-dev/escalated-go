@@ -41,6 +41,7 @@ Embeddable support ticket system for Go applications. Works with standard `net/h
 - **Branded email templates** — Configurable logo, primary color, and footer text for all outbound emails
 - **Real-time updates** — Server-Sent Events (SSE) endpoint for live ticket updates with automatic polling fallback
 - **Knowledge base toggle** — Enable or disable the public knowledge base from admin settings
+- **Ticket subjects** — Attach host-app entities (Project, Customer, …) a ticket is about; polymorphic links with UI presentation via `TicketSubject` contract
 
 ## Installation
 
@@ -167,6 +168,46 @@ func main() {
 | `AgentCheck` | `func(*http.Request) bool` | `false` | Returns true for agent users |
 | `UserIDFunc` | `func(*http.Request) models.UserID` | `""` | Extracts current user's ID from request |
 | `DB` | `*sql.DB` | required | Database connection |
+| `TicketSubjectResolver` | `func(type, id string) (models.TicketSubject, bool)` | nil | Loads host models for subject presentation |
+| `TicketSubjectTypes` | `[]string` | nil | Allowlist of `subject_type` values for API attach; empty disables API attach |
+
+### Ticket subjects
+
+A ticket has a **requester** (who raised it) and a **subject line** (free text).
+Tickets can also be *about* host-app entities — a Project, Customer, asset — via
+polymorphic **ticket subjects**. Implement `models.TicketSubject` on your host
+types and wire `TicketSubjectResolver` plus `TicketSubjectTypes` (for API safety).
+
+```go
+type Project struct { ID, Name string }
+
+func (p Project) TicketSubjectTitle() string { return p.Name }
+func (p Project) TicketSubjectSubtitle() *string { s := "Project"; return &s }
+func (p Project) TicketSubjectURL() *string {
+    s := "/projects/" + p.ID
+    return &s
+}
+func (p Project) TicketSubjectColor() *string { s := "#2563eb"; return &s }
+func (p Project) TicketSubjectIcon() *string  { s := "folder"; return &s }
+
+cfg.TicketSubjectTypes = []string{"Project"}
+cfg.TicketSubjectResolver = func(subjectType, id string) (models.TicketSubject, bool) {
+    if subjectType != "Project" {
+        return nil, false
+    }
+    p, err := loadProject(id)
+    if err != nil {
+        return nil, false
+    }
+    return p, true
+}
+```
+
+Ticket JSON includes `subjects[]` with `{type,id,role,title,subtitle,url,color,icon,missing}`.
+Attach/detach via `POST` / `DELETE` … `/api/tickets/{id}/subjects` (and agent UI routes).
+`subject_id` is stored as a string (integer, UUID, or other host keys).
+
+Use `services.TicketSubjectService` for programmatic `AttachSubject`, `DetachSubject`, and `SyncSubjects`.
 
 ### Host user key type (UUID / string users)
 
@@ -197,6 +238,8 @@ All routes are prefixed with `RoutePrefix` (default `/escalated`).
 | `GET` | `/api/tickets/{id}` | Get ticket with replies and activities |
 | `PATCH` | `/api/tickets/{id}` | Update a ticket |
 | `POST` | `/api/tickets/{id}/replies` | Add a reply |
+| `POST` | `/api/tickets/{id}/subjects` | Attach a ticket subject (`type`, `id`, optional `role`) |
+| `DELETE` | `/api/tickets/{id}/subjects/{subject}` | Detach a subject link by join-row id |
 | `GET` | `/api/departments` | List departments |
 | `GET` | `/api/tags` | List tags |
 
@@ -219,6 +262,8 @@ All routes are prefixed with `RoutePrefix` (default `/escalated`).
 | `POST` | `/agent/tickets/{id}/assign` | Assign ticket |
 | `POST` | `/agent/tickets/{id}/replies` | Reply / internal note |
 | `POST` | `/agent/tickets/{id}/status` | Change status |
+| `POST` | `/agent/tickets/{id}/subjects` | Attach a ticket subject |
+| `DELETE` | `/agent/tickets/{id}/subjects/{subject}` | Detach a ticket subject |
 
 ### Admin UI (requires `AdminCheck`)
 

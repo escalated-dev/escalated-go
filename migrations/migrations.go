@@ -126,6 +126,19 @@ func migrationStatements(p string) []string {
 			PRIMARY KEY (ticket_id, tag_id)
 		)`, p+"ticket_tags", p+"tickets", p+"tags"),
 
+		// 6b. Ticket subjects — host entities a ticket is about (polymorphic).
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			ticket_id BIGINT NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
+			subject_type VARCHAR(255) NOT NULL,
+			subject_id VARCHAR(255) NOT NULL,
+			role VARCHAR(255),
+			position INTEGER NOT NULL DEFAULT 0,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE (ticket_id, subject_type, subject_id)
+		)`, p+"ticket_subjects", p+"tickets"),
+
 		// 7. Ticket activities
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			id BIGSERIAL PRIMARY KEY,
@@ -408,6 +421,8 @@ func migrationStatements(p string) []string {
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%stkt_sla ON %s (sla_breached)", p, p+"tickets"),
 		fmt.Sprintf("CREATE UNIQUE INDEX IF NOT EXISTS idx_%stkt_guest ON %s (guest_token)", p, p+"tickets"),
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%stkt_created ON %s (created_at)", p, p+"tickets"),
+
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%stsub_subject ON %s (subject_type, subject_id)", p, p+"ticket_subjects"),
 
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%srpl_ticket ON %s (ticket_id)", p, p+"replies"),
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%srpl_author ON %s (author_type, author_id)", p, p+"replies"),

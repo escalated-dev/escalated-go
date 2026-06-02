@@ -149,6 +149,23 @@ func (m *handlerMockStore) GetTicketTags(_ context.Context, _ int64) ([]*models.
 	return nil, nil
 }
 
+func (m *handlerMockStore) ListTicketSubjectLinks(_ context.Context, _ int64) ([]*models.TicketSubjectLink, error) {
+	return nil, nil
+}
+func (m *handlerMockStore) GetTicketSubjectLink(_ context.Context, _ int64) (*models.TicketSubjectLink, error) {
+	return nil, nil
+}
+func (m *handlerMockStore) UpsertTicketSubjectLink(_ context.Context, _ *models.TicketSubjectLink) error {
+	return nil
+}
+func (m *handlerMockStore) DeleteTicketSubjectLink(_ context.Context, _ int64) error { return nil }
+func (m *handlerMockStore) DeleteTicketSubjectLinksByTicket(_ context.Context, _ int64) error {
+	return nil
+}
+func (m *handlerMockStore) MaxTicketSubjectPosition(_ context.Context, _ int64) (int, error) {
+	return -1, nil
+}
+
 func (m *handlerMockStore) CreateSLAPolicy(_ context.Context, _ *models.SLAPolicy) error {
 	return nil
 }

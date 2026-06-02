@@ -20,6 +20,7 @@ import (
 type APIHandler struct {
 	store    store.Store
 	tickets  *services.TicketService
+	Subjects *services.TicketSubjectService
 	renderer renderer.Renderer
 	userID   func(r *http.Request) models.UserID
 
@@ -165,6 +166,7 @@ func (h *APIHandler) ShowTicket(w http.ResponseWriter, r *http.Request) {
 
 	t.PopulateComputedFull(replies, opts)
 	t.CustomActions = h.customActionsFor(t, h.userID(r))
+	populateTicketSubjects(r.Context(), h, t)
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ticket":      t,
