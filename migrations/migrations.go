@@ -333,6 +333,7 @@ func migrationStatements(p string) []string {
 			name VARCHAR(255),
 			user_id %s,
 			metadata TEXT NOT NULL DEFAULT '{}',
+			marketing_opt_out_at TIMESTAMP,
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"contacts", userCol),
@@ -397,6 +398,87 @@ func migrationStatements(p string) []string {
 			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE (user_id, skill_id)
 		)`, p+"agent_skills", userCol, p+"skills"),
+
+		// 28. Newsletter lists
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			name VARCHAR(255) NOT NULL,
+			description TEXT,
+			kind VARCHAR(50) NOT NULL,
+			filter_json TEXT,
+			created_by %s,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"newsletter_lists", userCol),
+
+		// 29. Newsletter list members
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			list_id BIGINT NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
+			contact_id BIGINT NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
+			added_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			added_by %s,
+			UNIQUE (list_id, contact_id)
+		)`, p+"newsletter_list_members", p+"newsletter_lists", p+"contacts", userCol),
+
+		// 30. Newsletter templates
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			name VARCHAR(255) NOT NULL,
+			theme VARCHAR(100) NOT NULL DEFAULT 'default',
+			subject_template TEXT,
+			body_markdown TEXT NOT NULL,
+			merge_fields_schema TEXT,
+			created_by %s,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"newsletter_templates", userCol),
+
+		// 31. Newsletters
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			subject VARCHAR(255) NOT NULL,
+			from_email VARCHAR(320) NOT NULL,
+			from_name VARCHAR(255),
+			reply_to VARCHAR(320),
+			target_list_id BIGINT NOT NULL REFERENCES %s(id),
+			template_id BIGINT REFERENCES %s(id) ON DELETE SET NULL,
+			theme VARCHAR(100),
+			body_markdown TEXT,
+			status VARCHAR(50) NOT NULL DEFAULT 'draft',
+			scheduled_at TIMESTAMP,
+			sent_at TIMESTAMP,
+			created_by %s,
+			sent_by %s,
+			summary_total INTEGER NOT NULL DEFAULT 0,
+			summary_sent INTEGER NOT NULL DEFAULT 0,
+			summary_opened INTEGER NOT NULL DEFAULT 0,
+			summary_clicked INTEGER NOT NULL DEFAULT 0,
+			summary_bounced INTEGER NOT NULL DEFAULT 0,
+			summary_complained INTEGER NOT NULL DEFAULT 0,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"newsletters", p+"newsletter_lists", p+"newsletter_templates", userCol, userCol),
+
+		// 32. Newsletter deliveries
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			newsletter_id BIGINT NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
+			contact_id BIGINT NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
+			email_at_send VARCHAR(320) NOT NULL,
+			status VARCHAR(50) NOT NULL DEFAULT 'pending',
+			tracking_token VARCHAR(64) NOT NULL UNIQUE,
+			sent_at TIMESTAMP,
+			opened_at TIMESTAMP,
+			last_clicked_at TIMESTAMP,
+			clicks_count INTEGER NOT NULL DEFAULT 0,
+			bounce_reason TEXT,
+			failure_reason TEXT,
+			attempt_count INTEGER NOT NULL DEFAULT 0,
+			claimed_at TIMESTAMP,
+			is_test BOOLEAN NOT NULL DEFAULT FALSE,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"newsletter_deliveries", p+"newsletters", p+"contacts"),
 	}
 
 	// Indexes (CREATE INDEX IF NOT EXISTS is supported by PostgreSQL 9.5+ and SQLite 3.3+)
@@ -468,6 +550,16 @@ func migrationStatements(p string) []string {
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%ssrd_dept ON %s (department_id)", p, p+"skill_routing_departments"),
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%sas_user ON %s (user_id)", p, p+"agent_skills"),
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%sas_skill ON %s (skill_id)", p, p+"agent_skills"),
+
+		// Newsletter system
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%snl_kind ON %s (kind)", p, p+"newsletter_lists"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%snlm_contact ON %s (contact_id)", p, p+"newsletter_list_members"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%snlt_theme ON %s (theme)", p, p+"newsletter_templates"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%sn_status ON %s (status)", p, p+"newsletters"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%sn_sched ON %s (status, scheduled_at)", p, p+"newsletters"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%snd_nl_status ON %s (newsletter_id, status)", p, p+"newsletter_deliveries"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%snd_status_claimed ON %s (status, claimed_at)", p, p+"newsletter_deliveries"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%scontact_opt_out ON %s (marketing_opt_out_at)", p, p+"contacts"),
 	}
 
 	return append(stmts, indexes...)
