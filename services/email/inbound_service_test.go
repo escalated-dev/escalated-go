@@ -35,7 +35,7 @@ func (f *fakeTicketWriter) Create(_ context.Context, in CreateTicketInputShim) (
 	return f.createReturn, nil
 }
 
-func (f *fakeTicketWriter) AddReply(_ context.Context, ticketID int64, body string, authorType *string, _ *int64, internal bool) (*models.Reply, error) {
+func (f *fakeTicketWriter) AddReply(_ context.Context, ticketID int64, body string, authorType *string, _ *models.UserID, internal bool) (*models.Reply, error) {
 	f.replyCalls = append(f.replyCalls, struct {
 		ticketID   int64
 		body       string

@@ -149,6 +149,23 @@ func (m *handlerMockStore) GetTicketTags(_ context.Context, _ int64) ([]*models.
 	return nil, nil
 }
 
+func (m *handlerMockStore) ListTicketSubjectLinks(_ context.Context, _ int64) ([]*models.TicketSubjectLink, error) {
+	return nil, nil
+}
+func (m *handlerMockStore) GetTicketSubjectLink(_ context.Context, _ int64) (*models.TicketSubjectLink, error) {
+	return nil, nil
+}
+func (m *handlerMockStore) UpsertTicketSubjectLink(_ context.Context, _ *models.TicketSubjectLink) error {
+	return nil
+}
+func (m *handlerMockStore) DeleteTicketSubjectLink(_ context.Context, _ int64) error { return nil }
+func (m *handlerMockStore) DeleteTicketSubjectLinksByTicket(_ context.Context, _ int64) error {
+	return nil
+}
+func (m *handlerMockStore) MaxTicketSubjectPosition(_ context.Context, _ int64) (int, error) {
+	return -1, nil
+}
+
 func (m *handlerMockStore) CreateSLAPolicy(_ context.Context, _ *models.SLAPolicy) error {
 	return nil
 }
@@ -176,14 +193,14 @@ func (m *handlerMockStore) CreateSavedView(_ context.Context, _ *models.SavedVie
 func (m *handlerMockStore) GetSavedView(_ context.Context, _ int64) (*models.SavedView, error) {
 	return nil, nil
 }
-func (m *handlerMockStore) ListSavedViews(_ context.Context, _ int64, _ bool) ([]*models.SavedView, error) {
+func (m *handlerMockStore) ListSavedViews(_ context.Context, _ models.UserID, _ bool) ([]*models.SavedView, error) {
 	return nil, nil
 }
 func (m *handlerMockStore) UpdateSavedView(_ context.Context, _ *models.SavedView) error {
 	return nil
 }
 func (m *handlerMockStore) DeleteSavedView(_ context.Context, _ int64) error { return nil }
-func (m *handlerMockStore) ReorderSavedViews(_ context.Context, _ int64, _ []int64) error {
+func (m *handlerMockStore) ReorderSavedViews(_ context.Context, _ models.UserID, _ []int64) error {
 	return nil
 }
 
@@ -226,7 +243,7 @@ func (m *handlerMockStore) UpdateChatRoutingRule(_ context.Context, _ *models.Ch
 	return nil
 }
 func (m *handlerMockStore) DeleteChatRoutingRule(_ context.Context, _ int64) error { return nil }
-func (m *handlerMockStore) CountActiveChatsForAgent(_ context.Context, _ int64) (int, error) {
+func (m *handlerMockStore) CountActiveChatsForAgent(_ context.Context, _ models.UserID) (int, error) {
 	return 0, nil
 }
 
@@ -238,7 +255,7 @@ func (m *handlerMockStore) CreateChatMessage(_ context.Context, msg *models.Chat
 func (m *handlerMockStore) ListChatMessages(_ context.Context, _ int64) ([]models.ChatMessage, error) {
 	return nil, nil
 }
-func (m *handlerMockStore) CountTicketsByRequester(_ context.Context, _ string, _ int64) (int, error) {
+func (m *handlerMockStore) CountTicketsByRequester(_ context.Context, _ string, _ models.UserID) (int, error) {
 	return 0, nil
 }
 func (m *handlerMockStore) ListRelatedTickets(_ context.Context, _ int64) ([]models.RelatedTicket, error) {

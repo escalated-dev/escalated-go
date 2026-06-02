@@ -167,7 +167,7 @@ func (r *AutomationRunner) findMatchingTickets(a models.Automation) ([]models.Ti
 	var tickets []models.Ticket
 	for rows.Next() {
 		var t models.Ticket
-		var assignedTo sql.NullInt64
+		var assignedTo sql.NullString
 		var resolvedAt, closedAt sql.NullTime
 		if err := rows.Scan(
 			&t.ID, &t.Reference, &t.Subject, &t.Status, &t.Priority,
@@ -176,7 +176,8 @@ func (r *AutomationRunner) findMatchingTickets(a models.Automation) ([]models.Ti
 			return nil, fmt.Errorf("scan ticket: %w", err)
 		}
 		if assignedTo.Valid {
-			t.AssignedTo = &assignedTo.Int64
+			uid := models.UserID(assignedTo.String)
+			t.AssignedTo = &uid
 		}
 		if resolvedAt.Valid {
 			t.ResolvedAt = &resolvedAt.Time
@@ -223,7 +224,7 @@ func (r *AutomationRunner) runAction(a models.Automation, t models.Ticket, actio
 	case "assign":
 		_, err := r.DB.Exec(
 			`UPDATE escalated_tickets SET assigned_to = ?, updated_at = ? WHERE id = ?`,
-			toInt(action.Value), time.Now(), t.ID,
+			models.UserID(toString(action.Value)), time.Now(), t.ID,
 		)
 		return err
 	case "add_tag":

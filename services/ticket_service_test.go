@@ -3,6 +3,8 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/escalated-dev/escalated-go/models"
@@ -31,7 +33,7 @@ func TestSplitTicket(t *testing.T) {
 					TicketID: 1,
 					Body:     "This should be a separate issue",
 				}
-				causerID := int64(42)
+				causerID := models.UserID("42")
 				return SplitTicketInput{
 					TicketID: 1,
 					ReplyID:  10,
@@ -173,5 +175,33 @@ func TestSplitTicket(t *testing.T) {
 				tt.check(t, ms, result)
 			}
 		})
+	}
+}
+
+func TestCreateGuestTicketUsesHighEntropyGuestToken(t *testing.T) {
+	ms := newMockStore()
+	svc := NewTicketService(ms)
+	email := "guest@example.com"
+
+	ticket, err := svc.Create(context.Background(), CreateTicketInput{
+		Subject:     "Need help",
+		Description: "Help me with this issue",
+		GuestEmail:  &email,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if ticket.GuestToken == nil {
+		t.Fatal("expected guest token")
+	}
+	if !strings.HasPrefix(*ticket.GuestToken, "GT-") {
+		t.Fatalf("guest token = %q, want GT- prefix", *ticket.GuestToken)
+	}
+	if len(*ticket.GuestToken) < 40 {
+		t.Fatalf("guest token length = %d, want at least 40", len(*ticket.GuestToken))
+	}
+	referenceStyle := regexp.MustCompile(`^GT-\d{4}-[A-F0-9]{6}$`)
+	if referenceStyle.MatchString(*ticket.GuestToken) {
+		t.Fatalf("guest token should not use reference-style format: %q", *ticket.GuestToken)
 	}
 }

@@ -11,11 +11,11 @@ import (
 // SavedViewHandler serves saved view CRUD and reorder endpoints.
 type SavedViewHandler struct {
 	store  store.Store
-	userID func(r *http.Request) int64
+	userID func(r *http.Request) models.UserID
 }
 
 // NewSavedViewHandler creates a new SavedViewHandler.
-func NewSavedViewHandler(s store.Store, userIDFunc func(r *http.Request) int64) *SavedViewHandler {
+func NewSavedViewHandler(s store.Store, userIDFunc func(r *http.Request) models.UserID) *SavedViewHandler {
 	return &SavedViewHandler{
 		store:  s,
 		userID: userIDFunc,

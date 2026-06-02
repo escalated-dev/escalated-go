@@ -19,7 +19,7 @@ type Contact struct {
 	ID       int64          `json:"id"`
 	Email    string         `json:"email"`
 	Name     *string        `json:"name,omitempty"`
-	UserID   *int64         `json:"user_id,omitempty"`
+	UserID   *UserID        `json:"user_id,omitempty"`
 	Metadata map[string]any `json:"metadata,omitempty"`
 	// MarketingOptOutAt is set when the contact one-click unsubscribes from
 	// marketing newsletters. Nil = sendable.

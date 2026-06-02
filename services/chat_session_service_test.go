@@ -70,7 +70,7 @@ func TestStartSession(t *testing.T) {
 					ID:                 100,
 					Name:               "Default",
 					Strategy:           models.StrategyRoundRobin,
-					AgentIDs:           []int64{42},
+					AgentIDs:           []models.UserID{models.UserID("42")},
 					MaxConcurrentChats: 5,
 					IsActive:           true,
 				}
@@ -78,8 +78,8 @@ func TestStartSession(t *testing.T) {
 			check: func(t *testing.T, ticket *models.Ticket, session *models.ChatSession) {
 				// After auto-routing, session should be retrieved fresh from store
 				// The assign may have been done in-memory
-				if ticket.AssignedTo != nil && *ticket.AssignedTo != 42 {
-					t.Errorf("expected auto-assigned agent 42, got %d", *ticket.AssignedTo)
+				if ticket.AssignedTo != nil && *ticket.AssignedTo != models.UserID("42") {
+					t.Errorf("expected auto-assigned agent 42, got %q", *ticket.AssignedTo)
 				}
 			},
 		},
@@ -133,7 +133,7 @@ func TestAssignAgent(t *testing.T) {
 	}
 
 	// Assign agent
-	err = svc.AssignAgent(context.Background(), session, 42)
+	err = svc.AssignAgent(context.Background(), session, models.UserID("42"))
 	if err != nil {
 		t.Fatalf("failed to assign agent: %v", err)
 	}
@@ -146,7 +146,7 @@ func TestAssignAgent(t *testing.T) {
 	if updated.Status != models.ChatStatusActive {
 		t.Errorf("expected status active, got %d", updated.Status)
 	}
-	if updated.AgentID == nil || *updated.AgentID != 42 {
+	if updated.AgentID == nil || *updated.AgentID != models.UserID("42") {
 		t.Error("expected agent_id to be 42")
 	}
 	if updated.AgentJoinedAt == nil {
@@ -165,9 +165,9 @@ func TestEndSession(t *testing.T) {
 		GuestEmail: "test@example.com",
 	})
 
-	_ = svc.AssignAgent(context.Background(), session, 42)
+	_ = svc.AssignAgent(context.Background(), session, models.UserID("42"))
 
-	agentID := int64(42)
+	agentID := models.UserID("42")
 	err := svc.EndSession(context.Background(), session, &agentID)
 	if err != nil {
 		t.Fatalf("failed to end session: %v", err)
@@ -208,7 +208,7 @@ func TestSendMessage(t *testing.T) {
 		GuestName:  "Test",
 		GuestEmail: "test@example.com",
 	})
-	_ = svc.AssignAgent(context.Background(), session, 42)
+	_ = svc.AssignAgent(context.Background(), session, models.UserID("42"))
 
 	// Guest message
 	err := svc.SendMessage(context.Background(), session, "Hello!", nil, nil)
@@ -218,7 +218,7 @@ func TestSendMessage(t *testing.T) {
 
 	// Agent message
 	agentType := "User"
-	agentID := int64(42)
+	agentID := models.UserID("42")
 	err = svc.SendMessage(context.Background(), session, "Hi there!", &agentType, &agentID)
 	if err != nil {
 		t.Fatalf("failed to send agent message: %v", err)

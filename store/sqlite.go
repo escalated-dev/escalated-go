@@ -732,7 +732,7 @@ func (s *SQLiteStore) GetSavedView(ctx context.Context, id int64) (*models.Saved
 	return sv, nil
 }
 
-func (s *SQLiteStore) ListSavedViews(ctx context.Context, userID int64, includeShared bool) ([]*models.SavedView, error) {
+func (s *SQLiteStore) ListSavedViews(ctx context.Context, userID models.UserID, includeShared bool) ([]*models.SavedView, error) {
 	var q string
 	var args []any
 	if includeShared {
@@ -773,7 +773,7 @@ func (s *SQLiteStore) DeleteSavedView(ctx context.Context, id int64) error {
 	return err
 }
 
-func (s *SQLiteStore) ReorderSavedViews(ctx context.Context, userID int64, ids []int64) error {
+func (s *SQLiteStore) ReorderSavedViews(ctx context.Context, userID models.UserID, ids []int64) error {
 	for i, id := range ids {
 		q := fmt.Sprintf(`UPDATE %s SET position = ? WHERE id = ? AND user_id = ?`, s.t("saved_views"))
 		if _, err := s.db.ExecContext(ctx, q, i, id, userID); err != nil {
@@ -934,6 +934,103 @@ func (s *SQLiteStore) GetSetting(ctx context.Context, key string) (string, error
 // SetSetting upserts the key/value pair via SQLite's INSERT ... ON
 // CONFLICT syntax (supported since 3.24.0 / 2018). Relies on the
 // unique index on key.
+// --- Ticket subjects ---
+
+const sqliteTicketSubjectLinkCols = `id, ticket_id, subject_type, subject_id, role, position, created_at, updated_at`
+
+func (s *SQLiteStore) ListTicketSubjectLinks(ctx context.Context, ticketID int64) ([]*models.TicketSubjectLink, error) {
+	q := fmt.Sprintf(`SELECT %s FROM %s WHERE ticket_id = ? ORDER BY position, id`,
+		sqliteTicketSubjectLinkCols, s.t("ticket_subjects"))
+	rows, err := s.db.QueryContext(ctx, q, ticketID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var links []*models.TicketSubjectLink
+	for rows.Next() {
+		l := &models.TicketSubjectLink{}
+		if err := rows.Scan(
+			&l.ID, &l.TicketID, &l.SubjectType, &l.SubjectID, &l.Role, &l.Position,
+			&l.CreatedAt, &l.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		links = append(links, l)
+	}
+	return links, rows.Err()
+}
+
+func (s *SQLiteStore) GetTicketSubjectLink(ctx context.Context, id int64) (*models.TicketSubjectLink, error) {
+	q := fmt.Sprintf(`SELECT %s FROM %s WHERE id = ?`, sqliteTicketSubjectLinkCols, s.t("ticket_subjects"))
+	l := &models.TicketSubjectLink{}
+	err := s.db.QueryRowContext(ctx, q, id).Scan(
+		&l.ID, &l.TicketID, &l.SubjectType, &l.SubjectID, &l.Role, &l.Position,
+		&l.CreatedAt, &l.UpdatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return l, err
+}
+
+func (s *SQLiteStore) UpsertTicketSubjectLink(ctx context.Context, link *models.TicketSubjectLink) error {
+	now := time.Now()
+	if link.CreatedAt.IsZero() {
+		link.CreatedAt = now
+	}
+	link.UpdatedAt = now
+
+	q := fmt.Sprintf(`INSERT INTO %s
+		(ticket_id, subject_type, subject_id, role, position, created_at, updated_at)
+		VALUES (?,?,?,?,?,?,?)
+		ON CONFLICT (ticket_id, subject_type, subject_id)
+		DO UPDATE SET role = excluded.role, position = excluded.position, updated_at = excluded.updated_at`,
+		s.t("ticket_subjects"))
+
+	res, err := s.db.ExecContext(ctx, q,
+		link.TicketID, link.SubjectType, link.SubjectID, link.Role, link.Position,
+		link.CreatedAt, link.UpdatedAt,
+	)
+	if err != nil {
+		return err
+	}
+	if link.ID == 0 {
+		id, err := res.LastInsertId()
+		if err != nil {
+			return err
+		}
+		link.ID = id
+	}
+	return s.db.QueryRowContext(ctx,
+		fmt.Sprintf(`SELECT %s FROM %s WHERE ticket_id = ? AND subject_type = ? AND subject_id = ?`,
+			sqliteTicketSubjectLinkCols, s.t("ticket_subjects")),
+		link.TicketID, link.SubjectType, link.SubjectID,
+	).Scan(
+		&link.ID, &link.TicketID, &link.SubjectType, &link.SubjectID, &link.Role, &link.Position,
+		&link.CreatedAt, &link.UpdatedAt,
+	)
+}
+
+func (s *SQLiteStore) DeleteTicketSubjectLink(ctx context.Context, id int64) error {
+	q := fmt.Sprintf(`DELETE FROM %s WHERE id = ?`, s.t("ticket_subjects"))
+	_, err := s.db.ExecContext(ctx, q, id)
+	return err
+}
+
+func (s *SQLiteStore) DeleteTicketSubjectLinksByTicket(ctx context.Context, ticketID int64) error {
+	q := fmt.Sprintf(`DELETE FROM %s WHERE ticket_id = ?`, s.t("ticket_subjects"))
+	_, err := s.db.ExecContext(ctx, q, ticketID)
+	return err
+}
+
+func (s *SQLiteStore) MaxTicketSubjectPosition(ctx context.Context, ticketID int64) (int, error) {
+	q := fmt.Sprintf(`SELECT COALESCE(MAX(position), -1) FROM %s WHERE ticket_id = ?`, s.t("ticket_subjects"))
+	var max int
+	err := s.db.QueryRowContext(ctx, q, ticketID).Scan(&max)
+	return max, err
+}
+
 func (s *SQLiteStore) SetSetting(ctx context.Context, key, value string) error {
 	q := fmt.Sprintf(`INSERT INTO %s (key, value, created_at, updated_at)
 		VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)

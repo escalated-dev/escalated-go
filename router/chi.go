@@ -5,6 +5,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	escalated "github.com/escalated-dev/escalated-go"
+	"github.com/escalated-dev/escalated-go/actions"
 	"github.com/escalated-dev/escalated-go/handlers"
 	"github.com/escalated-dev/escalated-go/middleware"
 	"github.com/escalated-dev/escalated-go/services"
@@ -18,15 +19,28 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 
 	ticketSvc := services.NewTicketService(s)
 	assignSvc := services.NewAssignmentService(s)
+	subjectSvc := services.NewTicketSubjectService(s, cfg.TicketSubjectTypes, cfg.TicketSubjectResolver)
+
+	actionRegistry := actions.NewRegistry(cfg.TicketActions)
 
 	apiH := handlers.NewAPIHandler(s, ticketSvc, rend, cfg.UserIDFunc)
+	apiH.Subjects = subjectSvc
+	subjectH := handlers.NewTicketSubjectHandler(subjectSvc, ticketSvc)
+	apiH.Actions = actionRegistry
+	apiH.OnCustomAction = cfg.OnCustomAction
+	apiH.RoutePrefix = cfg.RoutePrefix
+
 	agentH := handlers.NewAgentHandler(s, ticketSvc, assignSvc, rend, cfg.UserIDFunc)
+	agentH.Actions = actionRegistry
+	agentH.OnCustomAction = cfg.OnCustomAction
+	agentH.RoutePrefix = cfg.RoutePrefix
 	customerH := handlers.NewCustomerHandler(s, ticketSvc, rend, cfg.UserIDFunc)
 	adminH := handlers.NewAdminHandler(s, rend)
 	attachH := handlers.NewAttachmentHandler(s, cfg.RoutePrefix)
 	autoH := handlers.NewAutomationHandler(cfg.DB, services.NewAutomationRunner(cfg.DB, nil))
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
+	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
 
 	r.Route(cfg.RoutePrefix, func(r chi.Router) {
 		// Attachment downloads — always mounted
@@ -39,6 +53,9 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 			r.Get("/tickets/{id}", apiH.ShowTicket)
 			r.Patch("/tickets/{id}", apiH.UpdateTicket)
 			r.Post("/tickets/{id}/replies", apiH.CreateReply)
+			r.Post("/tickets/{id}/subjects", subjectH.AttachSubject)
+			r.Delete("/tickets/{id}/subjects/{subject}", subjectH.DetachSubject)
+			r.Post("/tickets/{id}/actions/{action}", apiH.CustomAction)
 			r.Get("/departments", apiH.ListDepartments)
 			r.Get("/tags", apiH.ListTags)
 		})
@@ -64,6 +81,9 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Post("/tickets/{id}/assign", agentH.AssignTicket)
 				r.Post("/tickets/{id}/replies", agentH.Reply)
 				r.Post("/tickets/{id}/status", agentH.ChangeStatus)
+				r.Post("/tickets/{id}/subjects", subjectH.AttachSubject)
+				r.Delete("/tickets/{id}/subjects/{subject}", subjectH.DetachSubject)
+				r.Post("/tickets/{id}/actions/{action}", agentH.CustomAction)
 
 				// Macros (agent-applied one-click bundles).
 				r.Get("/macros", macroH.AgentList)
@@ -98,6 +118,15 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Post("/macros", macroH.Create)
 				r.Patch("/macros/{id}", macroH.Update)
 				r.Delete("/macros/{id}", macroH.Delete)
+
+				// Skills admin — register /skills/new before /skills/{id}/edit.
+				r.Get("/skills", skillsH.ListSkills)
+				r.Get("/skills/new", skillsH.NewSkillForm)
+				r.Post("/skills", skillsH.StoreSkill)
+				r.Get("/skills/{id}/edit", skillsH.EditSkill)
+				r.Put("/skills/{id}", skillsH.UpdateSkill)
+				r.Patch("/skills/{id}", skillsH.UpdateSkill)
+				r.Delete("/skills/{id}", skillsH.DestroySkill)
 
 				r.Get("/settings/public-tickets", adminH.GetPublicTicketsSettings)
 				r.Put("/settings/public-tickets", adminH.UpdatePublicTicketsSettings)

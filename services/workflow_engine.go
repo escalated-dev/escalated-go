@@ -53,7 +53,7 @@ var TriggerEvents = []string{
 type TicketData struct {
 	Status       string
 	Priority     string
-	AssignedTo   *int
+	AssignedTo   string
 	DepartmentID *int
 	Channel      string
 	TicketType   string
@@ -116,10 +116,7 @@ func resolveField(field string, ticket TicketData) string {
 	case "ticket_type":
 		return ticket.TicketType
 	case "assigned_to":
-		if ticket.AssignedTo != nil {
-			return strconv.Itoa(*ticket.AssignedTo)
-		}
-		return ""
+		return ticket.AssignedTo
 	case "department_id":
 		if ticket.DepartmentID != nil {
 			return strconv.Itoa(*ticket.DepartmentID)

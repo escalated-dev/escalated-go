@@ -28,7 +28,7 @@ type CreateTicketInput struct {
 	Priority      int
 	TicketType    string
 	RequesterType *string
-	RequesterID   *int64
+	RequesterID   *models.UserID
 	GuestName     *string
 	GuestEmail    *string
 	DepartmentID  *int64
@@ -55,7 +55,10 @@ func (ts *TicketService) Create(ctx context.Context, in CreateTicketInput) (*mod
 
 	// Generate guest token for unauthenticated tickets
 	if t.RequesterType == nil && t.GuestEmail != nil {
-		token := models.GenerateReference("GT")
+		token, err := models.GenerateGuestToken()
+		if err != nil {
+			return nil, err
+		}
 		t.GuestToken = &token
 	}
 
@@ -114,7 +117,7 @@ func (ts *TicketService) Get(ctx context.Context, id int64) (*models.Ticket, err
 }
 
 // Assign assigns a ticket to an agent and records the activity.
-func (ts *TicketService) Assign(ctx context.Context, ticketID, agentID int64, causerID *int64) error {
+func (ts *TicketService) Assign(ctx context.Context, ticketID int64, agentID models.UserID, causerID *models.UserID) error {
 	t, err := ts.store.GetTicket(ctx, ticketID)
 	if err != nil {
 		return err
@@ -123,7 +126,8 @@ func (ts *TicketService) Assign(ctx context.Context, ticketID, agentID int64, ca
 		return fmt.Errorf("ticket %d not found", ticketID)
 	}
 
-	t.AssignedTo = &agentID
+	aid := agentID
+	t.AssignedTo = &aid
 	if t.Status == models.StatusOpen {
 		t.Status = models.StatusInProgress
 	}
@@ -147,7 +151,7 @@ func (ts *TicketService) Assign(ctx context.Context, ticketID, agentID int64, ca
 }
 
 // ChangeStatus updates a ticket's status and records the activity.
-func (ts *TicketService) ChangeStatus(ctx context.Context, ticketID int64, newStatus int, causerID *int64) error {
+func (ts *TicketService) ChangeStatus(ctx context.Context, ticketID int64, newStatus int, causerID *models.UserID) error {
 	t, err := ts.store.GetTicket(ctx, ticketID)
 	if err != nil {
 		return err
@@ -191,7 +195,7 @@ func (ts *TicketService) ChangeStatus(ctx context.Context, ticketID int64, newSt
 }
 
 // AddReply creates a reply on a ticket and records the activity.
-func (ts *TicketService) AddReply(ctx context.Context, ticketID int64, body string, authorType *string, authorID *int64, internal bool) (*models.Reply, error) {
+func (ts *TicketService) AddReply(ctx context.Context, ticketID int64, body string, authorType *string, authorID *models.UserID, internal bool) (*models.Reply, error) {
 	t, err := ts.store.GetTicket(ctx, ticketID)
 	if err != nil {
 		return nil, err
@@ -238,7 +242,7 @@ type SplitTicketInput struct {
 	TicketID int64
 	ReplyID  int64
 	Subject  string
-	CauserID *int64
+	CauserID *models.UserID
 }
 
 // SplitTicket creates a new ticket from a reply on an existing ticket.

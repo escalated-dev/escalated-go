@@ -15,7 +15,7 @@ type ChatRoutingRule struct {
 	Name               string    `json:"name"`
 	Strategy           string    `json:"strategy"`
 	DepartmentID       *int64    `json:"department_id,omitempty"`
-	AgentIDs           []int64   `json:"agent_ids,omitempty"`
+	AgentIDs           []UserID  `json:"agent_ids,omitempty"`
 	Priority           int       `json:"priority"`
 	MaxConcurrentChats int       `json:"max_concurrent_chats"`
 	IsActive           bool      `json:"is_active"`

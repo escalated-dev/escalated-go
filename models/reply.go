@@ -10,7 +10,7 @@ type Reply struct {
 
 	// Polymorphic author
 	AuthorType *string `json:"author_type,omitempty"`
-	AuthorID   *int64  `json:"author_id,omitempty"`
+	AuthorID   *UserID `json:"author_id,omitempty"`
 
 	IsInternal bool `json:"is_internal"`
 	IsSystem   bool `json:"is_system"`

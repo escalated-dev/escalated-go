@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/escalated-dev/escalated-go/models"
 )
 
 // Event represents a real-time event that can be broadcast to subscribers.
@@ -217,6 +219,6 @@ func AgentChannel() string {
 }
 
 // UserChannel returns the private channel name for a specific user.
-func UserChannel(userID int64) string {
-	return fmt.Sprintf("user.%d", userID)
+func UserChannel(userID models.UserID) string {
+	return fmt.Sprintf("user.%s", userID)
 }

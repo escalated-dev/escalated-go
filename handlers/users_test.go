@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/renderer"
 )
 
@@ -110,7 +112,9 @@ func (d *fakeDirectory) UpdateUserRoles(_ context.Context, id int64, updates Use
 
 func newUserHandlerForTest(currentID int64, seed ...*AdminUser) (*UserHandler, *fakeDirectory) {
 	dir := newFakeDirectory(seed...)
-	h := NewUserHandler(dir, renderer.NewJSONRenderer(), func(_ *http.Request) int64 { return currentID })
+	h := NewUserHandler(dir, renderer.NewJSONRenderer(), func(_ *http.Request) models.UserID {
+		return models.UserID(strconv.FormatInt(currentID, 10))
+	})
 	return h, dir
 }
 
@@ -194,7 +198,7 @@ func TestUserHandler_Index_BlocksWhenNoDirectoryHostHasOptedOut(t *testing.T) {
 	// When the host does not wire a UserDirectory the page must still
 	// render — empty list, not 500. The admin-only routing middleware
 	// already handles "not authorised" upstream.
-	h := NewUserHandler(nil, renderer.NewJSONRenderer(), func(_ *http.Request) int64 { return 0 })
+	h := NewUserHandler(nil, renderer.NewJSONRenderer(), func(_ *http.Request) models.UserID { return "" })
 
 	req := httptest.NewRequest(http.MethodGet, "/admin/users", nil)
 	rec := httptest.NewRecorder()

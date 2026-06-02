@@ -3,6 +3,8 @@ package services
 import (
 	"testing"
 	"time"
+
+	"github.com/escalated-dev/escalated-go/models"
 )
 
 func TestBroadcaster_SubscribeAndPublish(t *testing.T) {
@@ -166,7 +168,7 @@ func TestChannelNames(t *testing.T) {
 	if got := AgentChannel(); got != "agents" {
 		t.Errorf("AgentChannel = %q", got)
 	}
-	if got := UserChannel(5); got != "user.5" {
+	if got := UserChannel(models.UserID("5")); got != "user.5" {
 		t.Errorf("UserChannel = %q", got)
 	}
 }

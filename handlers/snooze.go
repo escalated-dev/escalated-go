@@ -5,17 +5,18 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/services"
 )
 
 // SnoozeHandler serves the ticket snooze endpoints.
 type SnoozeHandler struct {
 	snooze *services.SnoozeService
-	userID func(r *http.Request) int64
+	userID func(r *http.Request) models.UserID
 }
 
 // NewSnoozeHandler creates a new SnoozeHandler.
-func NewSnoozeHandler(ss *services.SnoozeService, userIDFunc func(r *http.Request) int64) *SnoozeHandler {
+func NewSnoozeHandler(ss *services.SnoozeService, userIDFunc func(r *http.Request) models.UserID) *SnoozeHandler {
 	return &SnoozeHandler{
 		snooze: ss,
 		userID: userIDFunc,
@@ -50,8 +51,8 @@ func (h *SnoozeHandler) Snooze(w http.ResponseWriter, r *http.Request) {
 	}
 
 	uid := h.userID(r)
-	var snoozedBy *int64
-	if uid > 0 {
+	var snoozedBy *models.UserID
+	if !uid.Empty() {
 		snoozedBy = &uid
 	}
 
@@ -72,8 +73,8 @@ func (h *SnoozeHandler) Unsnooze(w http.ResponseWriter, r *http.Request) {
 	}
 
 	uid := h.userID(r)
-	var causerID *int64
-	if uid > 0 {
+	var causerID *models.UserID
+	if !uid.Empty() {
 		causerID = &uid
 	}
 

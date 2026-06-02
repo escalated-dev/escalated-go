@@ -19,7 +19,7 @@ func NewAssignmentService(s store.Store) *AssignmentService {
 }
 
 // Unassign removes the assignee from a ticket.
-func (as *AssignmentService) Unassign(ctx context.Context, ticketID int64, causerID *int64) error {
+func (as *AssignmentService) Unassign(ctx context.Context, ticketID int64, causerID *models.UserID) error {
 	t, err := as.store.GetTicket(ctx, ticketID)
 	if err != nil {
 		return err
@@ -48,7 +48,7 @@ func (as *AssignmentService) Unassign(ctx context.Context, ticketID int64, cause
 }
 
 // Reassign changes a ticket's assignee.
-func (as *AssignmentService) Reassign(ctx context.Context, ticketID, newAgentID int64, causerID *int64) error {
+func (as *AssignmentService) Reassign(ctx context.Context, ticketID int64, newAgentID models.UserID, causerID *models.UserID) error {
 	t, err := as.store.GetTicket(ctx, ticketID)
 	if err != nil {
 		return err
@@ -57,7 +57,8 @@ func (as *AssignmentService) Reassign(ctx context.Context, ticketID, newAgentID 
 		return fmt.Errorf("ticket %d not found", ticketID)
 	}
 
-	t.AssignedTo = &newAgentID
+	agentID := newAgentID
+	t.AssignedTo = &agentID
 	if err := as.store.UpdateTicket(ctx, t); err != nil {
 		return err
 	}

@@ -3,10 +3,13 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
+	"github.com/escalated-dev/escalated-go/actions"
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/renderer"
 	"github.com/escalated-dev/escalated-go/services"
@@ -17,12 +20,19 @@ import (
 type APIHandler struct {
 	store    store.Store
 	tickets  *services.TicketService
+	Subjects *services.TicketSubjectService
 	renderer renderer.Renderer
-	userID   func(r *http.Request) int64
+	userID   func(r *http.Request) models.UserID
+
+	// Actions, OnCustomAction, and RoutePrefix are wired by the router to
+	// support host-defined custom ticket actions. They may be nil/empty.
+	Actions        *actions.Registry
+	OnCustomAction func(ctx context.Context, e actions.CustomActionEvent) error
+	RoutePrefix    string
 }
 
 // NewAPIHandler creates a new APIHandler.
-func NewAPIHandler(s store.Store, ts *services.TicketService, rend renderer.Renderer, userIDFunc func(r *http.Request) int64) *APIHandler {
+func NewAPIHandler(s store.Store, ts *services.TicketService, rend renderer.Renderer, userIDFunc func(r *http.Request) models.UserID) *APIHandler {
 	return &APIHandler{
 		store:    s,
 		tickets:  ts,
@@ -52,9 +62,8 @@ func (h *APIHandler) ListTickets(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if v := r.URL.Query().Get("assigned_to"); v != "" {
-		if i, err := strconv.ParseInt(v, 10, 64); err == nil {
-			f.AssignedTo = &i
-		}
+		uid := models.UserID(v)
+		f.AssignedTo = &uid
 	}
 	if r.URL.Query().Get("unassigned") == "true" {
 		f.Unassigned = true
@@ -156,6 +165,8 @@ func (h *APIHandler) ShowTicket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	t.PopulateComputedFull(replies, opts)
+	t.CustomActions = h.customActionsFor(t, h.userID(r))
+	populateTicketSubjects(r.Context(), h, t)
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ticket":      t,
@@ -163,6 +174,75 @@ func (h *APIHandler) ShowTicket(w http.ResponseWriter, r *http.Request) {
 		"activities":  activities,
 		"attachments": ticketAttachments,
 	})
+}
+
+// customActionsFor serializes the visible custom actions for a ticket, adding
+// url + method (pointing at the API surface).
+func (h *APIHandler) customActionsFor(t *models.Ticket, userID models.UserID) []map[string]any {
+	if h.Actions == nil {
+		return nil
+	}
+	prefix := h.RoutePrefix
+	if prefix == "" {
+		prefix = "/escalated"
+	}
+	out := h.Actions.ForTicket(t, userID)
+	for _, a := range out {
+		a["url"] = fmt.Sprintf("%s/api/tickets/%d/actions/%v", prefix, t.ID, a["key"])
+		a["method"] = "post"
+	}
+	return out
+}
+
+// CustomAction handles POST /api/tickets/{id}/actions/{action}.
+func (h *APIHandler) CustomAction(w http.ResponseWriter, r *http.Request) {
+	id, err := idFromPath(r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid ticket id"})
+		return
+	}
+	if h.Actions == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "custom action not found"})
+		return
+	}
+
+	t, err := h.tickets.Get(r.Context(), id)
+	if err != nil || t == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "ticket not found"})
+		return
+	}
+
+	key := r.PathValue("action")
+	uid := h.userID(r)
+	action, ok := h.Actions.Find(key)
+	if !ok || !h.Actions.Visible(action, t, uid) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "custom action not found"})
+		return
+	}
+	if !h.Actions.Enabled(action, t, uid) {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "custom action is not enabled"})
+		return
+	}
+
+	var in struct {
+		Payload map[string]any `json:"payload"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&in)
+
+	authorType := "User"
+	_, _ = h.tickets.AddReply(r.Context(), id, fmt.Sprintf("Custom action %q was triggered.", key), &authorType, &uid, true)
+
+	if h.OnCustomAction != nil {
+		_ = h.OnCustomAction(r.Context(), actions.CustomActionEvent{
+			Ticket:   t,
+			Action:   key,
+			UserID:   uid,
+			Payload:  in.Payload,
+			Metadata: action.Metadata,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"message": "Custom action dispatched.", "action": key})
 }
 
 // CreateTicket handles POST /api/tickets
@@ -186,8 +266,8 @@ func (h *APIHandler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 
 	uid := h.userID(r)
 	var reqType *string
-	var reqID *int64
-	if uid > 0 {
+	var reqID *models.UserID
+	if !uid.Empty() {
 		rt := "User"
 		reqType = &rt
 		reqID = &uid
@@ -284,8 +364,8 @@ func (h *APIHandler) CreateReply(w http.ResponseWriter, r *http.Request) {
 
 	uid := h.userID(r)
 	var authorType *string
-	var authorID *int64
-	if uid > 0 {
+	var authorID *models.UserID
+	if !uid.Empty() {
 		at := "User"
 		authorType = &at
 		authorID = &uid
@@ -323,8 +403,8 @@ func (h *APIHandler) SplitTicket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	uid := h.userID(r)
-	var causerID *int64
-	if uid > 0 {
+	var causerID *models.UserID
+	if !uid.Empty() {
 		causerID = &uid
 	}
 

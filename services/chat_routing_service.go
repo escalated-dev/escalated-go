@@ -25,7 +25,7 @@ func NewChatRoutingService(s store.Store) *ChatRoutingService {
 
 // FindAvailableAgent evaluates active routing rules and returns the first
 // agent ID that passes concurrent-chat limits, or nil if none available.
-func (rs *ChatRoutingService) FindAvailableAgent(ctx context.Context, departmentID *int64) (*int64, error) {
+func (rs *ChatRoutingService) FindAvailableAgent(ctx context.Context, departmentID *int64) (*models.UserID, error) {
 	rules, err := rs.store.ListActiveChatRoutingRules(ctx, departmentID)
 	if err != nil {
 		return nil, err
@@ -44,7 +44,7 @@ func (rs *ChatRoutingService) FindAvailableAgent(ctx context.Context, department
 	return nil, nil
 }
 
-func (rs *ChatRoutingService) evaluateRule(ctx context.Context, rule *models.ChatRoutingRule) (*int64, error) {
+func (rs *ChatRoutingService) evaluateRule(ctx context.Context, rule *models.ChatRoutingRule) (*models.UserID, error) {
 	if len(rule.AgentIDs) == 0 {
 		return nil, nil
 	}
@@ -57,7 +57,7 @@ func (rs *ChatRoutingService) evaluateRule(ctx context.Context, rule *models.Cha
 	}
 }
 
-func (rs *ChatRoutingService) roundRobin(ctx context.Context, rule *models.ChatRoutingRule, agentIDs []int64, maxChats int) (*int64, error) {
+func (rs *ChatRoutingService) roundRobin(ctx context.Context, rule *models.ChatRoutingRule, agentIDs []models.UserID, maxChats int) (*models.UserID, error) {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 
@@ -79,8 +79,8 @@ func (rs *ChatRoutingService) roundRobin(ctx context.Context, rule *models.ChatR
 	return nil, nil
 }
 
-func (rs *ChatRoutingService) leastActive(ctx context.Context, agentIDs []int64, maxChats int) (*int64, error) {
-	var bestAgent *int64
+func (rs *ChatRoutingService) leastActive(ctx context.Context, agentIDs []models.UserID, maxChats int) (*models.UserID, error) {
+	var bestAgent *models.UserID
 	bestCount := maxChats
 
 	for _, agentID := range agentIDs {

@@ -59,7 +59,7 @@ func NewMacroService(db *sql.DB, logger *log.Logger) *MacroService {
 
 // ListForAgent returns macros visible to the given agent: shared macros
 // plus macros they created themselves.
-func (s *MacroService) ListForAgent(agentID int64) ([]models.Macro, error) {
+func (s *MacroService) ListForAgent(agentID models.UserID) ([]models.Macro, error) {
 	rows, err := s.DB.Query(
 		`SELECT id, name, description, actions, is_shared, created_by, created_at, updated_at
 		   FROM escalated_macros
@@ -75,7 +75,7 @@ func (s *MacroService) ListForAgent(agentID int64) ([]models.Macro, error) {
 	var macros []models.Macro
 	for rows.Next() {
 		var m models.Macro
-		var createdBy sql.NullInt64
+		var createdBy sql.NullString
 		if err := rows.Scan(
 			&m.ID, &m.Name, &m.Description, &m.Actions, &m.IsShared,
 			&createdBy, &m.CreatedAt, &m.UpdatedAt,
@@ -83,7 +83,8 @@ func (s *MacroService) ListForAgent(agentID int64) ([]models.Macro, error) {
 			return nil, err
 		}
 		if createdBy.Valid {
-			m.CreatedBy = &createdBy.Int64
+			uid := models.UserID(createdBy.String)
+			m.CreatedBy = &uid
 		}
 		macros = append(macros, m)
 	}
@@ -93,7 +94,7 @@ func (s *MacroService) ListForAgent(agentID int64) ([]models.Macro, error) {
 // FindByID returns the macro with the given id or sql.ErrNoRows.
 func (s *MacroService) FindByID(id int64) (*models.Macro, error) {
 	var m models.Macro
-	var createdBy sql.NullInt64
+	var createdBy sql.NullString
 	err := s.DB.QueryRow(
 		`SELECT id, name, description, actions, is_shared, created_by, created_at, updated_at
 		   FROM escalated_macros
@@ -107,7 +108,8 @@ func (s *MacroService) FindByID(id int64) (*models.Macro, error) {
 		return nil, err
 	}
 	if createdBy.Valid {
-		m.CreatedBy = &createdBy.Int64
+		uid := models.UserID(createdBy.String)
+		m.CreatedBy = &uid
 	}
 	return &m, nil
 }
@@ -153,7 +155,7 @@ func (s *MacroService) Delete(id int64) error {
 // Apply executes each action in the macro against the given ticket id,
 // authored by the given agent. Per-action failures are logged and do
 // not abort the rest of the bundle.
-func (s *MacroService) Apply(macro *models.Macro, ticketID int64, agentID int64) error {
+func (s *MacroService) Apply(macro *models.Macro, ticketID int64, agentID models.UserID) error {
 	var actions []models.MacroAction
 	if len(macro.Actions) > 0 {
 		if err := json.Unmarshal(macro.Actions, &actions); err != nil {
@@ -163,14 +165,14 @@ func (s *MacroService) Apply(macro *models.Macro, ticketID int64, agentID int64)
 
 	for _, action := range actions {
 		if err := s.runAction(action, ticketID, agentID); err != nil {
-			s.Logger.Printf("macro #%d action %s on ticket #%d (agent %d) failed: %v",
+			s.Logger.Printf("macro #%d action %s on ticket #%d (agent %s) failed: %v",
 				macro.ID, action.Type, ticketID, agentID, err)
 		}
 	}
 	return nil
 }
 
-func (s *MacroService) runAction(action models.MacroAction, ticketID int64, agentID int64) error {
+func (s *MacroService) runAction(action models.MacroAction, ticketID int64, agentID models.UserID) error {
 	switch action.Type {
 	case "change_status", "set_status":
 		_, err := s.DB.Exec(
@@ -187,7 +189,7 @@ func (s *MacroService) runAction(action models.MacroAction, ticketID int64, agen
 	case "assign":
 		_, err := s.DB.Exec(
 			`UPDATE escalated_tickets SET assigned_to = ?, updated_at = ? WHERE id = ?`,
-			macroToInt(action.Value), time.Now(), ticketID,
+			models.UserID(macroToString(action.Value)), time.Now(), ticketID,
 		)
 		return err
 	case "add_tag":
