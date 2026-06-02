@@ -85,6 +85,7 @@ CREATE TABLE IF NOT EXISTS escalated_newsletter_deliveries (
     failure_reason TEXT,
     attempt_count INTEGER NOT NULL DEFAULT 0,
     claimed_at DATETIME,
+    next_attempt_at DATETIME,
     is_test INTEGER NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (newsletter_id) REFERENCES escalated_newsletters(id) ON DELETE CASCADE,
