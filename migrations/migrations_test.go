@@ -47,4 +47,11 @@ func TestMigrateCreatesNewsletterTables(t *testing.T) {
 	if err != nil {
 		t.Errorf("expected escalated_contacts.marketing_opt_out_at column: %v", err)
 	}
+
+	err = db.QueryRow(
+		"SELECT name FROM pragma_table_info('escalated_newsletter_deliveries') WHERE name = 'next_attempt_at'",
+	).Scan(&col)
+	if err != nil {
+		t.Errorf("expected escalated_newsletter_deliveries.next_attempt_at column: %v", err)
+	}
 }
