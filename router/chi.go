@@ -41,6 +41,10 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
+	var newsletterH *handlers.NewsletterHandler
+	if cfg.EnableNewsletters {
+		newsletterH, _ = newNewsletterStack(esc)
+	}
 
 	r.Route(cfg.RoutePrefix, func(r chi.Router) {
 		// Attachment downloads — always mounted
@@ -59,6 +63,22 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 			r.Get("/departments", apiH.ListDepartments)
 			r.Get("/tags", apiH.ListTags)
 		})
+
+		if cfg.EnableNewsletters {
+			r.Route("/n", func(r chi.Router) {
+				r.Get("/o/{token}", newsletterH.OpenPixel)
+				r.Get("/c/{token}", newsletterH.Click)
+				r.Get("/u/{token}", newsletterH.UnsubscribeShow)
+				r.Post("/u/{token}", newsletterH.UnsubscribeStore)
+				r.Get("/v/{token}", newsletterH.ViewInBrowser)
+			})
+			r.Route("/webhooks/newsletter", func(r chi.Router) {
+				r.Post("/postmark", newsletterH.WebhookPostmark)
+				r.Post("/mailgun", newsletterH.WebhookMailgun)
+				r.Post("/ses", newsletterH.WebhookSES)
+				r.Post("/sendgrid", newsletterH.WebhookSendgrid)
+			})
+		}
 
 		// UI routes — only when enabled
 		if cfg.UIEnabled {
@@ -134,6 +154,37 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				// Users (host User table: list + grant/revoke admin/agent).
 				r.Get("/users", userH.Index)
 				r.Patch("/users/{user}/role", userH.UpdateRole)
+
+				if cfg.EnableNewsletters {
+					r.Route("/newsletters", func(r chi.Router) {
+						r.Get("/", newsletterH.CampaignIndex)
+						r.Get("/new", newsletterH.CampaignCreate)
+						r.Post("/", newsletterH.CampaignStore)
+						r.Post("/preview", newsletterH.CampaignPreview)
+						r.Post("/test", newsletterH.CampaignTestSend)
+						r.Get("/lists", newsletterH.ListIndex)
+						r.Get("/lists/new", newsletterH.ListCreate)
+						r.Post("/lists", newsletterH.ListStore)
+						r.Get("/lists/{list}", newsletterH.ListShow)
+						r.Put("/lists/{list}", newsletterH.ListUpdate)
+						r.Delete("/lists/{list}", newsletterH.ListDestroy)
+						r.Post("/lists/{list}/members", newsletterH.ListAddMember)
+						r.Delete("/lists/{list}/members/{contactId}", newsletterH.ListRemoveMember)
+						r.Post("/lists/{list}/import", newsletterH.ListImportCSV)
+						r.Get("/templates", newsletterH.TemplateIndex)
+						r.Get("/templates/new", newsletterH.TemplateCreate)
+						r.Post("/templates", newsletterH.TemplateStore)
+						r.Get("/templates/{template}", newsletterH.TemplateShow)
+						r.Put("/templates/{template}", newsletterH.TemplateUpdate)
+						r.Delete("/templates/{template}", newsletterH.TemplateDestroy)
+						r.Get("/settings", newsletterH.SettingsShow)
+						r.Put("/settings", newsletterH.SettingsUpdate)
+						r.Get("/{newsletter}", newsletterH.CampaignShow)
+						r.Get("/{newsletter}/edit", newsletterH.CampaignEdit)
+						r.Put("/{newsletter}", newsletterH.CampaignUpdate)
+						r.Delete("/{newsletter}", newsletterH.CampaignDestroy)
+					})
+				}
 			})
 		}
 	})
