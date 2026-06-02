@@ -476,6 +476,7 @@ func migrationStatements(p string) []string {
 			failure_reason TEXT,
 			attempt_count INTEGER NOT NULL DEFAULT 0,
 			claimed_at TIMESTAMP,
+			next_attempt_at TIMESTAMP,
 			is_test BOOLEAN NOT NULL DEFAULT FALSE,
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"newsletter_deliveries", p+"newsletters", p+"contacts"),
