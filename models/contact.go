@@ -16,13 +16,16 @@ import (
 // New code should resolve contacts via FindOrCreateByEmailDecision
 // and its caller.
 type Contact struct {
-	ID        int64          `json:"id"`
-	Email     string         `json:"email"`
-	Name      *string        `json:"name,omitempty"`
-	UserID    *UserID        `json:"user_id,omitempty"`
-	Metadata  map[string]any `json:"metadata,omitempty"`
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
+	ID       int64          `json:"id"`
+	Email    string         `json:"email"`
+	Name     *string        `json:"name,omitempty"`
+	UserID   *UserID        `json:"user_id,omitempty"`
+	Metadata map[string]any `json:"metadata,omitempty"`
+	// MarketingOptOutAt is set when the contact one-click unsubscribes from
+	// marketing newsletters. Nil = sendable.
+	MarketingOptOutAt *time.Time `json:"marketing_opt_out_at,omitempty"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
 }
 
 // NormalizeEmail trims surrounding whitespace and lowercases. Call
