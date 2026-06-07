@@ -6,8 +6,9 @@ toolchain go1.26.3
 
 require (
 	github.com/escalated-dev/escalated-locale v0.1.8
-	github.com/go-chi/chi/v5 v5.2.5
+	github.com/go-chi/chi/v5 v5.3.0
 	github.com/petaki/inertia-go v1.15.0
+	modernc.org/sqlite v1.37.1
 )
 
 require (
@@ -21,5 +22,4 @@ require (
 	modernc.org/libc v1.65.7 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
-	modernc.org/sqlite v1.37.1 // indirect
 )
