@@ -31,6 +31,10 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
+	var newsletterH *handlers.NewsletterHandler
+	if cfg.EnableNewsletters {
+		newsletterH, _ = newNewsletterStack(esc)
+	}
 
 	prefix := cfg.RoutePrefix
 
@@ -47,6 +51,18 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	mux.HandleFunc("DELETE "+prefix+"/api/tickets/{id}/subjects/{subject}", subjectH.DetachSubject)
 	mux.HandleFunc("GET "+prefix+"/api/departments", apiH.ListDepartments)
 	mux.HandleFunc("GET "+prefix+"/api/tags", apiH.ListTags)
+
+	if cfg.EnableNewsletters {
+		mux.HandleFunc("GET "+prefix+"/n/o/{token}", newsletterH.OpenPixel)
+		mux.HandleFunc("GET "+prefix+"/n/c/{token}", newsletterH.Click)
+		mux.HandleFunc("GET "+prefix+"/n/u/{token}", newsletterH.UnsubscribeShow)
+		mux.HandleFunc("POST "+prefix+"/n/u/{token}", newsletterH.UnsubscribeStore)
+		mux.HandleFunc("GET "+prefix+"/n/v/{token}", newsletterH.ViewInBrowser)
+		mux.HandleFunc("POST "+prefix+"/webhooks/newsletter/postmark", newsletterH.WebhookPostmark)
+		mux.HandleFunc("POST "+prefix+"/webhooks/newsletter/mailgun", newsletterH.WebhookMailgun)
+		mux.HandleFunc("POST "+prefix+"/webhooks/newsletter/ses", newsletterH.WebhookSES)
+		mux.HandleFunc("POST "+prefix+"/webhooks/newsletter/sendgrid", newsletterH.WebhookSendgrid)
+	}
 
 	if cfg.UIEnabled {
 		// Customer routes
@@ -112,5 +128,34 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 		// Users (host User table: list + grant/revoke admin/agent).
 		mux.Handle("GET "+prefix+"/admin/users", adminMW(http.HandlerFunc(userH.Index)))
 		mux.Handle("PATCH "+prefix+"/admin/users/{user}/role", adminMW(http.HandlerFunc(userH.UpdateRole)))
+
+		if cfg.EnableNewsletters {
+			mux.Handle("GET "+prefix+"/admin/newsletters", adminMW(http.HandlerFunc(newsletterH.CampaignIndex)))
+			mux.Handle("GET "+prefix+"/admin/newsletters/new", adminMW(http.HandlerFunc(newsletterH.CampaignCreate)))
+			mux.Handle("POST "+prefix+"/admin/newsletters", adminMW(http.HandlerFunc(newsletterH.CampaignStore)))
+			mux.Handle("POST "+prefix+"/admin/newsletters/preview", adminMW(http.HandlerFunc(newsletterH.CampaignPreview)))
+			mux.Handle("POST "+prefix+"/admin/newsletters/test", adminMW(http.HandlerFunc(newsletterH.CampaignTestSend)))
+			mux.Handle("GET "+prefix+"/admin/newsletters/lists", adminMW(http.HandlerFunc(newsletterH.ListIndex)))
+			mux.Handle("GET "+prefix+"/admin/newsletters/lists/new", adminMW(http.HandlerFunc(newsletterH.ListCreate)))
+			mux.Handle("POST "+prefix+"/admin/newsletters/lists", adminMW(http.HandlerFunc(newsletterH.ListStore)))
+			mux.Handle("GET "+prefix+"/admin/newsletters/lists/{list}", adminMW(http.HandlerFunc(newsletterH.ListShow)))
+			mux.Handle("PUT "+prefix+"/admin/newsletters/lists/{list}", adminMW(http.HandlerFunc(newsletterH.ListUpdate)))
+			mux.Handle("DELETE "+prefix+"/admin/newsletters/lists/{list}", adminMW(http.HandlerFunc(newsletterH.ListDestroy)))
+			mux.Handle("POST "+prefix+"/admin/newsletters/lists/{list}/members", adminMW(http.HandlerFunc(newsletterH.ListAddMember)))
+			mux.Handle("DELETE "+prefix+"/admin/newsletters/lists/{list}/members/{contactId}", adminMW(http.HandlerFunc(newsletterH.ListRemoveMember)))
+			mux.Handle("POST "+prefix+"/admin/newsletters/lists/{list}/import", adminMW(http.HandlerFunc(newsletterH.ListImportCSV)))
+			mux.Handle("GET "+prefix+"/admin/newsletters/templates", adminMW(http.HandlerFunc(newsletterH.TemplateIndex)))
+			mux.Handle("GET "+prefix+"/admin/newsletters/templates/new", adminMW(http.HandlerFunc(newsletterH.TemplateCreate)))
+			mux.Handle("POST "+prefix+"/admin/newsletters/templates", adminMW(http.HandlerFunc(newsletterH.TemplateStore)))
+			mux.Handle("GET "+prefix+"/admin/newsletters/templates/{template}", adminMW(http.HandlerFunc(newsletterH.TemplateShow)))
+			mux.Handle("PUT "+prefix+"/admin/newsletters/templates/{template}", adminMW(http.HandlerFunc(newsletterH.TemplateUpdate)))
+			mux.Handle("DELETE "+prefix+"/admin/newsletters/templates/{template}", adminMW(http.HandlerFunc(newsletterH.TemplateDestroy)))
+			mux.Handle("GET "+prefix+"/admin/newsletters/settings", adminMW(http.HandlerFunc(newsletterH.SettingsShow)))
+			mux.Handle("PUT "+prefix+"/admin/newsletters/settings", adminMW(http.HandlerFunc(newsletterH.SettingsUpdate)))
+			mux.Handle("GET "+prefix+"/admin/newsletters/{newsletter}", adminMW(http.HandlerFunc(newsletterH.CampaignShow)))
+			mux.Handle("GET "+prefix+"/admin/newsletters/{newsletter}/edit", adminMW(http.HandlerFunc(newsletterH.CampaignEdit)))
+			mux.Handle("PUT "+prefix+"/admin/newsletters/{newsletter}", adminMW(http.HandlerFunc(newsletterH.CampaignUpdate)))
+			mux.Handle("DELETE "+prefix+"/admin/newsletters/{newsletter}", adminMW(http.HandlerFunc(newsletterH.CampaignDestroy)))
+		}
 	}
 }

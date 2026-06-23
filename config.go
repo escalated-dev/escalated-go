@@ -10,6 +10,49 @@ import (
 	"github.com/escalated-dev/escalated-go/models"
 )
 
+// NewsletterPermissionCheck lets hosts with granular permissions enforce
+// newsletter slugs. Return true for admins that should have all newsletter
+// access. When nil, the package relies on AdminCheck, matching the rest of
+// this backend.
+type NewsletterPermissionCheck func(r *http.Request, permission string) bool
+
+// NewsletterMail is the rendered outbound newsletter message handed to the
+// host application's mail adapter.
+type NewsletterMail struct {
+	To       string
+	From     string
+	ReplyTo  string
+	Subject  string
+	HTML     string
+	Headers  map[string]string
+	TestSend bool
+}
+
+// NewsletterMailer sends rendered newsletter messages. It is optional; sending
+// endpoints and the dispatcher fail deliveries when no mailer is configured.
+type NewsletterMailer interface {
+	SendNewsletter(ctx context.Context, msg NewsletterMail) error
+}
+
+// NewsletterConfig controls the optional newsletter subsystem.
+type NewsletterConfig struct {
+	BaseURL              string
+	DefaultFrom          string
+	DefaultReplyTo       string
+	DefaultTheme         string
+	TrackingEnabled      bool
+	ThemesDir            string
+	BatchSize            int
+	RateLimitPerMinute   int
+	ClaimTimeoutMinutes  int
+	AutoPauseBounceRate  float64
+	AutoPauseThreshold   int
+	BrandName            string
+	BrandAccent          string
+	BrandLogoURL         string
+	BrandPhysicalAddress string
+}
+
 // Config holds the configuration for the Escalated support ticket system.
 type Config struct {
 	// RoutePrefix is the URL prefix for all Escalated routes (e.g., "/support").
@@ -20,9 +63,26 @@ type Config struct {
 	// When false, only JSON API handlers are registered.
 	UIEnabled bool
 
+	// EnableNewsletters controls route registration and dispatch. Defaults off.
+	EnableNewsletters bool
+
+	// Newsletters contains runtime defaults for the optional newsletter system.
+	Newsletters NewsletterConfig
+
+	// NewsletterMailer sends newsletter email. Required for dispatch/test-send.
+	NewsletterMailer NewsletterMailer
+
+	// NewsletterPermissionCheck optionally enforces newsletters.manage and
+	// newsletters.send beyond AdminCheck.
+	NewsletterPermissionCheck NewsletterPermissionCheck
+
 	// TablePrefix is the prefix for all database tables (e.g., "escalated_").
 	// Defaults to "escalated_".
 	TablePrefix string
+
+	// DatabaseDialect is set by New/NewSQLite and can be overridden by advanced
+	// hosts. Supported values: "postgres", "sqlite".
+	DatabaseDialect string
 
 	// AdminCheck returns true if the current request is from an admin user.
 	// This is called by middleware to gate access to admin routes.
@@ -74,9 +134,20 @@ type Config struct {
 // DefaultConfig returns a Config with sensible defaults.
 func DefaultConfig() Config {
 	return Config{
-		RoutePrefix: "/escalated",
-		UIEnabled:   true,
-		TablePrefix: "escalated_",
+		RoutePrefix:     "/escalated",
+		UIEnabled:       true,
+		TablePrefix:     "escalated_",
+		DatabaseDialect: "postgres",
+		Newsletters: NewsletterConfig{
+			DefaultTheme:        "default",
+			TrackingEnabled:     true,
+			BatchSize:           50,
+			RateLimitPerMinute:  60,
+			ClaimTimeoutMinutes: 10,
+			AutoPauseBounceRate: 0.05,
+			AutoPauseThreshold:  100,
+			BrandAccent:         "#2563eb",
+		},
 		AdminCheck: func(r *http.Request) bool {
 			return false
 		},
