@@ -81,9 +81,10 @@ func (h *NewsletterHandler) CampaignIndex(w http.ResponseWriter, r *http.Request
 		tab = "drafts"
 	}
 	statuses := []string{"draft"}
-	if tab == "scheduled" {
+	switch tab {
+	case "scheduled":
 		statuses = []string{"scheduled", "sending", "paused"}
-	} else if tab == "sent" {
+	case "sent":
 		statuses = []string{"sent", "failed"}
 	}
 	items, err := h.store.ListNewsletters(r.Context(), statuses, 50)

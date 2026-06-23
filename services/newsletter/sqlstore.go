@@ -526,7 +526,6 @@ func (s *SQLStore) ListDeliveries(ctx context.Context, newsletterID int64, statu
 	if status != "" {
 		where += fmt.Sprintf(" AND status=%s", s.p(next))
 		args = append(args, status)
-		next++
 	}
 	if !includeTest {
 		if s.dialect == "postgres" || s.dialect == "postgresql" {
