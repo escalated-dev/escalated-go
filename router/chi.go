@@ -40,6 +40,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	autoH := handlers.NewAutomationHandler(cfg.DB, services.NewAutomationRunner(cfg.DB, nil))
 	escH := handlers.NewEscalationHandler(cfg.DB, services.NewEscalationService(cfg.DB, nil))
 	satH := handlers.NewSatisfactionHandler(cfg.DB)
+	capH := handlers.NewCapacityHandler(cfg.DB)
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
@@ -142,6 +143,10 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Patch("/escalation-rules/{id}", escH.Update)
 				r.Delete("/escalation-rules/{id}", escH.Delete)
 				r.Post("/escalation-rules/run", escH.Run)
+
+				// Per-agent ticket capacity (load-aware assignment).
+				r.Get("/capacity", capH.List)
+				r.Patch("/capacity/{id}", capH.Update)
 
 				// Macros admin CRUD.
 				r.Get("/macros", macroH.AdminList)
