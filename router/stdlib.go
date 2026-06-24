@@ -30,6 +30,7 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	autoH := handlers.NewAutomationHandler(cfg.DB, services.NewAutomationRunner(cfg.DB, nil))
 	escH := handlers.NewEscalationHandler(cfg.DB, services.NewEscalationService(cfg.DB, nil))
 	satH := handlers.NewSatisfactionHandler(cfg.DB)
+	capH := handlers.NewCapacityHandler(cfg.DB)
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
@@ -115,6 +116,10 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 		mux.Handle("PATCH "+prefix+"/admin/escalation-rules/{id}", adminMW(http.HandlerFunc(escH.Update)))
 		mux.Handle("DELETE "+prefix+"/admin/escalation-rules/{id}", adminMW(http.HandlerFunc(escH.Delete)))
 		mux.Handle("POST "+prefix+"/admin/escalation-rules/run", adminMW(http.HandlerFunc(escH.Run)))
+
+		// Per-agent ticket capacity (load-aware assignment).
+		mux.Handle("GET "+prefix+"/admin/capacity", adminMW(http.HandlerFunc(capH.List)))
+		mux.Handle("PATCH "+prefix+"/admin/capacity/{id}", adminMW(http.HandlerFunc(capH.Update)))
 
 		// Macros admin CRUD.
 		mux.Handle("GET "+prefix+"/admin/macros", adminMW(http.HandlerFunc(macroH.AdminList)))
