@@ -126,6 +126,15 @@ func migrationStatements(p string) []string {
 			PRIMARY KEY (ticket_id, tag_id)
 		)`, p+"ticket_tags", p+"tickets", p+"tags"),
 
+		// 6a. Ticket followers join table — host users who follow a ticket and
+		// are a notification target alongside the assignee/requester. See #72.
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			ticket_id BIGINT NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
+			user_id %s NOT NULL,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (ticket_id, user_id)
+		)`, p+"ticket_followers", p+"tickets", userCol),
+
 		// 6b. Ticket subjects — host entities a ticket is about (polymorphic).
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			id BIGSERIAL PRIMARY KEY,
