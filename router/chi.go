@@ -39,6 +39,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	attachH := handlers.NewAttachmentHandler(s, cfg.RoutePrefix)
 	autoH := handlers.NewAutomationHandler(cfg.DB, services.NewAutomationRunner(cfg.DB, nil))
 	escH := handlers.NewEscalationHandler(cfg.DB, services.NewEscalationService(cfg.DB, nil))
+	satH := handlers.NewSatisfactionHandler(cfg.DB)
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
@@ -91,6 +92,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Post("/", customerH.Create)
 				r.Get("/{id}", customerH.Show)
 				r.Post("/{id}/replies", customerH.Reply)
+				r.Post("/{id}/rate", satH.Rate)
 			})
 
 			// Agent routes
