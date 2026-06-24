@@ -41,6 +41,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	escH := handlers.NewEscalationHandler(cfg.DB, services.NewEscalationService(cfg.DB, nil))
 	satH := handlers.NewSatisfactionHandler(cfg.DB)
 	capH := handlers.NewCapacityHandler(cfg.DB)
+	linkH := handlers.NewTicketLinkHandler(cfg.DB)
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
@@ -108,6 +109,11 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Post("/tickets/{id}/subjects", subjectH.AttachSubject)
 				r.Delete("/tickets/{id}/subjects/{subject}", subjectH.DetachSubject)
 				r.Post("/tickets/{id}/actions/{action}", agentH.CustomAction)
+
+				// Typed ticket-to-ticket links.
+				r.Get("/tickets/{id}/links", linkH.List)
+				r.Post("/tickets/{id}/links", linkH.Create)
+				r.Delete("/tickets/{id}/links/{linkId}", linkH.Delete)
 
 				// Macros (agent-applied one-click bundles).
 				r.Get("/macros", macroH.AgentList)

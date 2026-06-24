@@ -31,6 +31,7 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	escH := handlers.NewEscalationHandler(cfg.DB, services.NewEscalationService(cfg.DB, nil))
 	satH := handlers.NewSatisfactionHandler(cfg.DB)
 	capH := handlers.NewCapacityHandler(cfg.DB)
+	linkH := handlers.NewTicketLinkHandler(cfg.DB)
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
@@ -85,6 +86,9 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 		mux.Handle("POST "+prefix+"/agent/tickets/{id}/status", agentMW(http.HandlerFunc(agentH.ChangeStatus)))
 		mux.Handle("POST "+prefix+"/agent/tickets/{id}/subjects", agentMW(http.HandlerFunc(subjectH.AttachSubject)))
 		mux.Handle("DELETE "+prefix+"/agent/tickets/{id}/subjects/{subject}", agentMW(http.HandlerFunc(subjectH.DetachSubject)))
+		mux.Handle("GET "+prefix+"/agent/tickets/{id}/links", agentMW(http.HandlerFunc(linkH.List)))
+		mux.Handle("POST "+prefix+"/agent/tickets/{id}/links", agentMW(http.HandlerFunc(linkH.Create)))
+		mux.Handle("DELETE "+prefix+"/agent/tickets/{id}/links/{linkId}", agentMW(http.HandlerFunc(linkH.Delete)))
 
 		// Macros (agent-applied one-click bundles).
 		mux.Handle("GET "+prefix+"/agent/macros", agentMW(http.HandlerFunc(macroH.AgentList)))
