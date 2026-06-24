@@ -42,6 +42,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	satH := handlers.NewSatisfactionHandler(cfg.DB)
 	capH := handlers.NewCapacityHandler(cfg.DB)
 	linkH := handlers.NewTicketLinkHandler(cfg.DB)
+	scH := handlers.NewSideConversationHandler(cfg.DB)
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
@@ -114,6 +115,12 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Get("/tickets/{id}/links", linkH.List)
 				r.Post("/tickets/{id}/links", linkH.Create)
 				r.Delete("/tickets/{id}/links/{linkId}", linkH.Delete)
+
+				// Side conversations (internal / email side-channel threads).
+				r.Get("/tickets/{id}/side-conversations", scH.List)
+				r.Post("/tickets/{id}/side-conversations", scH.Create)
+				r.Post("/tickets/{id}/side-conversations/{scId}/reply", scH.Reply)
+				r.Post("/tickets/{id}/side-conversations/{scId}/close", scH.Close)
 
 				// Macros (agent-applied one-click bundles).
 				r.Get("/macros", macroH.AgentList)

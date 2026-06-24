@@ -32,6 +32,7 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	satH := handlers.NewSatisfactionHandler(cfg.DB)
 	capH := handlers.NewCapacityHandler(cfg.DB)
 	linkH := handlers.NewTicketLinkHandler(cfg.DB)
+	scH := handlers.NewSideConversationHandler(cfg.DB)
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
@@ -89,6 +90,10 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 		mux.Handle("GET "+prefix+"/agent/tickets/{id}/links", agentMW(http.HandlerFunc(linkH.List)))
 		mux.Handle("POST "+prefix+"/agent/tickets/{id}/links", agentMW(http.HandlerFunc(linkH.Create)))
 		mux.Handle("DELETE "+prefix+"/agent/tickets/{id}/links/{linkId}", agentMW(http.HandlerFunc(linkH.Delete)))
+		mux.Handle("GET "+prefix+"/agent/tickets/{id}/side-conversations", agentMW(http.HandlerFunc(scH.List)))
+		mux.Handle("POST "+prefix+"/agent/tickets/{id}/side-conversations", agentMW(http.HandlerFunc(scH.Create)))
+		mux.Handle("POST "+prefix+"/agent/tickets/{id}/side-conversations/{scId}/reply", agentMW(http.HandlerFunc(scH.Reply)))
+		mux.Handle("POST "+prefix+"/agent/tickets/{id}/side-conversations/{scId}/close", agentMW(http.HandlerFunc(scH.Close)))
 
 		// Macros (agent-applied one-click bundles).
 		mux.Handle("GET "+prefix+"/agent/macros", agentMW(http.HandlerFunc(macroH.AgentList)))
