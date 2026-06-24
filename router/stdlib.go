@@ -29,6 +29,7 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	attachH := handlers.NewAttachmentHandler(s, cfg.RoutePrefix)
 	autoH := handlers.NewAutomationHandler(cfg.DB, services.NewAutomationRunner(cfg.DB, nil))
 	escH := handlers.NewEscalationHandler(cfg.DB, services.NewEscalationService(cfg.DB, nil))
+	satH := handlers.NewSatisfactionHandler(cfg.DB)
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
@@ -71,6 +72,7 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 		mux.HandleFunc("POST "+prefix+"/tickets", customerH.Create)
 		mux.HandleFunc("GET "+prefix+"/tickets/{id}", customerH.Show)
 		mux.HandleFunc("POST "+prefix+"/tickets/{id}/replies", customerH.Reply)
+		mux.HandleFunc("POST "+prefix+"/tickets/{id}/rate", satH.Rate)
 
 		// Agent routes (wrapped with agent middleware)
 		agentMW := middleware.RequireAgent(cfg.AgentCheck)
