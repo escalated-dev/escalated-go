@@ -38,6 +38,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	adminH := handlers.NewAdminHandler(s, rend)
 	attachH := handlers.NewAttachmentHandler(s, cfg.RoutePrefix)
 	autoH := handlers.NewAutomationHandler(cfg.DB, services.NewAutomationRunner(cfg.DB, nil))
+	escH := handlers.NewEscalationHandler(cfg.DB, services.NewEscalationService(cfg.DB, nil))
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
@@ -132,6 +133,13 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Patch("/automations/{id}", autoH.Update)
 				r.Delete("/automations/{id}", autoH.Delete)
 				r.Post("/automations/run", autoH.Run)
+
+				// Time-based admin Escalation rules.
+				r.Get("/escalation-rules", escH.List)
+				r.Post("/escalation-rules", escH.Create)
+				r.Patch("/escalation-rules/{id}", escH.Update)
+				r.Delete("/escalation-rules/{id}", escH.Delete)
+				r.Post("/escalation-rules/run", escH.Run)
 
 				// Macros admin CRUD.
 				r.Get("/macros", macroH.AdminList)
