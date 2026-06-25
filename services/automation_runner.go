@@ -257,6 +257,8 @@ func (r *AutomationRunner) runAction(a models.Automation, t models.Ticket, actio
 			t.ID, toString(action.Value), md, time.Now(), time.Now(),
 		)
 		return err
+	case "add_follower":
+		return models.AddFollower(r.DB, t.ID, models.UserID(toString(action.Value)))
 	}
 	// Unknown action type — skip silently.
 	return nil
