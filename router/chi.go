@@ -43,6 +43,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	capH := handlers.NewCapacityHandler(cfg.DB)
 	linkH := handlers.NewTicketLinkHandler(cfg.DB)
 	scH := handlers.NewSideConversationHandler(cfg.DB)
+	authH := handlers.NewAuthHandler(cfg.APIAuth)
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
@@ -67,6 +68,15 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 			r.Post("/tickets/{id}/actions/{action}", apiH.CustomAction)
 			r.Get("/departments", apiH.ListDepartments)
 			r.Get("/tags", apiH.ListTags)
+
+			// Authentication — delegated to host-app callbacks (handlers.APIAuth).
+			r.Post("/auth/login", authH.Login)
+			r.Post("/auth/register", authH.Register)
+			r.Post("/auth/logout", authH.Logout)
+			r.Post("/auth/refresh", authH.Refresh)
+			r.Get("/auth/me", authH.Me)
+			r.Patch("/auth/profile", authH.Profile)
+			r.Post("/auth/validate", authH.Validate)
 		})
 
 		if cfg.EnableNewsletters {
