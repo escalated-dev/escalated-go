@@ -129,6 +129,12 @@ type Config struct {
 	// agent/API attach endpoints. Leave empty to disable API attaching; programmatic
 	// AttachSubject still works when the allowlist is empty.
 	TicketSubjectTypes []string
+
+	// APIAuth holds host-app authentication callbacks for the general JSON API
+	// (/api/auth/*). Escalated owns no credentials or sessions; configure only
+	// the callbacks the app needs. Unconfigured endpoints respond 501. See
+	// handlers.APIAuth.
+	APIAuth handlers.APIAuth
 }
 
 // DefaultConfig returns a Config with sensible defaults.

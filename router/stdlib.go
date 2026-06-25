@@ -33,6 +33,7 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	capH := handlers.NewCapacityHandler(cfg.DB)
 	linkH := handlers.NewTicketLinkHandler(cfg.DB)
 	scH := handlers.NewSideConversationHandler(cfg.DB)
+	authH := handlers.NewAuthHandler(cfg.APIAuth)
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
@@ -56,6 +57,15 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	mux.HandleFunc("DELETE "+prefix+"/api/tickets/{id}/subjects/{subject}", subjectH.DetachSubject)
 	mux.HandleFunc("GET "+prefix+"/api/departments", apiH.ListDepartments)
 	mux.HandleFunc("GET "+prefix+"/api/tags", apiH.ListTags)
+
+	// Authentication — delegated to host-app callbacks (handlers.APIAuth).
+	mux.HandleFunc("POST "+prefix+"/api/auth/login", authH.Login)
+	mux.HandleFunc("POST "+prefix+"/api/auth/register", authH.Register)
+	mux.HandleFunc("POST "+prefix+"/api/auth/logout", authH.Logout)
+	mux.HandleFunc("POST "+prefix+"/api/auth/refresh", authH.Refresh)
+	mux.HandleFunc("GET "+prefix+"/api/auth/me", authH.Me)
+	mux.HandleFunc("PATCH "+prefix+"/api/auth/profile", authH.Profile)
+	mux.HandleFunc("POST "+prefix+"/api/auth/validate", authH.Validate)
 
 	if cfg.EnableNewsletters {
 		mux.HandleFunc("GET "+prefix+"/n/o/{token}", newsletterH.OpenPixel)
