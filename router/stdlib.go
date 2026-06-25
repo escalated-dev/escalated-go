@@ -34,6 +34,7 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	linkH := handlers.NewTicketLinkHandler(cfg.DB)
 	scH := handlers.NewSideConversationHandler(cfg.DB)
 	authH := handlers.NewAuthHandler(cfg.APIAuth)
+	guestH := handlers.NewGuestTicketHandler(s, ticketSvc)
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
@@ -66,6 +67,10 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	mux.HandleFunc("GET "+prefix+"/api/auth/me", authH.Me)
 	mux.HandleFunc("PATCH "+prefix+"/api/auth/profile", authH.Profile)
 	mux.HandleFunc("POST "+prefix+"/api/auth/validate", authH.Validate)
+
+	// Anonymous (guest) ticket submission + lookup by token.
+	mux.HandleFunc("POST "+prefix+"/api/guest/tickets", guestH.Create)
+	mux.HandleFunc("GET "+prefix+"/api/guest/tickets/{token}", guestH.Show)
 
 	if cfg.EnableNewsletters {
 		mux.HandleFunc("GET "+prefix+"/n/o/{token}", newsletterH.OpenPixel)

@@ -103,6 +103,32 @@ func (s *SQLiteStore) GetTicketByReference(ctx context.Context, ref string) (*mo
 	return t, err
 }
 
+func (s *SQLiteStore) GetTicketByGuestToken(ctx context.Context, token string) (*models.Ticket, error) {
+	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type,
+		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
+		assigned_to, department_id, sla_policy_id, merged_into_id,
+		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
+		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at
+		FROM %s WHERE guest_token = ?`, s.t("tickets"))
+
+	t := &models.Ticket{}
+	var metadata []byte
+	err := s.db.QueryRowContext(ctx, q, token).Scan(
+		&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType,
+		&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken, &t.ContactID,
+		&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
+		&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
+		&t.FirstResponseAt, &t.ResolvedAt, &t.ClosedAt, &metadata, &t.CreatedAt, &t.UpdatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if metadata != nil {
+		t.Metadata = metadata
+	}
+	return t, err
+}
+
 func (s *SQLiteStore) UpdateTicket(ctx context.Context, t *models.Ticket) error {
 	t.UpdatedAt = time.Now()
 	q := fmt.Sprintf(`UPDATE %s SET
