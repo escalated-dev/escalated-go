@@ -572,7 +572,97 @@ func migrationStatements(p string) []string {
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%scontact_opt_out ON %s (marketing_opt_out_at)", p, p+"contacts"),
 	}
 
-	return append(stmts, indexes...)
+	return append(append(stmts, indexes...), engineAddonStatements(p)...)
+}
+
+// engineAddonStatements returns the engine-domain tables (escalation,
+// satisfaction, capacity, ticket links, side conversations) that previously
+// shipped only as goose .sql files and were therefore NOT created by the
+// inline Migrate path the library actually runs. Column types match those
+// .sql definitions (INTEGER flags/counts, TEXT user columns) so the existing
+// handlers behave identically. Mirrors the create_* .sql migrations.
+func engineAddonStatements(p string) []string {
+	return []string{
+		// Escalation rules (time-based). sort_order/is_active avoid the SQL
+		// reserved word `order`; the JSON contract exposes order/is_active.
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			name VARCHAR(255) NOT NULL,
+			description TEXT,
+			trigger_type VARCHAR(255),
+			conditions TEXT NOT NULL DEFAULT '[]',
+			actions TEXT NOT NULL DEFAULT '[]',
+			sort_order INTEGER NOT NULL DEFAULT 0,
+			is_active INTEGER NOT NULL DEFAULT 1,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"escalation_rules"),
+
+		// Satisfaction ratings (CSAT) — one per ticket.
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			ticket_id BIGINT NOT NULL,
+			rating INTEGER NOT NULL,
+			comment TEXT,
+			rated_by_type TEXT,
+			rated_by_id TEXT,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"satisfaction_ratings"),
+
+		// Per-agent, per-channel concurrent capacity.
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			channel VARCHAR(64) NOT NULL DEFAULT 'default',
+			max_concurrent INTEGER NOT NULL DEFAULT 10,
+			current_count INTEGER NOT NULL DEFAULT 0,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"agent_capacity"),
+
+		// Typed links between tickets.
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			parent_ticket_id BIGINT NOT NULL,
+			child_ticket_id BIGINT NOT NULL,
+			link_type VARCHAR(32) NOT NULL,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"ticket_links"),
+
+		// Side conversation threads.
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			ticket_id BIGINT NOT NULL,
+			subject VARCHAR(255) NOT NULL,
+			channel VARCHAR(32) NOT NULL DEFAULT 'internal',
+			status VARCHAR(32) NOT NULL DEFAULT 'open',
+			created_by TEXT,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"side_conversations"),
+
+		// Side conversation replies.
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			side_conversation_id BIGINT NOT NULL,
+			body TEXT NOT NULL,
+			author_id TEXT,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"side_conversation_replies"),
+
+		// Indexes
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%sesc_active ON %s (is_active)", p, p+"escalation_rules"),
+		fmt.Sprintf("CREATE UNIQUE INDEX IF NOT EXISTS idx_%ssat_ticket ON %s (ticket_id)", p, p+"satisfaction_ratings"),
+		fmt.Sprintf("CREATE UNIQUE INDEX IF NOT EXISTS idx_%scap_user_channel ON %s (user_id, channel)", p, p+"agent_capacity"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%scap_user ON %s (user_id)", p, p+"agent_capacity"),
+		fmt.Sprintf("CREATE UNIQUE INDEX IF NOT EXISTS idx_%stl_unique ON %s (parent_ticket_id, child_ticket_id, link_type)", p, p+"ticket_links"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%stl_parent ON %s (parent_ticket_id)", p, p+"ticket_links"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%stl_child ON %s (child_ticket_id)", p, p+"ticket_links"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%ssc_ticket ON %s (ticket_id)", p, p+"side_conversations"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%sscr_conv ON %s (side_conversation_id)", p, p+"side_conversation_replies"),
+	}
 }
 
 // MigrateSQLite runs migrations with SQLite-compatible syntax.
