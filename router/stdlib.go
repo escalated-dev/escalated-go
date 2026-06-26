@@ -36,6 +36,7 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	authH := handlers.NewAuthHandler(cfg.APIAuth)
 	guestH := handlers.NewGuestTicketHandler(s, ticketSvc)
 	kbH := handlers.NewKBHandler(cfg.DB)
+	retentionH := handlers.NewRetentionHandler(services.NewRetentionService(cfg.DB, s))
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
@@ -133,6 +134,7 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 		mux.Handle("GET "+prefix+"/admin/sla-policies", adminMW(http.HandlerFunc(adminH.ListSLAPolicies)))
 		mux.Handle("POST "+prefix+"/admin/sla-policies", adminMW(http.HandlerFunc(adminH.CreateSLAPolicy)))
 		mux.Handle("DELETE "+prefix+"/admin/sla-policies/{id}", adminMW(http.HandlerFunc(adminH.DeleteSLAPolicy)))
+		mux.Handle("POST "+prefix+"/admin/data-retention/purge", adminMW(http.HandlerFunc(retentionH.Purge)))
 
 		// Time-based admin Automations.
 		mux.Handle("GET "+prefix+"/admin/automations", adminMW(http.HandlerFunc(autoH.List)))
