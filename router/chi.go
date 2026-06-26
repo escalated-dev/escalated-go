@@ -45,6 +45,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	scH := handlers.NewSideConversationHandler(cfg.DB)
 	authH := handlers.NewAuthHandler(cfg.APIAuth)
 	guestH := handlers.NewGuestTicketHandler(s, ticketSvc)
+	kbH := handlers.NewKBHandler(cfg.DB)
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
@@ -82,6 +83,11 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 			// Anonymous (guest) ticket submission + lookup by token.
 			r.Post("/guest/tickets", guestH.Create)
 			r.Get("/guest/tickets/{token}", guestH.Show)
+
+			// Public knowledge base (published only).
+			r.Get("/kb/articles", kbH.ListArticles)
+			r.Get("/kb/categories", kbH.ListCategories)
+			r.Get("/kb/articles/{slug}", kbH.ShowArticle)
 		})
 
 		if cfg.EnableNewsletters {
