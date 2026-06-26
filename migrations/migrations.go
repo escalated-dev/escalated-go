@@ -652,6 +652,35 @@ func engineAddonStatements(p string) []string {
 			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"side_conversation_replies"),
 
+		// Knowledge base — article categories (optionally nested).
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			name VARCHAR(255) NOT NULL,
+			slug VARCHAR(255) NOT NULL,
+			parent_id BIGINT,
+			position INTEGER NOT NULL DEFAULT 0,
+			description TEXT,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"article_categories"),
+
+		// Knowledge base — articles (draft/published, with counters).
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			category_id BIGINT,
+			title VARCHAR(255) NOT NULL,
+			slug VARCHAR(255) NOT NULL,
+			body TEXT,
+			status VARCHAR(32) NOT NULL DEFAULT 'draft',
+			author_id TEXT,
+			view_count INTEGER NOT NULL DEFAULT 0,
+			helpful_count INTEGER NOT NULL DEFAULT 0,
+			not_helpful_count INTEGER NOT NULL DEFAULT 0,
+			published_at TIMESTAMP,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"articles"),
+
 		// Indexes
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%sesc_active ON %s (is_active)", p, p+"escalation_rules"),
 		fmt.Sprintf("CREATE UNIQUE INDEX IF NOT EXISTS idx_%ssat_ticket ON %s (ticket_id)", p, p+"satisfaction_ratings"),
@@ -662,6 +691,10 @@ func engineAddonStatements(p string) []string {
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%stl_child ON %s (child_ticket_id)", p, p+"ticket_links"),
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%ssc_ticket ON %s (ticket_id)", p, p+"side_conversations"),
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%sscr_conv ON %s (side_conversation_id)", p, p+"side_conversation_replies"),
+		fmt.Sprintf("CREATE UNIQUE INDEX IF NOT EXISTS idx_%sac_slug ON %s (slug)", p, p+"article_categories"),
+		fmt.Sprintf("CREATE UNIQUE INDEX IF NOT EXISTS idx_%sart_slug ON %s (slug)", p, p+"articles"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%sart_status ON %s (status)", p, p+"articles"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%sart_category ON %s (category_id)", p, p+"articles"),
 	}
 }
 
