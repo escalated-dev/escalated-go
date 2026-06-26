@@ -72,6 +72,7 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	// Anonymous (guest) ticket submission + lookup by token.
 	mux.HandleFunc("POST "+prefix+"/api/guest/tickets", guestH.Create)
 	mux.HandleFunc("GET "+prefix+"/api/guest/tickets/{token}", guestH.Show)
+	mux.HandleFunc("POST "+prefix+"/api/guest/tickets/{token}/rate", satH.GuestRate)
 
 	// Public knowledge base (published only).
 	mux.HandleFunc("GET "+prefix+"/api/kb/articles", kbH.ListArticles)

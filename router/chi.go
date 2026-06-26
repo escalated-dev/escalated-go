@@ -83,6 +83,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 			// Anonymous (guest) ticket submission + lookup by token.
 			r.Post("/guest/tickets", guestH.Create)
 			r.Get("/guest/tickets/{token}", guestH.Show)
+			r.Post("/guest/tickets/{token}/rate", satH.GuestRate)
 
 			// Public knowledge base (published only).
 			r.Get("/kb/articles", kbH.ListArticles)

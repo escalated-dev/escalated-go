@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+
 	"github.com/escalated-dev/escalated-go/models"
 )
 
@@ -31,7 +33,37 @@ func (h *SatisfactionHandler) Rate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid id", http.StatusBadRequest)
 		return
 	}
+	h.rateByTicketID(w, r, id)
+}
 
+// GuestRate handles POST /api/guest/tickets/{token}/rate — a guest rates
+// their own resolved/closed ticket using its guest token.
+func (h *SatisfactionHandler) GuestRate(w http.ResponseWriter, r *http.Request) {
+	token := r.PathValue("token")
+	if token == "" {
+		token = chi.URLParam(r, "token")
+	}
+	if token == "" {
+		http.Error(w, "token is required", http.StatusBadRequest)
+		return
+	}
+
+	var id int64
+	err := h.DB.QueryRowContext(r.Context(),
+		`SELECT id FROM escalated_tickets WHERE guest_token = ?`, token).Scan(&id)
+	if err == sql.ErrNoRows {
+		http.Error(w, "ticket not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	h.rateByTicketID(w, r, id)
+}
+
+func (h *SatisfactionHandler) rateByTicketID(w http.ResponseWriter, r *http.Request, id int64) {
 	var in struct {
 		Rating  int     `json:"rating"`
 		Comment *string `json:"comment"`
@@ -42,7 +74,7 @@ func (h *SatisfactionHandler) Rate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var status int
-	err = h.DB.QueryRowContext(r.Context(),
+	err := h.DB.QueryRowContext(r.Context(),
 		`SELECT status FROM escalated_tickets WHERE id = ?`, id).Scan(&status)
 	if err == sql.ErrNoRows {
 		http.Error(w, "ticket not found", http.StatusNotFound)
