@@ -46,6 +46,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	authH := handlers.NewAuthHandler(cfg.APIAuth)
 	guestH := handlers.NewGuestTicketHandler(s, ticketSvc)
 	kbH := handlers.NewKBHandler(cfg.DB)
+	retentionH := handlers.NewRetentionHandler(services.NewRetentionService(cfg.DB, s))
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
@@ -162,6 +163,9 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Get("/sla-policies", adminH.ListSLAPolicies)
 				r.Post("/sla-policies", adminH.CreateSLAPolicy)
 				r.Delete("/sla-policies/{id}", adminH.DeleteSLAPolicy)
+
+				// Data-retention purge (attachments + audit logs per policy).
+				r.Post("/data-retention/purge", retentionH.Purge)
 
 				// Time-based admin Automations (distinct from event-driven
 				// Workflows and agent-applied Macros — see
