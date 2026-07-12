@@ -6,7 +6,7 @@ toolchain go1.26.3
 
 require (
 	github.com/escalated-dev/escalated-locale v0.1.8
-	github.com/go-chi/chi/v5 v5.3.0
+	github.com/go-chi/chi/v5 v5.3.1
 	github.com/petaki/inertia-go v1.15.0
 	modernc.org/sqlite v1.53.0
 )
