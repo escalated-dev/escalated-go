@@ -20,6 +20,11 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	assignSvc := services.NewAssignmentService(s)
 	subjectSvc := services.NewTicketSubjectService(s, cfg.TicketSubjectTypes, cfg.TicketSubjectResolver)
 
+	// Outbound webhooks: the dispatcher is shared between the ticket service
+	// (which fires lifecycle events) and the admin CRUD handler.
+	webhookDispatcher := services.NewWebhookDispatcher(cfg.DB, nil)
+	ticketSvc.Webhooks = webhookDispatcher
+
 	apiH := handlers.NewAPIHandler(s, ticketSvc, rend, cfg.UserIDFunc)
 	apiH.Subjects = subjectSvc
 	subjectH := handlers.NewTicketSubjectHandler(subjectSvc, ticketSvc)
@@ -38,6 +43,7 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	kbH := handlers.NewKBHandler(cfg.DB)
 	retentionH := handlers.NewRetentionHandler(services.NewRetentionService(cfg.DB, s))
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
+	webhookH := handlers.NewWebhookHandler(cfg.DB, webhookDispatcher)
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
 	var newsletterH *handlers.NewsletterHandler
@@ -159,6 +165,14 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 		mux.Handle("POST "+prefix+"/admin/macros", adminMW(http.HandlerFunc(macroH.Create)))
 		mux.Handle("PATCH "+prefix+"/admin/macros/{id}", adminMW(http.HandlerFunc(macroH.Update)))
 		mux.Handle("DELETE "+prefix+"/admin/macros/{id}", adminMW(http.HandlerFunc(macroH.Delete)))
+
+		// Outbound webhooks admin CRUD + per-delivery retry.
+		mux.Handle("GET "+prefix+"/admin/webhooks", adminMW(http.HandlerFunc(webhookH.List)))
+		mux.Handle("POST "+prefix+"/admin/webhooks", adminMW(http.HandlerFunc(webhookH.Create)))
+		mux.Handle("PATCH "+prefix+"/admin/webhooks/{id}", adminMW(http.HandlerFunc(webhookH.Update)))
+		mux.Handle("DELETE "+prefix+"/admin/webhooks/{id}", adminMW(http.HandlerFunc(webhookH.Delete)))
+		mux.Handle("GET "+prefix+"/admin/webhooks/{id}/deliveries", adminMW(http.HandlerFunc(webhookH.Deliveries)))
+		mux.Handle("POST "+prefix+"/admin/webhooks/deliveries/{id}/retry", adminMW(http.HandlerFunc(webhookH.Retry)))
 
 		// Skills admin (explicit routing + agent proficiency). Register
 		// /skills/new before /skills/{id}/… so "new" is not parsed as an id.

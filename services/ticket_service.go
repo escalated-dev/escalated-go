@@ -14,6 +14,13 @@ import (
 // TicketService handles ticket lifecycle operations.
 type TicketService struct {
 	store store.Store
+
+	// Webhooks, when set, receives outbound webhook events for the ticket
+	// lifecycle (created, reply/note created, status changed, assigned). It is
+	// wired by the router after construction, mirroring how the Laravel port
+	// dispatches domain events to the WebhookDispatcher. Left nil in tests and
+	// hosts without the webhooks subsystem, in which case dispatch is a no-op.
+	Webhooks *WebhookDispatcher
 }
 
 // NewTicketService creates a new TicketService.
@@ -93,6 +100,8 @@ func (ts *TicketService) Create(ctx context.Context, in CreateTicketInput) (*mod
 		Action:   models.ActionTicketCreated,
 	})
 
+	ts.dispatchWebhook("ticket.created", ticketWebhookPayload(t))
+
 	return t, nil
 }
 
@@ -147,6 +156,11 @@ func (ts *TicketService) Assign(ctx context.Context, ticketID int64, agentID mod
 		CauserType: causerType,
 		CauserID:   causerID,
 	})
+
+	payload := ticketWebhookPayload(t)
+	payload["agent_id"] = string(agentID)
+	ts.dispatchWebhook("ticket.assigned", payload)
+
 	return nil
 }
 
@@ -191,6 +205,15 @@ func (ts *TicketService) ChangeStatus(ctx context.Context, ticketID int64, newSt
 		CauserID:   causerID,
 		Details:    details,
 	})
+
+	payload := ticketWebhookPayload(t)
+	ts.dispatchWebhook("ticket.status_changed", payload)
+	// Faithful to the Laravel reference, which fires dedicated lifecycle
+	// events (resolved/closed/reopened) in addition to the generic change.
+	if event := statusLifecycleEvent(oldStatus, newStatus); event != "" {
+		ts.dispatchWebhook(event, payload)
+	}
+
 	return nil
 }
 
@@ -232,6 +255,24 @@ func (ts *TicketService) AddReply(ctx context.Context, ticketID int64, body stri
 		Action:     action,
 		CauserType: authorType,
 		CauserID:   authorID,
+	})
+
+	// Public replies fire reply.created; internal notes fire note.created —
+	// mirroring the Laravel ReplyCreated / InternalNoteAdded split. Both carry
+	// the ticket ref plus the reply id and its internal-note flag.
+	replyEvent := "reply.created"
+	if internal {
+		replyEvent = "note.created"
+	}
+	ts.dispatchWebhook(replyEvent, map[string]any{
+		"ticket": map[string]any{
+			"id":        t.ID,
+			"reference": t.Reference,
+		},
+		"reply": map[string]any{
+			"id":               r.ID,
+			"is_internal_note": r.IsInternal,
+		},
 	})
 
 	return r, nil
@@ -317,6 +358,49 @@ func (ts *TicketService) SplitTicket(ctx context.Context, in SplitTicketInput) (
 	})
 
 	return newTicket, nil
+}
+
+// dispatchWebhook fires an outbound webhook event in the background so a slow
+// subscriber never blocks the request path. A no-op when no dispatcher is set.
+func (ts *TicketService) dispatchWebhook(event string, payload map[string]any) {
+	if ts.Webhooks == nil {
+		return
+	}
+	go ts.Webhooks.Dispatch(event, payload)
+}
+
+// ticketWebhookPayload builds the standard ticket payload object, mirroring the
+// Laravel DispatchWebhook listener (id, reference, subject, status, priority).
+// Status and priority use their string names to match the PHP enum ->value.
+func ticketWebhookPayload(t *models.Ticket) map[string]any {
+	return map[string]any{
+		"ticket": map[string]any{
+			"id":        t.ID,
+			"reference": t.Reference,
+			"subject":   t.Subject,
+			"status":    models.StatusName[t.Status],
+			"priority":  models.PriorityName[t.Priority],
+		},
+	}
+}
+
+// statusLifecycleEvent maps a status transition to a dedicated lifecycle event
+// name, or "" when the transition has no dedicated event.
+func statusLifecycleEvent(oldStatus, newStatus int) string {
+	if newStatus == oldStatus {
+		return ""
+	}
+	switch newStatus {
+	case models.StatusResolved:
+		return "ticket.resolved"
+	case models.StatusClosed:
+		return "ticket.closed"
+	case models.StatusReopened:
+		return "ticket.reopened"
+	case models.StatusEscalated:
+		return "ticket.escalated"
+	}
+	return ""
 }
 
 func (ts *TicketService) applySLA(ctx context.Context, t *models.Ticket) error {
