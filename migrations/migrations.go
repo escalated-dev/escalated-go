@@ -730,6 +730,39 @@ func engineAddonStatements(p string) []string {
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%sauto_active ON %s (active)", p, p+"automations"),
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%smac_shared ON %s (is_shared)", p, p+"macros"),
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%smac_created_by ON %s (created_by)", p, p+"macros"),
+
+		// Outbound webhooks (event subscriptions) and their per-attempt delivery
+		// log. active is BOOLEAN (not INTEGER) to match the WebhookDispatcher's
+		// `WHERE active = TRUE` query under PostgreSQL, consistent with the
+		// automations/macros tables above. Mirrors the Laravel reference schema
+		// (create_escalated_webhooks_table): events is a JSON array of event
+		// names, secret is nullable and enables HMAC-SHA256 signing.
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			url VARCHAR(255) NOT NULL,
+			events TEXT NOT NULL DEFAULT '[]',
+			secret VARCHAR(255),
+			active BOOLEAN NOT NULL DEFAULT TRUE,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"webhooks"),
+
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			webhook_id BIGINT NOT NULL,
+			event VARCHAR(255) NOT NULL,
+			payload TEXT,
+			response_code INTEGER,
+			response_body TEXT,
+			attempts INTEGER NOT NULL DEFAULT 0,
+			delivered_at TIMESTAMP,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"webhook_deliveries"),
+
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%swh_active ON %s (active)", p, p+"webhooks"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%swhd_webhook ON %s (webhook_id)", p, p+"webhook_deliveries"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%swhd_webhook_event ON %s (webhook_id, event)", p, p+"webhook_deliveries"),
 	}
 }
 

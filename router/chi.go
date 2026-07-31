@@ -21,6 +21,11 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	assignSvc := services.NewAssignmentService(s)
 	subjectSvc := services.NewTicketSubjectService(s, cfg.TicketSubjectTypes, cfg.TicketSubjectResolver)
 
+	// Outbound webhooks: the dispatcher is shared between the ticket service
+	// (which fires lifecycle events) and the admin CRUD handler.
+	webhookDispatcher := services.NewWebhookDispatcher(cfg.DB, nil)
+	ticketSvc.Webhooks = webhookDispatcher
+
 	actionRegistry := actions.NewRegistry(cfg.TicketActions)
 
 	apiH := handlers.NewAPIHandler(s, ticketSvc, rend, cfg.UserIDFunc)
@@ -48,6 +53,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	kbH := handlers.NewKBHandler(cfg.DB)
 	retentionH := handlers.NewRetentionHandler(services.NewRetentionService(cfg.DB, s))
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
+	webhookH := handlers.NewWebhookHandler(cfg.DB, webhookDispatcher)
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
 	var newsletterH *handlers.NewsletterHandler
@@ -56,6 +62,18 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	}
 
 	r.Route(cfg.RoutePrefix, func(r chi.Router) {
+		// Inertia protocol middleware scopes to the UI routes below, but chi
+		// requires every middleware to be registered before any route is added
+		// to a mux — so it must be declared here, ahead of the always-mounted
+		// attachment/API routes, rather than inside the UI block. It is a no-op
+		// for non-Inertia requests (API/attachment clients send no X-Inertia
+		// header), so mounting it at the prefix root does not alter their
+		// behavior. Without this, MountChi panics on startup whenever UIEnabled
+		// is true, leaving every admin route (webhooks included) unreachable.
+		if cfg.UIEnabled {
+			r.Use(middleware.Inertia(""))
+		}
+
 		// Attachment downloads — always mounted
 		r.Get("/attachments/{id}/download", attachH.Download)
 
@@ -108,10 +126,8 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 			})
 		}
 
-		// UI routes — only when enabled
+		// UI routes — only when enabled (Inertia middleware registered above).
 		if cfg.UIEnabled {
-			r.Use(middleware.Inertia(""))
-
 			// Customer routes
 			r.Route("/tickets", func(r chi.Router) {
 				r.Get("/", customerH.Index)
@@ -192,6 +208,14 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Post("/macros", macroH.Create)
 				r.Patch("/macros/{id}", macroH.Update)
 				r.Delete("/macros/{id}", macroH.Delete)
+
+				// Outbound webhooks admin CRUD + per-delivery retry.
+				r.Get("/webhooks", webhookH.List)
+				r.Post("/webhooks", webhookH.Create)
+				r.Patch("/webhooks/{id}", webhookH.Update)
+				r.Delete("/webhooks/{id}", webhookH.Delete)
+				r.Get("/webhooks/{id}/deliveries", webhookH.Deliveries)
+				r.Post("/webhooks/deliveries/{id}/retry", webhookH.Retry)
 
 				// Skills admin — register /skills/new before /skills/{id}/edit.
 				r.Get("/skills", skillsH.ListSkills)
