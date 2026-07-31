@@ -582,6 +582,7 @@ func migrationStatements(p string) []string {
 // .sql definitions (INTEGER flags/counts, TEXT user columns) so the existing
 // handlers behave identically. Mirrors the create_* .sql migrations.
 func engineAddonStatements(p string) []string {
+	userCol := UserIDColumnType()
 	return []string{
 		// Escalation rules (time-based). sort_order/is_active avoid the SQL
 		// reserved word `order`; the JSON contract exposes order/is_active.
@@ -695,6 +696,40 @@ func engineAddonStatements(p string) []string {
 		fmt.Sprintf("CREATE UNIQUE INDEX IF NOT EXISTS idx_%sart_slug ON %s (slug)", p, p+"articles"),
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%sart_status ON %s (status)", p, p+"articles"),
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%sart_category ON %s (category_id)", p, p+"articles"),
+
+		// Automations (admin, time-based) and Macros (agent, manual) previously
+		// shipped ONLY as goose .sql files, which the inline Migrate path never
+		// loads — so a fresh install had no escalated_automations/escalated_macros
+		// tables and automation_runner/macro_service crashed on first use. active
+		// and is_shared are BOOLEAN (not the goose INTEGER) to match the runtime
+		// `WHERE active = TRUE` / `WHERE is_shared = TRUE` queries under PostgreSQL.
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			name VARCHAR(255) NOT NULL,
+			description TEXT,
+			conditions TEXT NOT NULL DEFAULT '[]',
+			actions TEXT NOT NULL DEFAULT '[]',
+			active BOOLEAN NOT NULL DEFAULT TRUE,
+			position INTEGER NOT NULL DEFAULT 0,
+			last_run_at TIMESTAMP,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"automations"),
+
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			name VARCHAR(255) NOT NULL,
+			description TEXT,
+			actions TEXT NOT NULL DEFAULT '[]',
+			is_shared BOOLEAN NOT NULL DEFAULT TRUE,
+			created_by %s,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"macros", userCol),
+
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%sauto_active ON %s (active)", p, p+"automations"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%smac_shared ON %s (is_shared)", p, p+"macros"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%smac_created_by ON %s (created_by)", p, p+"macros"),
 	}
 }
 
