@@ -31,6 +31,8 @@ func TestMigrateCreatesEngineTables(t *testing.T) {
 		"escalated_ticket_links",
 		"escalated_side_conversations",
 		"escalated_side_conversation_replies",
+		"escalated_automations",
+		"escalated_macros",
 	}
 	for _, tbl := range tables {
 		var name string
@@ -58,5 +60,37 @@ func TestMigrateCreatesEngineTables(t *testing.T) {
 	}
 	if !active {
 		t.Errorf("expected is_active to scan as true")
+	}
+
+	// Round-trip an automation and a macro with the exact boolean query shape
+	// the runtime services use (WHERE active = TRUE / WHERE is_shared = TRUE).
+	// Before these tables were added to the inline migrator they existed only
+	// as unrun goose .sql files, so automation_runner/macro_service crashed on
+	// a fresh install; this fails if that regresses or the columns revert to a
+	// type the `= TRUE` comparison rejects.
+	if _, err := db.Exec(
+		`INSERT INTO escalated_automations (name, conditions, actions, active, position)
+		 VALUES ('auto', '[]', '[]', TRUE, 0)`,
+	); err != nil {
+		t.Fatalf("insert automation: %v", err)
+	}
+	var autoName string
+	if err := db.QueryRow(
+		"SELECT name FROM escalated_automations WHERE active = TRUE ORDER BY position ASC",
+	).Scan(&autoName); err != nil {
+		t.Fatalf("query automation WHERE active = TRUE: %v", err)
+	}
+
+	if _, err := db.Exec(
+		`INSERT INTO escalated_macros (name, actions, is_shared, created_by)
+		 VALUES ('mac', '[]', TRUE, NULL)`,
+	); err != nil {
+		t.Fatalf("insert macro: %v", err)
+	}
+	var macName string
+	if err := db.QueryRow(
+		"SELECT name FROM escalated_macros WHERE is_shared = TRUE OR created_by = ?", "1",
+	).Scan(&macName); err != nil {
+		t.Fatalf("query macro WHERE is_shared = TRUE: %v", err)
 	}
 }
