@@ -26,6 +26,11 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	webhookDispatcher := services.NewWebhookDispatcher(cfg.DB, nil)
 	ticketSvc.Webhooks = webhookDispatcher
 
+	// Event-driven Workflows: the runner fires active workflows on the ticket
+	// lifecycle (created/replied/status-changed/assigned) off the request path,
+	// mirroring the webhook dispatcher. The admin CRUD handler manages the rows.
+	ticketSvc.Workflows = services.NewWorkflowRunner(cfg.DB, nil)
+
 	actionRegistry := actions.NewRegistry(cfg.TicketActions)
 
 	apiH := handlers.NewAPIHandler(s, ticketSvc, rend, cfg.UserIDFunc)
@@ -54,6 +59,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	retentionH := handlers.NewRetentionHandler(services.NewRetentionService(cfg.DB, s))
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
 	webhookH := handlers.NewWebhookHandler(cfg.DB, webhookDispatcher)
+	workflowH := handlers.NewWorkflowHandler(cfg.DB)
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
 	var newsletterH *handlers.NewsletterHandler
@@ -182,6 +188,15 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 
 				// Data-retention purge (attachments + audit logs per policy).
 				r.Post("/data-retention/purge", retentionH.Purge)
+
+				// Event-driven admin Workflows (fire on ticket lifecycle events;
+				// distinct from time-based Automations and agent-applied Macros —
+				// see escalated-developer-context).
+				r.Get("/workflows", workflowH.List)
+				r.Post("/workflows", workflowH.Create)
+				r.Patch("/workflows/{id}", workflowH.Update)
+				r.Delete("/workflows/{id}", workflowH.Delete)
+				r.Get("/workflows/{id}/logs", workflowH.Logs)
 
 				// Time-based admin Automations (distinct from event-driven
 				// Workflows and agent-applied Macros — see

@@ -25,6 +25,11 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	webhookDispatcher := services.NewWebhookDispatcher(cfg.DB, nil)
 	ticketSvc.Webhooks = webhookDispatcher
 
+	// Event-driven Workflows: the runner fires active workflows on the ticket
+	// lifecycle (created/replied/status-changed/assigned) off the request path,
+	// mirroring the webhook dispatcher. The admin CRUD handler manages the rows.
+	ticketSvc.Workflows = services.NewWorkflowRunner(cfg.DB, nil)
+
 	apiH := handlers.NewAPIHandler(s, ticketSvc, rend, cfg.UserIDFunc)
 	apiH.Subjects = subjectSvc
 	subjectH := handlers.NewTicketSubjectHandler(subjectSvc, ticketSvc)
@@ -44,6 +49,7 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	retentionH := handlers.NewRetentionHandler(services.NewRetentionService(cfg.DB, s))
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
 	webhookH := handlers.NewWebhookHandler(cfg.DB, webhookDispatcher)
+	workflowH := handlers.NewWorkflowHandler(cfg.DB)
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
 	var newsletterH *handlers.NewsletterHandler
@@ -141,6 +147,13 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 		mux.Handle("POST "+prefix+"/admin/sla-policies", adminMW(http.HandlerFunc(adminH.CreateSLAPolicy)))
 		mux.Handle("DELETE "+prefix+"/admin/sla-policies/{id}", adminMW(http.HandlerFunc(adminH.DeleteSLAPolicy)))
 		mux.Handle("POST "+prefix+"/admin/data-retention/purge", adminMW(http.HandlerFunc(retentionH.Purge)))
+
+		// Event-driven admin Workflows (fire on ticket lifecycle events).
+		mux.Handle("GET "+prefix+"/admin/workflows", adminMW(http.HandlerFunc(workflowH.List)))
+		mux.Handle("POST "+prefix+"/admin/workflows", adminMW(http.HandlerFunc(workflowH.Create)))
+		mux.Handle("PATCH "+prefix+"/admin/workflows/{id}", adminMW(http.HandlerFunc(workflowH.Update)))
+		mux.Handle("DELETE "+prefix+"/admin/workflows/{id}", adminMW(http.HandlerFunc(workflowH.Delete)))
+		mux.Handle("GET "+prefix+"/admin/workflows/{id}/logs", adminMW(http.HandlerFunc(workflowH.Logs)))
 
 		// Time-based admin Automations.
 		mux.Handle("GET "+prefix+"/admin/automations", adminMW(http.HandlerFunc(autoH.List)))

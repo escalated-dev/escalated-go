@@ -21,6 +21,13 @@ type TicketService struct {
 	// dispatches domain events to the WebhookDispatcher. Left nil in tests and
 	// hosts without the webhooks subsystem, in which case dispatch is a no-op.
 	Webhooks *WebhookDispatcher
+
+	// Workflows, when set, runs event-driven admin Workflows for the ticket
+	// lifecycle at the same sites webhooks fire (created, reply, status changed,
+	// assigned). Wired by the router after construction, mirroring the Laravel
+	// ProcessWorkflows listener. Left nil in tests and hosts that do not enable
+	// workflows, in which case the run is a no-op.
+	Workflows *WorkflowRunner
 }
 
 // NewTicketService creates a new TicketService.
@@ -101,6 +108,7 @@ func (ts *TicketService) Create(ctx context.Context, in CreateTicketInput) (*mod
 	})
 
 	ts.dispatchWebhook("ticket.created", ticketWebhookPayload(t))
+	ts.runWorkflows("ticket.created", t)
 
 	return t, nil
 }
@@ -160,6 +168,7 @@ func (ts *TicketService) Assign(ctx context.Context, ticketID int64, agentID mod
 	payload := ticketWebhookPayload(t)
 	payload["agent_id"] = string(agentID)
 	ts.dispatchWebhook("ticket.assigned", payload)
+	ts.runWorkflows("ticket.assigned", t)
 
 	return nil
 }
@@ -208,10 +217,12 @@ func (ts *TicketService) ChangeStatus(ctx context.Context, ticketID int64, newSt
 
 	payload := ticketWebhookPayload(t)
 	ts.dispatchWebhook("ticket.status_changed", payload)
+	ts.runWorkflows("ticket.status_changed", t)
 	// Faithful to the Laravel reference, which fires dedicated lifecycle
 	// events (resolved/closed/reopened) in addition to the generic change.
 	if event := statusLifecycleEvent(oldStatus, newStatus); event != "" {
 		ts.dispatchWebhook(event, payload)
+		ts.runWorkflows(event, t)
 	}
 
 	return nil
@@ -274,6 +285,7 @@ func (ts *TicketService) AddReply(ctx context.Context, ticketID int64, body stri
 			"is_internal_note": r.IsInternal,
 		},
 	})
+	ts.runWorkflows(replyEvent, t)
 
 	return r, nil
 }
@@ -367,6 +379,17 @@ func (ts *TicketService) dispatchWebhook(event string, payload map[string]any) {
 		return
 	}
 	go ts.Webhooks.Dispatch(event, payload)
+}
+
+// runWorkflows runs event-driven admin Workflows for the event in the background
+// so a slow or failing workflow never blocks — or breaks — the ticket mutation
+// that scheduled it (the runner recovers its own panics). A no-op when no runner
+// is set. Mirrors dispatchWebhook.
+func (ts *TicketService) runWorkflows(event string, t *models.Ticket) {
+	if ts.Workflows == nil {
+		return
+	}
+	go ts.Workflows.RunForEvent(event, t)
 }
 
 // ticketWebhookPayload builds the standard ticket payload object, mirroring the
