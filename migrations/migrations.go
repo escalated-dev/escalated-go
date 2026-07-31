@@ -763,6 +763,14 @@ func engineAddonStatements(p string) []string {
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%swh_active ON %s (active)", p, p+"webhooks"),
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%swhd_webhook ON %s (webhook_id)", p, p+"webhook_deliveries"),
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%swhd_webhook_event ON %s (webhook_id, event)", p, p+"webhook_deliveries"),
+
+		// NOTE: the event-driven Workflow tables (workflows, workflow_logs,
+		// delayed_actions) are created by the main migrationStatements above
+		// (items 17-19) — they are NOT re-declared here. The WorkflowRunner and
+		// admin CRUD handler wired in this change target that existing schema:
+		// workflow_logs records a per-run row keyed by (workflow_id, ticket_id)
+		// with a status string + actions_executed JSON. See the workflow tables
+		// regression in workflow_tables_test.go.
 	}
 }
 
