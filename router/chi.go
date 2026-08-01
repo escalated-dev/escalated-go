@@ -59,6 +59,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	retentionH := handlers.NewRetentionHandler(services.NewRetentionService(cfg.DB, s))
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
 	cannedH := handlers.NewCannedResponseHandler(cfg.DB, services.NewCannedResponseService(cfg.DB, nil))
+	articleH := handlers.NewArticleHandler(cfg.DB, services.NewArticleService(cfg.DB, nil))
 	webhookH := handlers.NewWebhookHandler(cfg.DB, webhookDispatcher)
 	workflowH := handlers.NewWorkflowHandler(cfg.DB)
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
@@ -233,6 +234,19 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Post("/canned-responses", cannedH.Create)
 				r.Patch("/canned-responses/{id}", cannedH.Update)
 				r.Delete("/canned-responses/{id}", cannedH.Delete)
+
+				// Knowledge-base authoring admin CRUD (articles + categories).
+				// The public read path is /api/kb/... (published only); this is
+				// the admin authoring counterpart.
+				r.Get("/kb/articles", articleH.AdminList)
+				r.Post("/kb/articles", articleH.Create)
+				r.Get("/kb/articles/{id}", articleH.Show)
+				r.Patch("/kb/articles/{id}", articleH.Update)
+				r.Delete("/kb/articles/{id}", articleH.Delete)
+				r.Get("/kb/categories", articleH.ListCategories)
+				r.Post("/kb/categories", articleH.CreateCategory)
+				r.Patch("/kb/categories/{id}", articleH.UpdateCategory)
+				r.Delete("/kb/categories/{id}", articleH.DeleteCategory)
 
 				// Outbound webhooks admin CRUD + per-delivery retry.
 				r.Get("/webhooks", webhookH.List)
