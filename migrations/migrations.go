@@ -731,6 +731,26 @@ func engineAddonStatements(p string) []string {
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%smac_shared ON %s (is_shared)", p, p+"macros"),
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%smac_created_by ON %s (created_by)", p, p+"macros"),
 
+		// Canned responses (agent-reusable reply templates). Ports the Laravel
+		// create_escalated_canned_responses migration: title/body/category with
+		// a nullable creator and a shared/private visibility flag. is_shared is
+		// BOOLEAN (not INTEGER) to match the runtime `WHERE is_shared = TRUE`
+		// query the service uses under PostgreSQL, consistent with macros above.
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			title VARCHAR(255) NOT NULL,
+			body TEXT NOT NULL,
+			category VARCHAR(255),
+			is_shared BOOLEAN NOT NULL DEFAULT TRUE,
+			created_by %s,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"canned_responses", userCol),
+
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%scr_shared ON %s (is_shared)", p, p+"canned_responses"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%scr_created_by ON %s (created_by)", p, p+"canned_responses"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%scr_category ON %s (category)", p, p+"canned_responses"),
+
 		// Outbound webhooks (event subscriptions) and their per-attempt delivery
 		// log. active is BOOLEAN (not INTEGER) to match the WebhookDispatcher's
 		// `WHERE active = TRUE` query under PostgreSQL, consistent with the

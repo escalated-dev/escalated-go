@@ -58,6 +58,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	kbH := handlers.NewKBHandler(cfg.DB)
 	retentionH := handlers.NewRetentionHandler(services.NewRetentionService(cfg.DB, s))
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
+	cannedH := handlers.NewCannedResponseHandler(cfg.DB, services.NewCannedResponseService(cfg.DB, nil))
 	webhookH := handlers.NewWebhookHandler(cfg.DB, webhookDispatcher)
 	workflowH := handlers.NewWorkflowHandler(cfg.DB)
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
@@ -170,6 +171,9 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				// Macros (agent-applied one-click bundles).
 				r.Get("/macros", macroH.AgentList)
 				r.Post("/tickets/{ticketId}/macros/{macroId}/apply", macroH.AgentApply)
+
+				// Canned responses visible to this agent (shared + own).
+				r.Get("/canned-responses", cannedH.AgentList)
 			})
 
 			// Admin routes
@@ -223,6 +227,12 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Post("/macros", macroH.Create)
 				r.Patch("/macros/{id}", macroH.Update)
 				r.Delete("/macros/{id}", macroH.Delete)
+
+				// Canned responses admin CRUD.
+				r.Get("/canned-responses", cannedH.AdminList)
+				r.Post("/canned-responses", cannedH.Create)
+				r.Patch("/canned-responses/{id}", cannedH.Update)
+				r.Delete("/canned-responses/{id}", cannedH.Delete)
 
 				// Outbound webhooks admin CRUD + per-delivery retry.
 				r.Get("/webhooks", webhookH.List)
