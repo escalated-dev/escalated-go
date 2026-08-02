@@ -8,7 +8,7 @@ require (
 	github.com/escalated-dev/escalated-locale v0.1.8
 	github.com/go-chi/chi/v5 v5.3.1
 	github.com/petaki/inertia-go v1.15.0
-	modernc.org/sqlite v1.54.0
+	modernc.org/sqlite v1.55.0
 )
 
 require (
