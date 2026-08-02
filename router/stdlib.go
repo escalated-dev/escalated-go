@@ -49,6 +49,7 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	retentionH := handlers.NewRetentionHandler(services.NewRetentionService(cfg.DB, s))
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
 	cannedH := handlers.NewCannedResponseHandler(cfg.DB, services.NewCannedResponseService(cfg.DB, nil))
+	articleH := handlers.NewArticleHandler(cfg.DB, services.NewArticleService(cfg.DB, nil))
 	webhookH := handlers.NewWebhookHandler(cfg.DB, webhookDispatcher)
 	workflowH := handlers.NewWorkflowHandler(cfg.DB)
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
@@ -188,6 +189,19 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 		mux.Handle("POST "+prefix+"/admin/canned-responses", adminMW(http.HandlerFunc(cannedH.Create)))
 		mux.Handle("PATCH "+prefix+"/admin/canned-responses/{id}", adminMW(http.HandlerFunc(cannedH.Update)))
 		mux.Handle("DELETE "+prefix+"/admin/canned-responses/{id}", adminMW(http.HandlerFunc(cannedH.Delete)))
+
+		// Knowledge-base authoring admin CRUD (articles + categories). The
+		// public read path is /api/kb/... (published only); this is the admin
+		// authoring counterpart.
+		mux.Handle("GET "+prefix+"/admin/kb/articles", adminMW(http.HandlerFunc(articleH.AdminList)))
+		mux.Handle("POST "+prefix+"/admin/kb/articles", adminMW(http.HandlerFunc(articleH.Create)))
+		mux.Handle("GET "+prefix+"/admin/kb/articles/{id}", adminMW(http.HandlerFunc(articleH.Show)))
+		mux.Handle("PATCH "+prefix+"/admin/kb/articles/{id}", adminMW(http.HandlerFunc(articleH.Update)))
+		mux.Handle("DELETE "+prefix+"/admin/kb/articles/{id}", adminMW(http.HandlerFunc(articleH.Delete)))
+		mux.Handle("GET "+prefix+"/admin/kb/categories", adminMW(http.HandlerFunc(articleH.ListCategories)))
+		mux.Handle("POST "+prefix+"/admin/kb/categories", adminMW(http.HandlerFunc(articleH.CreateCategory)))
+		mux.Handle("PATCH "+prefix+"/admin/kb/categories/{id}", adminMW(http.HandlerFunc(articleH.UpdateCategory)))
+		mux.Handle("DELETE "+prefix+"/admin/kb/categories/{id}", adminMW(http.HandlerFunc(articleH.DeleteCategory)))
 
 		// Outbound webhooks admin CRUD + per-delivery retry.
 		mux.Handle("GET "+prefix+"/admin/webhooks", adminMW(http.HandlerFunc(webhookH.List)))
