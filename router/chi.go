@@ -64,6 +64,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	workflowH := handlers.NewWorkflowHandler(cfg.DB)
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
+	reportH := handlers.NewReportHandler(cfg.DB, cfg.TablePrefix)
 	var newsletterH *handlers.NewsletterHandler
 	if cfg.EnableNewsletters {
 		newsletterH, _ = newNewsletterStack(esc)
@@ -264,6 +265,18 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Put("/skills/{id}", skillsH.UpdateSkill)
 				r.Patch("/skills/{id}", skillsH.UpdateSkill)
 				r.Delete("/skills/{id}", skillsH.DestroySkill)
+
+				// Reporting analytics (read-only). Exposes the reporting service
+				// as per-report JSON endpoints; ?days defaults to 30. See
+				// escalated-developer-context — mirrors the Laravel reference
+				// ReportController surface.
+				r.Get("/reports", reportH.Index)
+				r.Get("/reports/first-response-time", reportH.FirstResponseTime)
+				r.Get("/reports/resolution-time", reportH.ResolutionTime)
+				r.Get("/reports/agent-ranking", reportH.AgentRanking)
+				r.Get("/reports/sla", reportH.SLA)
+				r.Get("/reports/csat", reportH.CSAT)
+				r.Get("/reports/period-comparison", reportH.PeriodComparison)
 
 				r.Get("/settings/public-tickets", adminH.GetPublicTicketsSettings)
 				r.Put("/settings/public-tickets", adminH.UpdatePublicTicketsSettings)

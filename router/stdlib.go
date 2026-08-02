@@ -54,6 +54,7 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	workflowH := handlers.NewWorkflowHandler(cfg.DB)
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
+	reportH := handlers.NewReportHandler(cfg.DB, cfg.TablePrefix)
 	var newsletterH *handlers.NewsletterHandler
 	if cfg.EnableNewsletters {
 		newsletterH, _ = newNewsletterStack(esc)
@@ -220,6 +221,17 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 		mux.Handle("PUT "+prefix+"/admin/skills/{id}", adminMW(http.HandlerFunc(skillsH.UpdateSkill)))
 		mux.Handle("PATCH "+prefix+"/admin/skills/{id}", adminMW(http.HandlerFunc(skillsH.UpdateSkill)))
 		mux.Handle("DELETE "+prefix+"/admin/skills/{id}", adminMW(http.HandlerFunc(skillsH.DestroySkill)))
+
+		// Reporting analytics (read-only). Exposes the reporting service as
+		// per-report JSON endpoints; ?days defaults to 30. Mirrors the Laravel
+		// reference ReportController surface.
+		mux.Handle("GET "+prefix+"/admin/reports", adminMW(http.HandlerFunc(reportH.Index)))
+		mux.Handle("GET "+prefix+"/admin/reports/first-response-time", adminMW(http.HandlerFunc(reportH.FirstResponseTime)))
+		mux.Handle("GET "+prefix+"/admin/reports/resolution-time", adminMW(http.HandlerFunc(reportH.ResolutionTime)))
+		mux.Handle("GET "+prefix+"/admin/reports/agent-ranking", adminMW(http.HandlerFunc(reportH.AgentRanking)))
+		mux.Handle("GET "+prefix+"/admin/reports/sla", adminMW(http.HandlerFunc(reportH.SLA)))
+		mux.Handle("GET "+prefix+"/admin/reports/csat", adminMW(http.HandlerFunc(reportH.CSAT)))
+		mux.Handle("GET "+prefix+"/admin/reports/period-comparison", adminMW(http.HandlerFunc(reportH.PeriodComparison)))
 
 		mux.Handle("GET "+prefix+"/admin/settings/public-tickets", adminMW(http.HandlerFunc(adminH.GetPublicTicketsSettings)))
 		mux.Handle("PUT "+prefix+"/admin/settings/public-tickets", adminMW(http.HandlerFunc(adminH.UpdatePublicTicketsSettings)))
