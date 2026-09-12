@@ -56,7 +56,7 @@ func (h *SavedViewHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	sv := &models.SavedView{
 		Name:     in.Name,
-		Filters:  in.Filters,
+		Filters:  models.JSONText(in.Filters),
 		UserID:   uid,
 		IsShared: in.IsShared,
 		Icon:     in.Icon,

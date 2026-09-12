@@ -1,20 +1,19 @@
 package models
 
 import (
-	"encoding/json"
 	"testing"
 )
 
 func TestSavedView_DecodeFilters(t *testing.T) {
 	tests := []struct {
 		name       string
-		filters    json.RawMessage
+		filters    JSONText
 		wantErr    bool
 		wantSearch string
 	}{
 		{
 			name:       "valid filters",
-			filters:    json.RawMessage(`{"status":0,"search":"billing","unassigned":true}`),
+			filters:    JSONText(`{"status":0,"search":"billing","unassigned":true}`),
 			wantSearch: "billing",
 		},
 		{
@@ -23,7 +22,7 @@ func TestSavedView_DecodeFilters(t *testing.T) {
 		},
 		{
 			name:    "invalid JSON",
-			filters: json.RawMessage(`{invalid`),
+			filters: JSONText(`{invalid`),
 			wantErr: true,
 		},
 	}

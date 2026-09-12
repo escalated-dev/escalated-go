@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
 )
 
@@ -58,9 +59,9 @@ func scanCannedResponse(sc cannedRowScanner) (models.CannedResponse, error) {
 // admin surface, which is not visibility-scoped.
 func (s *CannedResponseService) ListAll() ([]models.CannedResponse, error) {
 	rows, err := s.DB.Query(
-		`SELECT id, title, body, category, is_shared, created_by, created_at, updated_at
+		sqldialect.Rebind(s.DB, `SELECT id, title, body, category, is_shared, created_by, created_at, updated_at
 		   FROM escalated_canned_responses
-		  ORDER BY title ASC`,
+		  ORDER BY title ASC`),
 	)
 	if err != nil {
 		return nil, err
@@ -82,10 +83,10 @@ func (s *CannedResponseService) ListAll() ([]models.CannedResponse, error) {
 // responses plus responses they created themselves.
 func (s *CannedResponseService) ListForAgent(agentID models.UserID) ([]models.CannedResponse, error) {
 	rows, err := s.DB.Query(
-		`SELECT id, title, body, category, is_shared, created_by, created_at, updated_at
+		sqldialect.Rebind(s.DB, `SELECT id, title, body, category, is_shared, created_by, created_at, updated_at
 		   FROM escalated_canned_responses
 		  WHERE is_shared = TRUE OR created_by = ?
-		  ORDER BY title ASC`,
+		  ORDER BY title ASC`),
 		agentID,
 	)
 	if err != nil {
@@ -107,9 +108,9 @@ func (s *CannedResponseService) ListForAgent(agentID models.UserID) ([]models.Ca
 // FindByID returns the response with the given id or sql.ErrNoRows.
 func (s *CannedResponseService) FindByID(id int64) (*models.CannedResponse, error) {
 	c, err := scanCannedResponse(s.DB.QueryRow(
-		`SELECT id, title, body, category, is_shared, created_by, created_at, updated_at
+		sqldialect.Rebind(s.DB, `SELECT id, title, body, category, is_shared, created_by, created_at, updated_at
 		   FROM escalated_canned_responses
-		  WHERE id = ?`,
+		  WHERE id = ?`),
 		id,
 	))
 	if err != nil {
@@ -121,8 +122,7 @@ func (s *CannedResponseService) FindByID(id int64) (*models.CannedResponse, erro
 // Create inserts a new canned response and returns it with its assigned ID.
 func (s *CannedResponseService) Create(c *models.CannedResponse) error {
 	now := time.Now()
-	res, err := s.DB.Exec(
-		`INSERT INTO escalated_canned_responses (title, body, category, is_shared, created_by, created_at, updated_at)
+	res, err := sqldialect.ExecInsert(s.DB, `INSERT INTO escalated_canned_responses (title, body, category, is_shared, created_by, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		c.Title, c.Body, c.Category, c.IsShared, c.CreatedBy, now, now,
 	)
@@ -142,9 +142,9 @@ func (s *CannedResponseService) Create(c *models.CannedResponse) error {
 // Update saves changes to the given canned response.
 func (s *CannedResponseService) Update(c *models.CannedResponse) error {
 	_, err := s.DB.Exec(
-		`UPDATE escalated_canned_responses
+		sqldialect.Rebind(s.DB, `UPDATE escalated_canned_responses
 		    SET title = ?, body = ?, category = ?, is_shared = ?, updated_at = ?
-		  WHERE id = ?`,
+		  WHERE id = ?`),
 		c.Title, c.Body, c.Category, c.IsShared, time.Now(), c.ID,
 	)
 	return err
@@ -152,6 +152,6 @@ func (s *CannedResponseService) Update(c *models.CannedResponse) error {
 
 // Delete removes the canned response with the given id.
 func (s *CannedResponseService) Delete(id int64) error {
-	_, err := s.DB.Exec(`DELETE FROM escalated_canned_responses WHERE id = ?`, id)
+	_, err := s.DB.Exec(sqldialect.Rebind(s.DB, `DELETE FROM escalated_canned_responses WHERE id = ?`), id)
 	return err
 }

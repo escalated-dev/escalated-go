@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
 )
 
@@ -79,10 +80,10 @@ func (r *WorkflowRunner) RunForEvent(event string, t *models.Ticket) {
 // the reference engines order them (position ASC, then id ASC).
 func (r *WorkflowRunner) activeForEvent(event string) ([]models.Workflow, error) {
 	rows, err := r.DB.Query(
-		`SELECT id, name, description, trigger_event, conditions, actions, position, is_active, stop_on_match
+		sqldialect.Rebind(r.DB, `SELECT id, name, description, trigger_event, conditions, actions, position, is_active, stop_on_match
 		   FROM escalated_workflows
 		  WHERE is_active = TRUE AND trigger_event = ?
-		  ORDER BY position ASC, id ASC`,
+		  ORDER BY position ASC, id ASC`),
 		event,
 	)
 	if err != nil {
@@ -95,7 +96,7 @@ func (r *WorkflowRunner) activeForEvent(event string) ([]models.Workflow, error)
 		var wf models.Workflow
 		var desc sql.NullString
 		// Scan the JSON columns through []byte: modernc SQLite returns TEXT as a
-		// string, which will not scan straight into json.RawMessage, while
+		// string, which will not scan straight into models.JSONText, while
 		// []byte accepts both a string and a []byte driver value (Postgres).
 		var conditions, actions []byte
 		if err := rows.Scan(
@@ -107,8 +108,8 @@ func (r *WorkflowRunner) activeForEvent(event string) ([]models.Workflow, error)
 		if desc.Valid {
 			wf.Description = &desc.String
 		}
-		wf.Conditions = json.RawMessage(conditions)
-		wf.Actions = json.RawMessage(actions)
+		wf.Conditions = models.JSONText(conditions)
+		wf.Actions = models.JSONText(actions)
 		out = append(out, wf)
 	}
 	return out, rows.Err()
@@ -168,8 +169,8 @@ func (r *WorkflowRunner) scheduleDelayed(wf models.Workflow, t *models.Ticket, r
 	}
 	now := time.Now()
 	_, err = r.DB.Exec(
-		`INSERT INTO escalated_delayed_actions (workflow_id, ticket_id, action_data, execute_at, executed, created_at)
-		 VALUES (?, ?, ?, ?, FALSE, ?)`,
+		sqldialect.Rebind(r.DB, `INSERT INTO escalated_delayed_actions (workflow_id, ticket_id, action_data, execute_at, executed, created_at)
+		 VALUES (?, ?, ?, ?, FALSE, ?)`),
 		wf.ID, t.ID, data, now.Add(time.Duration(toInt(delay.Value))*time.Minute), now,
 	)
 	return err
@@ -182,13 +183,13 @@ func (r *WorkflowRunner) runAction(wf models.Workflow, t *models.Ticket, td Tick
 	switch a.Type {
 	case "change_status":
 		_, err := r.DB.Exec(
-			`UPDATE escalated_tickets SET status = ?, updated_at = ? WHERE id = ?`,
+			sqldialect.Rebind(r.DB, `UPDATE escalated_tickets SET status = ?, updated_at = ? WHERE id = ?`),
 			toInt(a.Value), time.Now(), t.ID,
 		)
 		return err
 	case "change_priority":
 		_, err := r.DB.Exec(
-			`UPDATE escalated_tickets SET priority = ?, updated_at = ? WHERE id = ?`,
+			sqldialect.Rebind(r.DB, `UPDATE escalated_tickets SET priority = ?, updated_at = ? WHERE id = ?`),
 			toInt(a.Value), time.Now(), t.ID,
 		)
 		return err
@@ -198,19 +199,19 @@ func (r *WorkflowRunner) runAction(wf models.Workflow, t *models.Ticket, td Tick
 			return nil
 		}
 		_, err := r.DB.Exec(
-			`UPDATE escalated_tickets SET assigned_to = ?, updated_at = ? WHERE id = ?`,
+			sqldialect.Rebind(r.DB, `UPDATE escalated_tickets SET assigned_to = ?, updated_at = ? WHERE id = ?`),
 			models.UserID(v), time.Now(), t.ID,
 		)
 		return err
 	case "set_department":
 		_, err := r.DB.Exec(
-			`UPDATE escalated_tickets SET department_id = ?, updated_at = ? WHERE id = ?`,
+			sqldialect.Rebind(r.DB, `UPDATE escalated_tickets SET department_id = ?, updated_at = ? WHERE id = ?`),
 			toInt(a.Value), time.Now(), t.ID,
 		)
 		return err
 	case "set_type":
 		_, err := r.DB.Exec(
-			`UPDATE escalated_tickets SET ticket_type = ?, updated_at = ? WHERE id = ?`,
+			sqldialect.Rebind(r.DB, `UPDATE escalated_tickets SET ticket_type = ?, updated_at = ? WHERE id = ?`),
 			a.Value, time.Now(), t.ID,
 		)
 		return err
@@ -220,8 +221,8 @@ func (r *WorkflowRunner) runAction(wf models.Workflow, t *models.Ticket, td Tick
 		return r.tagAction(t.ID, a.Value, false)
 	case "add_note", "add_internal_note":
 		_, err := r.DB.Exec(
-			`INSERT INTO escalated_replies (ticket_id, body, is_internal, is_system, created_at, updated_at)
-			 VALUES (?, ?, TRUE, TRUE, ?, ?)`,
+			sqldialect.Rebind(r.DB, `INSERT INTO escalated_replies (ticket_id, body, is_internal, is_system, created_at, updated_at)
+			 VALUES (?, ?, TRUE, TRUE, ?, ?)`),
 			t.ID, InterpolateVariables(a.Value, td), time.Now(), time.Now(),
 		)
 		return err
@@ -251,7 +252,7 @@ func (r *WorkflowRunner) runAction(wf models.Workflow, t *models.Ticket, td Tick
 // tag names are a no-op, mirroring the AutomationRunner.
 func (r *WorkflowRunner) tagAction(ticketID int64, name string, add bool) error {
 	var tagID int64
-	err := r.DB.QueryRow(`SELECT id FROM escalated_tags WHERE name = ?`, name).Scan(&tagID)
+	err := r.DB.QueryRow(sqldialect.Rebind(r.DB, `SELECT id FROM escalated_tags WHERE name = ?`), name).Scan(&tagID)
 	if err == sql.ErrNoRows {
 		return nil
 	}
@@ -260,13 +261,13 @@ func (r *WorkflowRunner) tagAction(ticketID int64, name string, add bool) error 
 	}
 	if add {
 		_, err = r.DB.Exec(
-			`INSERT OR IGNORE INTO escalated_ticket_tags (ticket_id, tag_id) VALUES (?, ?)`,
+			sqldialect.Rebind(r.DB, `INSERT OR IGNORE INTO escalated_ticket_tags (ticket_id, tag_id) VALUES (?, ?)`),
 			ticketID, tagID,
 		)
 		return err
 	}
 	_, err = r.DB.Exec(
-		`DELETE FROM escalated_ticket_tags WHERE ticket_id = ? AND tag_id = ?`,
+		sqldialect.Rebind(r.DB, `DELETE FROM escalated_ticket_tags WHERE ticket_id = ? AND tag_id = ?`),
 		ticketID, tagID,
 	)
 	return err
@@ -275,7 +276,7 @@ func (r *WorkflowRunner) tagAction(ticketID int64, name string, add bool) error 
 // writeLog records one escalated_workflow_logs row for a run. status is one of
 // "skipped" (conditions did not match), "success", or "failed". actionsRaw is
 // the workflow's action list when matched, nil (→ "[]") when skipped.
-func (r *WorkflowRunner) writeLog(workflowID, ticketID int64, event, status string, actionsRaw json.RawMessage, errMsg string) {
+func (r *WorkflowRunner) writeLog(workflowID, ticketID int64, event, status string, actionsRaw models.JSONText, errMsg string) {
 	actions := "[]"
 	if len(actionsRaw) > 0 {
 		actions = string(actionsRaw)
@@ -285,8 +286,8 @@ func (r *WorkflowRunner) writeLog(workflowID, ticketID int64, event, status stri
 		errVal = errMsg
 	}
 	if _, err := r.DB.Exec(
-		`INSERT INTO escalated_workflow_logs (workflow_id, ticket_id, trigger_event, status, actions_executed, error_message, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		sqldialect.Rebind(r.DB, `INSERT INTO escalated_workflow_logs (workflow_id, ticket_id, trigger_event, status, actions_executed, error_message, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`),
 		workflowID, ticketID, event, status, actions, errVal, time.Now(),
 	); err != nil {
 		r.logger().Printf("escalated workflow: write log (workflow=%d ticket=%d): %v", workflowID, ticketID, err)
@@ -325,7 +326,7 @@ func ticketToData(t *models.Ticket) TicketData {
 	return td
 }
 
-func parseWorkflowConditions(raw json.RawMessage) WorkflowConditionGroup {
+func parseWorkflowConditions(raw models.JSONText) WorkflowConditionGroup {
 	var g WorkflowConditionGroup
 	if len(raw) == 0 {
 		return g
@@ -334,7 +335,7 @@ func parseWorkflowConditions(raw json.RawMessage) WorkflowConditionGroup {
 	return g
 }
 
-func parseWorkflowActions(raw json.RawMessage) []WorkflowAction {
+func parseWorkflowActions(raw models.JSONText) []WorkflowAction {
 	var a []WorkflowAction
 	if len(raw) == 0 {
 		return a

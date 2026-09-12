@@ -3,7 +3,6 @@ package models
 import (
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -108,12 +107,12 @@ type Ticket struct {
 	UpdatedAt       time.Time  `json:"updated_at"`
 
 	// Chat fields
-	Channel      *string         `json:"channel,omitempty"`
-	ChatEndedAt  *time.Time      `json:"chat_ended_at,omitempty"`
-	ChatMetadata json.RawMessage `json:"chat_metadata,omitempty"`
+	Channel      *string    `json:"channel,omitempty"`
+	ChatEndedAt  *time.Time `json:"chat_ended_at,omitempty"`
+	ChatMetadata JSONText   `json:"chat_metadata,omitempty"`
 
 	// Metadata stored as JSON
-	Metadata json.RawMessage `json:"metadata,omitempty"`
+	Metadata JSONText `json:"metadata,omitempty"`
 
 	// Loaded relationships (not persisted directly)
 	Department  *Department  `json:"department,omitempty"`

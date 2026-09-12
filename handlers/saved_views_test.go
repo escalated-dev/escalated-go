@@ -275,9 +275,9 @@ func TestSavedViewHandler_Create(t *testing.T) {
 
 func TestSavedViewHandler_ListAndShow(t *testing.T) {
 	ms := newSavedViewMockStore()
-	ms.views[1] = &models.SavedView{ID: 1, Name: "My View", UserID: models.UserID("1"), Filters: json.RawMessage(`{}`)}
-	ms.views[2] = &models.SavedView{ID: 2, Name: "Shared View", UserID: models.UserID("2"), IsShared: true, Filters: json.RawMessage(`{}`)}
-	ms.views[3] = &models.SavedView{ID: 3, Name: "Private Other", UserID: models.UserID("2"), Filters: json.RawMessage(`{}`)}
+	ms.views[1] = &models.SavedView{ID: 1, Name: "My View", UserID: models.UserID("1"), Filters: models.JSONText(`{}`)}
+	ms.views[2] = &models.SavedView{ID: 2, Name: "Shared View", UserID: models.UserID("2"), IsShared: true, Filters: models.JSONText(`{}`)}
+	ms.views[3] = &models.SavedView{ID: 3, Name: "Private Other", UserID: models.UserID("2"), Filters: models.JSONText(`{}`)}
 
 	h := NewSavedViewHandler(ms, func(_ *http.Request) models.UserID { return "1" })
 

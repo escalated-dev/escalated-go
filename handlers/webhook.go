@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/services"
 )
@@ -34,9 +35,9 @@ func NewWebhookHandler(db *sql.DB, dispatcher *services.WebhookDispatcher) *Webh
 func (h *WebhookHandler) List(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.DB.QueryContext(
 		r.Context(),
-		`SELECT id, url, events, secret, active, created_at, updated_at
+		sqldialect.Rebind(h.DB, `SELECT id, url, events, secret, active, created_at, updated_at
 		   FROM escalated_webhooks
-		  ORDER BY created_at DESC, id DESC`,
+		  ORDER BY created_at DESC, id DESC`),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -83,15 +84,13 @@ func (h *WebhookHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	events := defaultJSONArray(in.Events)
+	events := defaultJSONArray(models.JSONText(in.Events))
 	active := true
 	if in.Active != nil {
 		active = *in.Active
 	}
 
-	res, err := h.DB.ExecContext(
-		r.Context(),
-		`INSERT INTO escalated_webhooks (url, events, secret, active, created_at, updated_at)
+	res, err := sqldialect.ExecInsertContext(r.Context(), h.DB, `INSERT INTO escalated_webhooks (url, events, secret, active, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?)`,
 		in.URL, events, in.Secret, active, time.Now(), time.Now(),
 	)
@@ -153,7 +152,7 @@ func (h *WebhookHandler) Update(w http.ResponseWriter, r *http.Request) {
 	args = append(args, id)
 
 	q := "UPDATE escalated_webhooks SET " + joinSets(sets) + " WHERE id = ?"
-	if _, err := h.DB.ExecContext(r.Context(), q, args...); err != nil {
+	if _, err := h.DB.ExecContext(r.Context(), sqldialect.Rebind(h.DB, q), args...); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -169,13 +168,13 @@ func (h *WebhookHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := h.DB.ExecContext(
-		r.Context(), `DELETE FROM escalated_webhook_deliveries WHERE webhook_id = ?`, id,
+		r.Context(), sqldialect.Rebind(h.DB, `DELETE FROM escalated_webhook_deliveries WHERE webhook_id = ?`), id,
 	); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if _, err := h.DB.ExecContext(
-		r.Context(), `DELETE FROM escalated_webhooks WHERE id = ?`, id,
+		r.Context(), sqldialect.Rebind(h.DB, `DELETE FROM escalated_webhooks WHERE id = ?`), id,
 	); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -193,11 +192,11 @@ func (h *WebhookHandler) Deliveries(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := h.DB.QueryContext(
 		r.Context(),
-		`SELECT id, webhook_id, event, payload, response_code, response_body, attempts, delivered_at, created_at, updated_at
+		sqldialect.Rebind(h.DB, `SELECT id, webhook_id, event, payload, response_code, response_body, attempts, delivered_at, created_at, updated_at
 		   FROM escalated_webhook_deliveries
 		  WHERE webhook_id = ?
 		  ORDER BY created_at DESC, id DESC
-		  LIMIT 100`,
+		  LIMIT 100`),
 		id,
 	)
 	if err != nil {
@@ -221,7 +220,7 @@ func (h *WebhookHandler) Deliveries(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if payload.Valid {
-			dlv.Payload = json.RawMessage(payload.String)
+			dlv.Payload = models.JSONText(payload.String)
 		}
 		if respCode.Valid {
 			c := int(respCode.Int64)
@@ -251,7 +250,7 @@ func (h *WebhookHandler) Retry(w http.ResponseWriter, r *http.Request) {
 	var payload sql.NullString
 	err = h.DB.QueryRowContext(
 		r.Context(),
-		`SELECT id, webhook_id, event, payload FROM escalated_webhook_deliveries WHERE id = ?`,
+		sqldialect.Rebind(h.DB, `SELECT id, webhook_id, event, payload FROM escalated_webhook_deliveries WHERE id = ?`),
 		id,
 	).Scan(&dlv.ID, &dlv.WebhookID, &dlv.Event, &payload)
 	if err == sql.ErrNoRows {
@@ -263,7 +262,7 @@ func (h *WebhookHandler) Retry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if payload.Valid {
-		dlv.Payload = json.RawMessage(payload.String)
+		dlv.Payload = models.JSONText(payload.String)
 	}
 
 	// Re-send off the request path so a slow endpoint never blocks the admin.

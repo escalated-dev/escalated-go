@@ -1,7 +1,6 @@
 package models
 
 import (
-	"encoding/json"
 	"fmt"
 	"time"
 )
@@ -37,7 +36,7 @@ type Activity struct {
 	CauserType *string `json:"causer_type,omitempty"`
 	CauserID   *UserID `json:"causer_id,omitempty"`
 
-	Details json.RawMessage `json:"details,omitempty"`
+	Details JSONText `json:"details,omitempty"`
 
 	CreatedAt      time.Time `json:"created_at"`
 	CreatedAtHuman string    `json:"created_at_human,omitempty"`

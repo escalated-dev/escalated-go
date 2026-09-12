@@ -24,6 +24,13 @@ func UserIDColumnType() string {
 // Migrate runs all Escalated migrations against the given database.
 // It is idempotent — tables are created with IF NOT EXISTS.
 // The prefix is prepended to all table names (e.g., "escalated_").
+// Migrate creates the schema on PostgreSQL.
+//
+// Timestamp columns are TIMESTAMPTZ. A bare TIMESTAMP has no time zone, so the
+// driver writes the local wall clock and reads it back labelled UTC -- every
+// instant shifted by the server's offset, which showed up as a retry scheduled
+// a minute ahead coming back hours in the past. These columns all mean an
+// instant, and TIMESTAMPTZ is the type that stores one.
 func Migrate(db *sql.DB, prefix string) error {
 	for _, stmt := range migrationStatements(prefix) {
 		if _, err := db.Exec(stmt); err != nil {
@@ -47,8 +54,8 @@ func migrationStatements(p string) []string {
 			resolution_hours TEXT NOT NULL,
 			is_active BOOLEAN NOT NULL DEFAULT TRUE,
 			is_default BOOLEAN NOT NULL DEFAULT FALSE,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"sla_policies"),
 
 		// 2. Departments
@@ -60,8 +67,8 @@ func migrationStatements(p string) []string {
 			email VARCHAR(255),
 			is_active BOOLEAN NOT NULL DEFAULT TRUE,
 			default_sla_policy_id BIGINT REFERENCES %s(id) ON DELETE SET NULL,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"departments", p+"sla_policies"),
 
 		// 3. Tags
@@ -71,8 +78,8 @@ func migrationStatements(p string) []string {
 			slug VARCHAR(255) NOT NULL,
 			color VARCHAR(7),
 			description TEXT,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"tags"),
 
 		// 4. Tickets
@@ -94,15 +101,15 @@ func migrationStatements(p string) []string {
 			department_id BIGINT REFERENCES %s(id) ON DELETE SET NULL,
 			sla_policy_id BIGINT REFERENCES %s(id) ON DELETE SET NULL,
 			merged_into_id BIGINT,
-			sla_first_response_due_at TIMESTAMP,
-			sla_resolution_due_at TIMESTAMP,
+			sla_first_response_due_at TIMESTAMPTZ,
+			sla_resolution_due_at TIMESTAMPTZ,
 			sla_breached BOOLEAN NOT NULL DEFAULT FALSE,
-			first_response_at TIMESTAMP,
-			resolved_at TIMESTAMP,
-			closed_at TIMESTAMP,
+			first_response_at TIMESTAMPTZ,
+			resolved_at TIMESTAMPTZ,
+			closed_at TIMESTAMPTZ,
 			metadata TEXT DEFAULT '{}',
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"tickets", userCol, userCol, p+"departments", p+"sla_policies"),
 
 		// 5. Replies
@@ -121,8 +128,8 @@ func migrationStatements(p string) []string {
 			is_internal BOOLEAN NOT NULL DEFAULT FALSE,
 			is_system BOOLEAN NOT NULL DEFAULT FALSE,
 			is_pinned BOOLEAN NOT NULL DEFAULT FALSE,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"replies", p+"tickets", userCol),
 
 		// 6. Ticket tags join table
@@ -137,7 +144,7 @@ func migrationStatements(p string) []string {
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			ticket_id BIGINT NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
 			user_id %s NOT NULL,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (ticket_id, user_id)
 		)`, p+"ticket_followers", p+"tickets", userCol),
 
@@ -149,8 +156,8 @@ func migrationStatements(p string) []string {
 			subject_id VARCHAR(255) NOT NULL,
 			role VARCHAR(255),
 			position INTEGER NOT NULL DEFAULT 0,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE (ticket_id, subject_type, subject_id)
 		)`, p+"ticket_subjects", p+"tickets"),
 
@@ -166,7 +173,7 @@ func migrationStatements(p string) []string {
 			causer_type VARCHAR(255),
 			causer_id %s,
 			details TEXT DEFAULT '{}',
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"ticket_activities", p+"tickets", userCol),
 
 		// 8. Email Channels
@@ -187,8 +194,8 @@ func migrationStatements(p string) []string {
 			smtp_username VARCHAR(255),
 			smtp_password VARCHAR(255),
 			is_active BOOLEAN NOT NULL DEFAULT TRUE,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"email_channels", p+"departments"),
 
 		// 9. Custom Fields
@@ -204,8 +211,8 @@ func migrationStatements(p string) []string {
 			entity_type VARCHAR(50) NOT NULL DEFAULT 'ticket',
 			position INTEGER NOT NULL DEFAULT 0,
 			is_active BOOLEAN NOT NULL DEFAULT TRUE,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"custom_fields"),
 
 		// 10. Custom Field Values
@@ -215,8 +222,8 @@ func migrationStatements(p string) []string {
 			entity_type VARCHAR(50) NOT NULL DEFAULT 'ticket',
 			entity_id BIGINT NOT NULL,
 			value TEXT,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"custom_field_values", p+"custom_fields"),
 
 		// 11. Custom Objects
@@ -227,8 +234,8 @@ func migrationStatements(p string) []string {
 			description TEXT,
 			field_definitions TEXT DEFAULT '{}',
 			is_active BOOLEAN NOT NULL DEFAULT TRUE,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"custom_objects"),
 
 		// 12. Custom Object Records
@@ -239,8 +246,8 @@ func migrationStatements(p string) []string {
 			data TEXT DEFAULT '{}',
 			linked_entity_type VARCHAR(50),
 			linked_entity_id BIGINT,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"custom_object_records", p+"custom_objects"),
 
 		// 13. Audit Logs
@@ -255,7 +262,7 @@ func migrationStatements(p string) []string {
 			new_values TEXT,
 			ip_address VARCHAR(45),
 			user_agent VARCHAR(255),
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"audit_logs", userCol),
 
 		// 14. Business Schedules
@@ -266,8 +273,8 @@ func migrationStatements(p string) []string {
 			hours TEXT NOT NULL DEFAULT '{}',
 			is_default BOOLEAN NOT NULL DEFAULT FALSE,
 			is_active BOOLEAN NOT NULL DEFAULT TRUE,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"business_schedules"),
 
 		// 15. Holidays
@@ -277,7 +284,7 @@ func migrationStatements(p string) []string {
 			name VARCHAR(255) NOT NULL,
 			date DATE NOT NULL,
 			is_recurring BOOLEAN NOT NULL DEFAULT FALSE,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"holidays", p+"business_schedules"),
 
 		// 16. Two Factors
@@ -288,9 +295,9 @@ func migrationStatements(p string) []string {
 			secret VARCHAR(255),
 			recovery_codes TEXT,
 			is_enabled BOOLEAN NOT NULL DEFAULT FALSE,
-			verified_at TIMESTAMP,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			verified_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"two_factors", userCol),
 
 		// 17. Workflows
@@ -304,8 +311,8 @@ func migrationStatements(p string) []string {
 			position INTEGER NOT NULL DEFAULT 0,
 			is_active BOOLEAN NOT NULL DEFAULT TRUE,
 			stop_on_match BOOLEAN NOT NULL DEFAULT FALSE,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"workflows"),
 
 		// 18. Workflow Logs
@@ -317,7 +324,7 @@ func migrationStatements(p string) []string {
 			status VARCHAR(32) NOT NULL,
 			actions_executed TEXT DEFAULT '[]',
 			error_message TEXT,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"workflow_logs"),
 
 		// 19. Delayed Actions
@@ -326,9 +333,9 @@ func migrationStatements(p string) []string {
 			workflow_id BIGINT NOT NULL,
 			ticket_id BIGINT NOT NULL,
 			action_data TEXT NOT NULL DEFAULT '{}',
-			execute_at TIMESTAMP NOT NULL,
+			execute_at TIMESTAMPTZ NOT NULL,
 			executed BOOLEAN NOT NULL DEFAULT FALSE,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"delayed_actions"),
 
 		// 20. Attachments
@@ -340,7 +347,7 @@ func migrationStatements(p string) []string {
 			mime_type VARCHAR(255) NOT NULL,
 			size BIGINT NOT NULL DEFAULT 0,
 			storage_path TEXT NOT NULL,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"attachments", p+"tickets", p+"replies"),
 
 		// 21. Contacts (Pattern B — first-class identity for guest
@@ -352,9 +359,9 @@ func migrationStatements(p string) []string {
 			name VARCHAR(255),
 			user_id %s,
 			metadata TEXT NOT NULL DEFAULT '{}',
-			marketing_opt_out_at TIMESTAMP,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			marketing_opt_out_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"contacts", userCol),
 
 		// NOTE: contact_id is already included in the tickets
@@ -379,8 +386,8 @@ func migrationStatements(p string) []string {
 			id BIGSERIAL PRIMARY KEY,
 			key VARCHAR(255) NOT NULL,
 			value TEXT,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"settings"),
 
 		// 23–26. Skills (admin-managed routing + agent proficiency). See
@@ -390,8 +397,8 @@ func migrationStatements(p string) []string {
 			name VARCHAR(100) NOT NULL,
 			slug VARCHAR(100) NOT NULL,
 			description TEXT,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"skills"),
 
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
@@ -413,8 +420,8 @@ func migrationStatements(p string) []string {
 			user_id %s NOT NULL,
 			skill_id BIGINT NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
 			proficiency SMALLINT NOT NULL DEFAULT 3 CHECK (proficiency >= 1 AND proficiency <= 5),
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE (user_id, skill_id)
 		)`, p+"agent_skills", userCol, p+"skills"),
 
@@ -426,8 +433,8 @@ func migrationStatements(p string) []string {
 			kind VARCHAR(50) NOT NULL,
 			filter_json TEXT,
 			created_by %s,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"newsletter_lists", userCol),
 
 		// 29. Newsletter list members
@@ -435,7 +442,7 @@ func migrationStatements(p string) []string {
 			id BIGSERIAL PRIMARY KEY,
 			list_id BIGINT NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
 			contact_id BIGINT NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
-			added_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			added_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			added_by %s,
 			UNIQUE (list_id, contact_id)
 		)`, p+"newsletter_list_members", p+"newsletter_lists", p+"contacts", userCol),
@@ -449,8 +456,8 @@ func migrationStatements(p string) []string {
 			body_markdown TEXT NOT NULL,
 			merge_fields_schema TEXT,
 			created_by %s,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"newsletter_templates", userCol),
 
 		// 31. Newsletters
@@ -465,8 +472,8 @@ func migrationStatements(p string) []string {
 			theme VARCHAR(100),
 			body_markdown TEXT,
 			status VARCHAR(50) NOT NULL DEFAULT 'draft',
-			scheduled_at TIMESTAMP,
-			sent_at TIMESTAMP,
+			scheduled_at TIMESTAMPTZ,
+			sent_at TIMESTAMPTZ,
 			created_by %s,
 			sent_by %s,
 			summary_total INTEGER NOT NULL DEFAULT 0,
@@ -475,8 +482,8 @@ func migrationStatements(p string) []string {
 			summary_clicked INTEGER NOT NULL DEFAULT 0,
 			summary_bounced INTEGER NOT NULL DEFAULT 0,
 			summary_complained INTEGER NOT NULL DEFAULT 0,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"newsletters", p+"newsletter_lists", p+"newsletter_templates", userCol, userCol),
 
 		// 32. Newsletter deliveries
@@ -487,17 +494,17 @@ func migrationStatements(p string) []string {
 			email_at_send VARCHAR(320) NOT NULL,
 			status VARCHAR(50) NOT NULL DEFAULT 'pending',
 			tracking_token VARCHAR(64) NOT NULL UNIQUE,
-			sent_at TIMESTAMP,
-			opened_at TIMESTAMP,
-			last_clicked_at TIMESTAMP,
+			sent_at TIMESTAMPTZ,
+			opened_at TIMESTAMPTZ,
+			last_clicked_at TIMESTAMPTZ,
 			clicks_count INTEGER NOT NULL DEFAULT 0,
 			bounce_reason TEXT,
 			failure_reason TEXT,
 			attempt_count INTEGER NOT NULL DEFAULT 0,
-			claimed_at TIMESTAMP,
-			next_attempt_at TIMESTAMP,
+			claimed_at TIMESTAMPTZ,
+			next_attempt_at TIMESTAMPTZ,
 			is_test BOOLEAN NOT NULL DEFAULT FALSE,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"newsletter_deliveries", p+"newsletters", p+"contacts"),
 	}
 
@@ -605,8 +612,8 @@ func engineAddonStatements(p string) []string {
 			actions TEXT NOT NULL DEFAULT '[]',
 			sort_order INTEGER NOT NULL DEFAULT 0,
 			is_active INTEGER NOT NULL DEFAULT 1,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"escalation_rules"),
 
 		// Satisfaction ratings (CSAT) — one per ticket.
@@ -617,7 +624,7 @@ func engineAddonStatements(p string) []string {
 			comment TEXT,
 			rated_by_type TEXT,
 			rated_by_id TEXT,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"satisfaction_ratings"),
 
 		// Per-agent, per-channel concurrent capacity.
@@ -627,8 +634,8 @@ func engineAddonStatements(p string) []string {
 			channel VARCHAR(64) NOT NULL DEFAULT 'default',
 			max_concurrent INTEGER NOT NULL DEFAULT 10,
 			current_count INTEGER NOT NULL DEFAULT 0,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"agent_capacity"),
 
 		// Typed links between tickets.
@@ -637,8 +644,8 @@ func engineAddonStatements(p string) []string {
 			parent_ticket_id BIGINT NOT NULL,
 			child_ticket_id BIGINT NOT NULL,
 			link_type VARCHAR(32) NOT NULL,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"ticket_links"),
 
 		// Side conversation threads.
@@ -649,8 +656,8 @@ func engineAddonStatements(p string) []string {
 			channel VARCHAR(32) NOT NULL DEFAULT 'internal',
 			status VARCHAR(32) NOT NULL DEFAULT 'open',
 			created_by TEXT,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"side_conversations"),
 
 		// Side conversation replies.
@@ -659,8 +666,8 @@ func engineAddonStatements(p string) []string {
 			side_conversation_id BIGINT NOT NULL,
 			body TEXT NOT NULL,
 			author_id TEXT,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"side_conversation_replies"),
 
 		// Knowledge base — article categories (optionally nested).
@@ -671,8 +678,8 @@ func engineAddonStatements(p string) []string {
 			parent_id BIGINT,
 			position INTEGER NOT NULL DEFAULT 0,
 			description TEXT,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"article_categories"),
 
 		// Knowledge base — articles (draft/published, with counters).
@@ -687,9 +694,9 @@ func engineAddonStatements(p string) []string {
 			view_count INTEGER NOT NULL DEFAULT 0,
 			helpful_count INTEGER NOT NULL DEFAULT 0,
 			not_helpful_count INTEGER NOT NULL DEFAULT 0,
-			published_at TIMESTAMP,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			published_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"articles"),
 
 		// Indexes
@@ -721,9 +728,9 @@ func engineAddonStatements(p string) []string {
 			actions TEXT NOT NULL DEFAULT '[]',
 			active BOOLEAN NOT NULL DEFAULT TRUE,
 			position INTEGER NOT NULL DEFAULT 0,
-			last_run_at TIMESTAMP,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			last_run_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"automations"),
 
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
@@ -733,8 +740,8 @@ func engineAddonStatements(p string) []string {
 			actions TEXT NOT NULL DEFAULT '[]',
 			is_shared BOOLEAN NOT NULL DEFAULT TRUE,
 			created_by %s,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"macros", userCol),
 
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%sauto_active ON %s (active)", p, p+"automations"),
@@ -753,8 +760,8 @@ func engineAddonStatements(p string) []string {
 			category VARCHAR(255),
 			is_shared BOOLEAN NOT NULL DEFAULT TRUE,
 			created_by %s,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"canned_responses", userCol),
 
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%scr_shared ON %s (is_shared)", p, p+"canned_responses"),
@@ -773,8 +780,8 @@ func engineAddonStatements(p string) []string {
 			events TEXT NOT NULL DEFAULT '[]',
 			secret VARCHAR(255),
 			active BOOLEAN NOT NULL DEFAULT TRUE,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"webhooks"),
 
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
@@ -785,9 +792,9 @@ func engineAddonStatements(p string) []string {
 			response_code INTEGER,
 			response_body TEXT,
 			attempts INTEGER NOT NULL DEFAULT 0,
-			delivered_at TIMESTAMP,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			delivered_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"webhook_deliveries"),
 
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%swh_active ON %s (active)", p, p+"webhooks"),
@@ -820,6 +827,11 @@ func sqliteMigrationStatements(p string) []string {
 	stmts := migrationStatements(p)
 	var result []string
 	for _, s := range stmts {
+		// SQLite has no TIMESTAMPTZ, and its type affinity does not recognise
+		// the name -- the column becomes TEXT and a scan into time.Time fails.
+		// It has no time zones to get wrong either, so plain TIMESTAMP is both
+		// the only option and the right one.
+		s = strings.ReplaceAll(s, "TIMESTAMPTZ", "TIMESTAMP")
 		s = strings.ReplaceAll(s, "BIGSERIAL", "INTEGER")
 		s = strings.ReplaceAll(s, "BIGINT", "INTEGER")
 		s = strings.ReplaceAll(s, "SMALLINT", "INTEGER")

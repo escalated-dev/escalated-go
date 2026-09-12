@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/internal/testdb"
 
 	_ "modernc.org/sqlite"
@@ -28,8 +29,7 @@ func newWebhookTestDB(t *testing.T) *sql.DB {
 func insertWebhook(t *testing.T, db *sql.DB, url string, events []string, secret *string, active bool) int64 {
 	t.Helper()
 	ev, _ := json.Marshal(events)
-	res, err := db.Exec(
-		`INSERT INTO escalated_webhooks (url, events, secret, active, created_at, updated_at)
+	res, err := sqldialect.ExecInsert(db, `INSERT INTO escalated_webhooks (url, events, secret, active, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?)`,
 		url, ev, secret, active, time.Now(), time.Now(),
 	)
@@ -122,7 +122,7 @@ func TestWebhookDispatcherFiltersAndSigns(t *testing.T) {
 	// One successful delivery row must be recorded for the subscribed webhook.
 	var count, code int
 	if err := db.QueryRow(
-		`SELECT COUNT(*), COALESCE(MAX(response_code), 0) FROM escalated_webhook_deliveries WHERE webhook_id = ?`,
+		sqldialect.Rebind(db, `SELECT COUNT(*), COALESCE(MAX(response_code), 0) FROM escalated_webhook_deliveries WHERE webhook_id = ?`),
 		subID,
 	).Scan(&count, &code); err != nil {
 		t.Fatalf("count deliveries: %v", err)
@@ -191,7 +191,7 @@ func TestWebhookDispatcherRetriesAndSkipsInactive(t *testing.T) {
 
 	var count int
 	if err := db.QueryRow(
-		`SELECT COUNT(*) FROM escalated_webhook_deliveries WHERE webhook_id = ?`, failID,
+		sqldialect.Rebind(db, `SELECT COUNT(*) FROM escalated_webhook_deliveries WHERE webhook_id = ?`), failID,
 	).Scan(&count); err != nil {
 		t.Fatalf("count deliveries: %v", err)
 	}

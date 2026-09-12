@@ -1,7 +1,6 @@
 package models
 
 import (
-	"encoding/json"
 	"time"
 )
 
@@ -18,7 +17,7 @@ type Macro struct {
 	Name        string  `json:"name"`
 	Description *string `json:"description,omitempty"`
 	// Actions: list of {type, value} clauses, all executed in order.
-	Actions json.RawMessage `json:"actions"`
+	Actions JSONText `json:"actions"`
 	// If true, all agents see and can apply this macro.
 	// If false, only the creator (CreatedBy) sees it.
 	IsShared bool `json:"is_shared"`

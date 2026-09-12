@@ -1,6 +1,10 @@
 package models
 
-import "database/sql"
+import (
+	"database/sql"
+
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
+)
 
 // TicketFollower is a join row: a host user following a ticket. Followers are a
 // notification target alongside the assignee and requester. Recorded via the
@@ -34,7 +38,7 @@ func FollowerRecipients(userIDs []UserID, excludeUserID UserID) []UserID {
 // AddFollower idempotently records a user as following a ticket.
 func AddFollower(db *sql.DB, ticketID int64, userID UserID) error {
 	_, err := db.Exec(
-		`INSERT OR IGNORE INTO escalated_ticket_followers (ticket_id, user_id) VALUES (?, ?)`,
+		sqldialect.Rebind(db, `INSERT OR IGNORE INTO escalated_ticket_followers (ticket_id, user_id) VALUES (?, ?)`),
 		ticketID, userID,
 	)
 	return err
@@ -44,7 +48,7 @@ func AddFollower(db *sql.DB, ticketID int64, userID UserID) error {
 // actor and de-duplicated.
 func FollowerUserIDs(db *sql.DB, ticketID int64, excludeUserID UserID) ([]UserID, error) {
 	rows, err := db.Query(
-		`SELECT user_id FROM escalated_ticket_followers WHERE ticket_id = ?`,
+		sqldialect.Rebind(db, `SELECT user_id FROM escalated_ticket_followers WHERE ticket_id = ?`),
 		ticketID,
 	)
 	if err != nil {

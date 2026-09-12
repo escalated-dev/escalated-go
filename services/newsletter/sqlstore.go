@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
 )
 
@@ -177,7 +178,7 @@ next_attempt_at, is_test, created_at`
 
 func (s *SQLStore) GetSetting(ctx context.Context, key string) (string, error) {
 	var value sql.NullString
-	err := s.db.QueryRowContext(ctx, fmt.Sprintf(`SELECT value FROM %s WHERE key = %s`, s.t("settings"), s.p(1)), key).Scan(&value)
+	err := s.db.QueryRowContext(ctx, sqldialect.Rebind(s.db, fmt.Sprintf(`SELECT value FROM %s WHERE key = %s`, s.t("settings"), s.p(1))), key).Scan(&value)
 	if err == sql.ErrNoRows {
 		return "", nil
 	}
@@ -193,7 +194,7 @@ func (s *SQLStore) SetSetting(ctx context.Context, key, value string) error {
 	if s.dialect == "postgres" || s.dialect == "postgresql" {
 		q = strings.ReplaceAll(q, "excluded.", "EXCLUDED.")
 	}
-	_, err := s.db.ExecContext(ctx, q, key, value)
+	_, err := s.db.ExecContext(ctx, sqldialect.Rebind(s.db, q), key, value)
 	return err
 }
 
@@ -204,7 +205,7 @@ func (s *SQLStore) ListNewsletters(ctx context.Context, statuses []string, limit
 	}
 	q := fmt.Sprintf(`SELECT %s FROM %s WHERE status IN (%s) ORDER BY created_at DESC LIMIT %d`,
 		newsletterCols, s.t("newsletters"), s.placeholders(1, len(statuses)), limit)
-	rows, err := s.db.QueryContext(ctx, q, args...)
+	rows, err := s.db.QueryContext(ctx, sqldialect.Rebind(s.db, q), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +223,7 @@ func (s *SQLStore) ListNewsletters(ctx context.Context, statuses []string, limit
 
 func (s *SQLStore) GetNewsletter(ctx context.Context, id int64) (*models.Newsletter, error) {
 	q := fmt.Sprintf(`SELECT %s FROM %s WHERE id = %s`, newsletterCols, s.t("newsletters"), s.p(1))
-	return scanNewsletter(s.db.QueryRowContext(ctx, q, id))
+	return scanNewsletter(s.db.QueryRowContext(ctx, sqldialect.Rebind(s.db, q), id))
 }
 
 func (s *SQLStore) CreateNewsletter(ctx context.Context, n *models.Newsletter) error {
@@ -232,9 +233,9 @@ func (s *SQLStore) CreateNewsletter(ctx context.Context, n *models.Newsletter) e
 		s.t("newsletters"), s.p(1), s.p(2), s.p(3), s.p(4), s.p(5), s.p(6), s.p(7), s.p(8), s.p(9), s.p(10), s.p(11), s.p(12))
 	args := []any{n.Subject, n.FromEmail, n.FromName, n.ReplyTo, n.TargetListID, n.TemplateID, n.Theme, n.BodyMarkdown, n.Status, n.ScheduledAt, n.CreatedBy, n.SentBy}
 	if s.dialect == "postgres" || s.dialect == "postgresql" {
-		return s.db.QueryRowContext(ctx, q+" RETURNING id", args...).Scan(&n.ID)
+		return s.db.QueryRowContext(ctx, sqldialect.Rebind(s.db, q+" RETURNING id"), args...).Scan(&n.ID)
 	}
-	res, err := s.db.ExecContext(ctx, q, args...)
+	res, err := sqldialect.ExecInsertContext(ctx, s.db, q, args...)
 	if err != nil {
 		return err
 	}
@@ -246,19 +247,19 @@ func (s *SQLStore) UpdateNewsletter(ctx context.Context, n *models.Newsletter) e
 	q := fmt.Sprintf(`UPDATE %s SET subject=%s, from_email=%s, from_name=%s, reply_to=%s, target_list_id=%s, template_id=%s,
 		theme=%s, body_markdown=%s, status=%s, scheduled_at=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s`,
 		s.t("newsletters"), s.p(1), s.p(2), s.p(3), s.p(4), s.p(5), s.p(6), s.p(7), s.p(8), s.p(9), s.p(10), s.p(11))
-	_, err := s.db.ExecContext(ctx, q, n.Subject, n.FromEmail, n.FromName, n.ReplyTo, n.TargetListID, n.TemplateID, n.Theme, n.BodyMarkdown, n.Status, n.ScheduledAt, n.ID)
+	_, err := s.db.ExecContext(ctx, sqldialect.Rebind(s.db, q), n.Subject, n.FromEmail, n.FromName, n.ReplyTo, n.TargetListID, n.TemplateID, n.Theme, n.BodyMarkdown, n.Status, n.ScheduledAt, n.ID)
 	return err
 }
 
 func (s *SQLStore) DeleteNewsletter(ctx context.Context, id int64) error {
-	_, err := s.db.ExecContext(ctx, fmt.Sprintf(`DELETE FROM %s WHERE id=%s`, s.t("newsletters"), s.p(1)), id)
+	_, err := s.db.ExecContext(ctx, sqldialect.Rebind(s.db, fmt.Sprintf(`DELETE FROM %s WHERE id=%s`, s.t("newsletters"), s.p(1))), id)
 	return err
 }
 
 func (s *SQLStore) ListScheduledDue(ctx context.Context, now time.Time) ([]*models.Newsletter, error) {
 	q := fmt.Sprintf(`SELECT %s FROM %s WHERE status = %s AND scheduled_at <= %s ORDER BY scheduled_at ASC`,
 		newsletterCols, s.t("newsletters"), s.p(1), s.p(2))
-	rows, err := s.db.QueryContext(ctx, q, models.NewsletterScheduled, now)
+	rows, err := s.db.QueryContext(ctx, sqldialect.Rebind(s.db, q), models.NewsletterScheduled, now)
 	if err != nil {
 		return nil, err
 	}
@@ -275,7 +276,7 @@ func (s *SQLStore) ListScheduledDue(ctx context.Context, now time.Time) ([]*mode
 }
 
 func (s *SQLStore) ListLists(ctx context.Context) ([]*models.NewsletterList, error) {
-	rows, err := s.db.QueryContext(ctx, fmt.Sprintf(`SELECT %s FROM %s ORDER BY created_at DESC`, listCols, s.t("newsletter_lists")))
+	rows, err := s.db.QueryContext(ctx, sqldialect.Rebind(s.db, fmt.Sprintf(`SELECT %s FROM %s ORDER BY created_at DESC`, listCols, s.t("newsletter_lists"))))
 	if err != nil {
 		return nil, err
 	}
@@ -292,7 +293,7 @@ func (s *SQLStore) ListLists(ctx context.Context) ([]*models.NewsletterList, err
 }
 
 func (s *SQLStore) GetList(ctx context.Context, id int64) (*models.NewsletterList, error) {
-	return scanList(s.db.QueryRowContext(ctx, fmt.Sprintf(`SELECT %s FROM %s WHERE id = %s`, listCols, s.t("newsletter_lists"), s.p(1)), id))
+	return scanList(s.db.QueryRowContext(ctx, sqldialect.Rebind(s.db, fmt.Sprintf(`SELECT %s FROM %s WHERE id = %s`, listCols, s.t("newsletter_lists"), s.p(1))), id))
 }
 
 func (s *SQLStore) CreateList(ctx context.Context, l *models.NewsletterList) error {
@@ -301,9 +302,9 @@ func (s *SQLStore) CreateList(ctx context.Context, l *models.NewsletterList) err
 		VALUES (%s,%s,%s,%s,%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`, s.t("newsletter_lists"), s.p(1), s.p(2), s.p(3), s.p(4), s.p(5))
 	args := []any{l.Name, l.Description, l.Kind, filter, l.CreatedBy}
 	if s.dialect == "postgres" || s.dialect == "postgresql" {
-		return s.db.QueryRowContext(ctx, q+" RETURNING id", args...).Scan(&l.ID)
+		return s.db.QueryRowContext(ctx, sqldialect.Rebind(s.db, q+" RETURNING id"), args...).Scan(&l.ID)
 	}
-	res, err := s.db.ExecContext(ctx, q, args...)
+	res, err := sqldialect.ExecInsertContext(ctx, s.db, q, args...)
 	if err != nil {
 		return err
 	}
@@ -314,32 +315,32 @@ func (s *SQLStore) CreateList(ctx context.Context, l *models.NewsletterList) err
 func (s *SQLStore) UpdateList(ctx context.Context, l *models.NewsletterList) error {
 	q := fmt.Sprintf(`UPDATE %s SET name=%s, description=%s, filter_json=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s`,
 		s.t("newsletter_lists"), s.p(1), s.p(2), s.p(3), s.p(4))
-	_, err := s.db.ExecContext(ctx, q, l.Name, l.Description, jsonString(l.FilterJSON), l.ID)
+	_, err := s.db.ExecContext(ctx, sqldialect.Rebind(s.db, q), l.Name, l.Description, jsonString(l.FilterJSON), l.ID)
 	return err
 }
 
 func (s *SQLStore) DeleteList(ctx context.Context, id int64) error {
-	_, err := s.db.ExecContext(ctx, fmt.Sprintf(`DELETE FROM %s WHERE id=%s`, s.t("newsletter_lists"), s.p(1)), id)
+	_, err := s.db.ExecContext(ctx, sqldialect.Rebind(s.db, fmt.Sprintf(`DELETE FROM %s WHERE id=%s`, s.t("newsletter_lists"), s.p(1))), id)
 	return err
 }
 
 func (s *SQLStore) AddMember(ctx context.Context, listID, contactID int64, addedBy *models.UserID) error {
 	q := fmt.Sprintf(`INSERT INTO %s (list_id, contact_id, added_by, added_at) VALUES (%s,%s,%s,CURRENT_TIMESTAMP) ON CONFLICT (list_id, contact_id) DO NOTHING`,
 		s.t("newsletter_list_members"), s.p(1), s.p(2), s.p(3))
-	_, err := s.db.ExecContext(ctx, q, listID, contactID, addedBy)
+	_, err := s.db.ExecContext(ctx, sqldialect.Rebind(s.db, q), listID, contactID, addedBy)
 	return err
 }
 
 func (s *SQLStore) RemoveMember(ctx context.Context, listID, contactID int64) error {
 	q := fmt.Sprintf(`DELETE FROM %s WHERE list_id=%s AND contact_id=%s`, s.t("newsletter_list_members"), s.p(1), s.p(2))
-	_, err := s.db.ExecContext(ctx, q, listID, contactID)
+	_, err := s.db.ExecContext(ctx, sqldialect.Rebind(s.db, q), listID, contactID)
 	return err
 }
 
 func (s *SQLStore) ListMembers(ctx context.Context, listID int64, limit int) ([]*models.NewsletterListMember, error) {
 	q := fmt.Sprintf(`SELECT id, list_id, contact_id, added_at, added_by FROM %s WHERE list_id=%s ORDER BY id DESC LIMIT %d`,
 		s.t("newsletter_list_members"), s.p(1), limit)
-	rows, err := s.db.QueryContext(ctx, q, listID)
+	rows, err := s.db.QueryContext(ctx, sqldialect.Rebind(s.db, q), listID)
 	if err != nil {
 		return nil, err
 	}
@@ -358,7 +359,7 @@ func (s *SQLStore) ListMembers(ctx context.Context, listID int64, limit int) ([]
 }
 
 func (s *SQLStore) ListMemberIDs(ctx context.Context, listID int64) ([]int64, error) {
-	rows, err := s.db.QueryContext(ctx, fmt.Sprintf(`SELECT contact_id FROM %s WHERE list_id=%s ORDER BY contact_id`, s.t("newsletter_list_members"), s.p(1)), listID)
+	rows, err := s.db.QueryContext(ctx, sqldialect.Rebind(s.db, fmt.Sprintf(`SELECT contact_id FROM %s WHERE list_id=%s ORDER BY contact_id`, s.t("newsletter_list_members"), s.p(1))), listID)
 	if err != nil {
 		return nil, err
 	}
@@ -376,7 +377,7 @@ func (s *SQLStore) ListMemberIDs(ctx context.Context, listID int64) ([]int64, er
 
 func (s *SQLStore) CountListMembers(ctx context.Context, listID int64) (int, error) {
 	var n int
-	err := s.db.QueryRowContext(ctx, fmt.Sprintf(`SELECT COUNT(*) FROM %s WHERE list_id=%s`, s.t("newsletter_list_members"), s.p(1)), listID).Scan(&n)
+	err := s.db.QueryRowContext(ctx, sqldialect.Rebind(s.db, fmt.Sprintf(`SELECT COUNT(*) FROM %s WHERE list_id=%s`, s.t("newsletter_list_members"), s.p(1))), listID).Scan(&n)
 	return n, err
 }
 
@@ -384,22 +385,22 @@ func (s *SQLStore) CountListOptedOut(ctx context.Context, listID int64) (int, er
 	q := fmt.Sprintf(`SELECT COUNT(*) FROM %s m JOIN %s c ON c.id = m.contact_id WHERE m.list_id=%s AND c.marketing_opt_out_at IS NOT NULL`,
 		s.t("newsletter_list_members"), s.t("contacts"), s.p(1))
 	var n int
-	err := s.db.QueryRowContext(ctx, q, listID).Scan(&n)
+	err := s.db.QueryRowContext(ctx, sqldialect.Rebind(s.db, q), listID).Scan(&n)
 	return n, err
 }
 
 func (s *SQLStore) ContactExists(ctx context.Context, id int64) (bool, error) {
 	var n int
-	err := s.db.QueryRowContext(ctx, fmt.Sprintf(`SELECT COUNT(*) FROM %s WHERE id=%s`, s.t("contacts"), s.p(1)), id).Scan(&n)
+	err := s.db.QueryRowContext(ctx, sqldialect.Rebind(s.db, fmt.Sprintf(`SELECT COUNT(*) FROM %s WHERE id=%s`, s.t("contacts"), s.p(1))), id).Scan(&n)
 	return n > 0, err
 }
 
 func (s *SQLStore) GetContact(ctx context.Context, id int64) (*models.Contact, error) {
-	return scanContact(s.db.QueryRowContext(ctx, fmt.Sprintf(`SELECT %s FROM %s WHERE id=%s`, contactCols, s.t("contacts"), s.p(1)), id))
+	return scanContact(s.db.QueryRowContext(ctx, sqldialect.Rebind(s.db, fmt.Sprintf(`SELECT %s FROM %s WHERE id=%s`, contactCols, s.t("contacts"), s.p(1))), id))
 }
 
 func (s *SQLStore) GetContactByEmail(ctx context.Context, email string) (*models.Contact, error) {
-	return scanContact(s.db.QueryRowContext(ctx, fmt.Sprintf(`SELECT %s FROM %s WHERE email=%s`, contactCols, s.t("contacts"), s.p(1)), email))
+	return scanContact(s.db.QueryRowContext(ctx, sqldialect.Rebind(s.db, fmt.Sprintf(`SELECT %s FROM %s WHERE email=%s`, contactCols, s.t("contacts"), s.p(1))), email))
 }
 
 func (s *SQLStore) CreateContact(ctx context.Context, c *models.Contact) error {
@@ -407,9 +408,9 @@ func (s *SQLStore) CreateContact(ctx context.Context, c *models.Contact) error {
 		VALUES (%s,%s,%s,%s,%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`, s.t("contacts"), s.p(1), s.p(2), s.p(3), s.p(4), s.p(5))
 	args := []any{c.Email, c.Name, c.UserID, jsonString(c.Metadata), c.MarketingOptOutAt}
 	if s.dialect == "postgres" || s.dialect == "postgresql" {
-		return s.db.QueryRowContext(ctx, q+" RETURNING id", args...).Scan(&c.ID)
+		return s.db.QueryRowContext(ctx, sqldialect.Rebind(s.db, q+" RETURNING id"), args...).Scan(&c.ID)
 	}
-	res, err := s.db.ExecContext(ctx, q, args...)
+	res, err := sqldialect.ExecInsertContext(ctx, s.db, q, args...)
 	if err != nil {
 		return err
 	}
@@ -419,7 +420,7 @@ func (s *SQLStore) CreateContact(ctx context.Context, c *models.Contact) error {
 
 func (s *SQLStore) UpdateContactOptOut(ctx context.Context, id int64, when time.Time) error {
 	q := fmt.Sprintf(`UPDATE %s SET marketing_opt_out_at=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s`, s.t("contacts"), s.p(1), s.p(2))
-	_, err := s.db.ExecContext(ctx, q, when, id)
+	_, err := s.db.ExecContext(ctx, sqldialect.Rebind(s.db, q), when, id)
 	return err
 }
 
@@ -432,7 +433,7 @@ func (s *SQLStore) ContactsByIDs(ctx context.Context, ids []int64) ([]*models.Co
 		args[i] = id
 	}
 	q := fmt.Sprintf(`SELECT %s FROM %s WHERE id IN (%s) ORDER BY id`, contactCols, s.t("contacts"), s.placeholders(1, len(ids)))
-	rows, err := s.db.QueryContext(ctx, q, args...)
+	rows, err := s.db.QueryContext(ctx, sqldialect.Rebind(s.db, q), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -449,7 +450,7 @@ func (s *SQLStore) ContactsByIDs(ctx context.Context, ids []int64) ([]*models.Co
 }
 
 func (s *SQLStore) ListTemplates(ctx context.Context) ([]*models.NewsletterTemplate, error) {
-	rows, err := s.db.QueryContext(ctx, fmt.Sprintf(`SELECT %s FROM %s ORDER BY created_at DESC`, templateCols, s.t("newsletter_templates")))
+	rows, err := s.db.QueryContext(ctx, sqldialect.Rebind(s.db, fmt.Sprintf(`SELECT %s FROM %s ORDER BY created_at DESC`, templateCols, s.t("newsletter_templates"))))
 	if err != nil {
 		return nil, err
 	}
@@ -466,7 +467,7 @@ func (s *SQLStore) ListTemplates(ctx context.Context) ([]*models.NewsletterTempl
 }
 
 func (s *SQLStore) GetTemplate(ctx context.Context, id int64) (*models.NewsletterTemplate, error) {
-	return scanTemplate(s.db.QueryRowContext(ctx, fmt.Sprintf(`SELECT %s FROM %s WHERE id=%s`, templateCols, s.t("newsletter_templates"), s.p(1)), id))
+	return scanTemplate(s.db.QueryRowContext(ctx, sqldialect.Rebind(s.db, fmt.Sprintf(`SELECT %s FROM %s WHERE id=%s`, templateCols, s.t("newsletter_templates"), s.p(1))), id))
 }
 
 func (s *SQLStore) CreateTemplate(ctx context.Context, t *models.NewsletterTemplate) error {
@@ -474,9 +475,9 @@ func (s *SQLStore) CreateTemplate(ctx context.Context, t *models.NewsletterTempl
 		VALUES (%s,%s,%s,%s,%s,%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`, s.t("newsletter_templates"), s.p(1), s.p(2), s.p(3), s.p(4), s.p(5), s.p(6))
 	args := []any{t.Name, t.Theme, t.SubjectTemplate, t.BodyMarkdown, jsonString(t.MergeFieldsSchema), t.CreatedBy}
 	if s.dialect == "postgres" || s.dialect == "postgresql" {
-		return s.db.QueryRowContext(ctx, q+" RETURNING id", args...).Scan(&t.ID)
+		return s.db.QueryRowContext(ctx, sqldialect.Rebind(s.db, q+" RETURNING id"), args...).Scan(&t.ID)
 	}
-	res, err := s.db.ExecContext(ctx, q, args...)
+	res, err := sqldialect.ExecInsertContext(ctx, s.db, q, args...)
 	if err != nil {
 		return err
 	}
@@ -487,12 +488,12 @@ func (s *SQLStore) CreateTemplate(ctx context.Context, t *models.NewsletterTempl
 func (s *SQLStore) UpdateTemplate(ctx context.Context, t *models.NewsletterTemplate) error {
 	q := fmt.Sprintf(`UPDATE %s SET name=%s, theme=%s, subject_template=%s, body_markdown=%s, merge_fields_schema=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s`,
 		s.t("newsletter_templates"), s.p(1), s.p(2), s.p(3), s.p(4), s.p(5), s.p(6))
-	_, err := s.db.ExecContext(ctx, q, t.Name, t.Theme, t.SubjectTemplate, t.BodyMarkdown, jsonString(t.MergeFieldsSchema), t.ID)
+	_, err := s.db.ExecContext(ctx, sqldialect.Rebind(s.db, q), t.Name, t.Theme, t.SubjectTemplate, t.BodyMarkdown, jsonString(t.MergeFieldsSchema), t.ID)
 	return err
 }
 
 func (s *SQLStore) DeleteTemplate(ctx context.Context, id int64) error {
-	_, err := s.db.ExecContext(ctx, fmt.Sprintf(`DELETE FROM %s WHERE id=%s`, s.t("newsletter_templates"), s.p(1)), id)
+	_, err := s.db.ExecContext(ctx, sqldialect.Rebind(s.db, fmt.Sprintf(`DELETE FROM %s WHERE id=%s`, s.t("newsletter_templates"), s.p(1))), id)
 	return err
 }
 
@@ -501,9 +502,9 @@ func (s *SQLStore) InsertDelivery(ctx context.Context, d *models.NewsletterDeliv
 		VALUES (%s,%s,%s,%s,%s,%s,%s,CURRENT_TIMESTAMP)`, s.t("newsletter_deliveries"), s.p(1), s.p(2), s.p(3), s.p(4), s.p(5), s.p(6), s.p(7))
 	args := []any{d.NewsletterID, d.ContactID, d.EmailAtSend, d.Status, d.TrackingToken, d.AttemptCount, d.IsTest}
 	if s.dialect == "postgres" || s.dialect == "postgresql" {
-		return s.db.QueryRowContext(ctx, q+" RETURNING id", args...).Scan(&d.ID)
+		return s.db.QueryRowContext(ctx, sqldialect.Rebind(s.db, q+" RETURNING id"), args...).Scan(&d.ID)
 	}
-	res, err := s.db.ExecContext(ctx, q, args...)
+	res, err := sqldialect.ExecInsertContext(ctx, s.db, q, args...)
 	if err != nil {
 		return err
 	}
@@ -512,11 +513,11 @@ func (s *SQLStore) InsertDelivery(ctx context.Context, d *models.NewsletterDeliv
 }
 
 func (s *SQLStore) GetDelivery(ctx context.Context, id int64) (*models.NewsletterDelivery, error) {
-	return scanDelivery(s.db.QueryRowContext(ctx, fmt.Sprintf(`SELECT %s FROM %s WHERE id=%s`, deliveryCols, s.t("newsletter_deliveries"), s.p(1)), id))
+	return scanDelivery(s.db.QueryRowContext(ctx, sqldialect.Rebind(s.db, fmt.Sprintf(`SELECT %s FROM %s WHERE id=%s`, deliveryCols, s.t("newsletter_deliveries"), s.p(1))), id))
 }
 
 func (s *SQLStore) GetDeliveryByToken(ctx context.Context, token string) (*models.NewsletterDelivery, error) {
-	return scanDelivery(s.db.QueryRowContext(ctx, fmt.Sprintf(`SELECT %s FROM %s WHERE tracking_token=%s`, deliveryCols, s.t("newsletter_deliveries"), s.p(1)), token))
+	return scanDelivery(s.db.QueryRowContext(ctx, sqldialect.Rebind(s.db, fmt.Sprintf(`SELECT %s FROM %s WHERE tracking_token=%s`, deliveryCols, s.t("newsletter_deliveries"), s.p(1))), token))
 }
 
 func (s *SQLStore) ListDeliveries(ctx context.Context, newsletterID int64, status string, includeTest bool, limit int) ([]*models.NewsletterDelivery, error) {
@@ -535,7 +536,7 @@ func (s *SQLStore) ListDeliveries(ctx context.Context, newsletterID int64, statu
 		}
 	}
 	q := fmt.Sprintf(`SELECT %s FROM %s WHERE %s ORDER BY id DESC LIMIT %d`, deliveryCols, s.t("newsletter_deliveries"), where, limit)
-	rows, err := s.db.QueryContext(ctx, q, args...)
+	rows, err := s.db.QueryContext(ctx, sqldialect.Rebind(s.db, q), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -555,7 +556,7 @@ func (s *SQLStore) UpdateDelivery(ctx context.Context, d *models.NewsletterDeliv
 	q := fmt.Sprintf(`UPDATE %s SET status=%s, sent_at=%s, opened_at=%s, last_clicked_at=%s, clicks_count=%s,
 		bounce_reason=%s, failure_reason=%s, attempt_count=%s, claimed_at=%s, next_attempt_at=%s WHERE id=%s`,
 		s.t("newsletter_deliveries"), s.p(1), s.p(2), s.p(3), s.p(4), s.p(5), s.p(6), s.p(7), s.p(8), s.p(9), s.p(10), s.p(11))
-	_, err := s.db.ExecContext(ctx, q, d.Status, d.SentAt, d.OpenedAt, d.LastClickedAt, d.ClicksCount,
+	_, err := s.db.ExecContext(ctx, sqldialect.Rebind(s.db, q), d.Status, d.SentAt, d.OpenedAt, d.LastClickedAt, d.ClicksCount,
 		d.BounceReason, d.FailureReason, d.AttemptCount, d.ClaimedAt, d.NextAttemptAt, d.ID)
 	return err
 }
@@ -570,18 +571,18 @@ func (s *SQLStore) IncrementNewsletter(ctx context.Context, id int64, col string
 	}
 	q := fmt.Sprintf(`UPDATE %s SET %s = %s + %s, updated_at=CURRENT_TIMESTAMP WHERE id=%s`,
 		s.t("newsletters"), col, col, s.p(1), s.p(2))
-	_, err := s.db.ExecContext(ctx, q, by, id)
+	_, err := s.db.ExecContext(ctx, sqldialect.Rebind(s.db, q), by, id)
 	return err
 }
 
 func (s *SQLStore) SetNewsletterStatus(ctx context.Context, id int64, status models.NewsletterStatus, sentAt *time.Time) error {
 	q := fmt.Sprintf(`UPDATE %s SET status=%s, sent_at=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s`, s.t("newsletters"), s.p(1), s.p(2), s.p(3))
-	_, err := s.db.ExecContext(ctx, q, status, sentAt, id)
+	_, err := s.db.ExecContext(ctx, sqldialect.Rebind(s.db, q), status, sentAt, id)
 	return err
 }
 
 func (s *SQLStore) SetNewsletterSummaryTotal(ctx context.Context, id int64, total int) error {
 	q := fmt.Sprintf(`UPDATE %s SET summary_total=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s`, s.t("newsletters"), s.p(1), s.p(2))
-	_, err := s.db.ExecContext(ctx, q, total, id)
+	_, err := s.db.ExecContext(ctx, sqldialect.Rebind(s.db, q), total, id)
 	return err
 }

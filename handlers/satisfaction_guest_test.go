@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/internal/testdb"
 
 	_ "modernc.org/sqlite"
@@ -48,7 +49,7 @@ func TestGuestRateFlow(t *testing.T) {
 	}
 
 	// Resolve it, then a guest can rate once.
-	if _, err := db.Exec(`UPDATE escalated_tickets SET status = ? WHERE id = ?`, models.StatusResolved, tkt.ID); err != nil {
+	if _, err := db.Exec(sqldialect.Rebind(db, `UPDATE escalated_tickets SET status = ? WHERE id = ?`), models.StatusResolved, tkt.ID); err != nil {
 		t.Fatal(err)
 	}
 	if code := rate(token, `{"rating":5}`); code != http.StatusCreated {

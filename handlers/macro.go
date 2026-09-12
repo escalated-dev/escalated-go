@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/services"
 )
@@ -40,9 +41,9 @@ func NewMacroHandler(db *sql.DB, svc *services.MacroService) *MacroHandler {
 func (h *MacroHandler) AdminList(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.DB.QueryContext(
 		r.Context(),
-		`SELECT id, name, description, actions, is_shared, created_by, created_at, updated_at
+		sqldialect.Rebind(h.DB, `SELECT id, name, description, actions, is_shared, created_by, created_at, updated_at
 		   FROM escalated_macros
-		  ORDER BY name ASC`,
+		  ORDER BY name ASC`),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -97,7 +98,7 @@ func (h *MacroHandler) Create(w http.ResponseWriter, r *http.Request) {
 	m := &models.Macro{
 		Name:        in.Name,
 		Description: in.Description,
-		Actions:     macroDefaultJSONArray(in.Actions),
+		Actions:     macroDefaultJSONArray(models.JSONText(in.Actions)),
 		IsShared:    isShared,
 		CreatedBy:   creatorPtr,
 	}
@@ -238,7 +239,7 @@ type ctxKeyUserID struct{}
 // (Same-name redeclaration would conflict if both branches landed at
 // once. To prevent that, this version is renamed to a macro-prefixed
 // variant.)
-func macroDefaultJSONArray(raw json.RawMessage) []byte {
+func macroDefaultJSONArray(raw models.JSONText) []byte {
 	if len(raw) == 0 {
 		return []byte("[]")
 	}

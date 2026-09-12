@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
 )
 
@@ -111,7 +112,7 @@ func (s *ArticleService) ListArticles(f ArticleFilters) ([]models.Article, error
 	}
 	q += " ORDER BY created_at DESC, id DESC"
 
-	rows, err := s.DB.Query(q, args...)
+	rows, err := s.DB.Query(sqldialect.Rebind(s.DB, q), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +132,7 @@ func (s *ArticleService) ListArticles(f ArticleFilters) ([]models.Article, error
 // FindArticleByID returns the article with the given id or sql.ErrNoRows.
 func (s *ArticleService) FindArticleByID(id int64) (*models.Article, error) {
 	a, err := scanAdminArticle(s.DB.QueryRow(
-		`SELECT `+adminArticleColumns+` FROM escalated_articles WHERE id = ?`, id))
+		sqldialect.Rebind(s.DB, `SELECT `+adminArticleColumns+` FROM escalated_articles WHERE id = ?`), id))
 	if err != nil {
 		return nil, err
 	}
@@ -151,8 +152,7 @@ func (s *ArticleService) CreateArticle(a *models.Article) error {
 	if a.Status == models.ArticleStatusPublished && a.PublishedAt == nil {
 		a.PublishedAt = &now
 	}
-	res, err := s.DB.Exec(
-		`INSERT INTO escalated_articles
+	res, err := sqldialect.ExecInsert(s.DB, `INSERT INTO escalated_articles
 			(category_id, title, slug, body, status, author_id, published_at, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		a.CategoryID, a.Title, a.Slug, a.Body, a.Status, a.AuthorID, a.PublishedAt, now, now,
@@ -182,10 +182,10 @@ func (s *ArticleService) UpdateArticle(a *models.Article) error {
 		a.PublishedAt = &now
 	}
 	_, err := s.DB.Exec(
-		`UPDATE escalated_articles
+		sqldialect.Rebind(s.DB, `UPDATE escalated_articles
 			SET category_id = ?, title = ?, slug = ?, body = ?, status = ?,
 				published_at = ?, updated_at = ?
-		 WHERE id = ?`,
+		 WHERE id = ?`),
 		a.CategoryID, a.Title, a.Slug, a.Body, a.Status, a.PublishedAt, now, a.ID,
 	)
 	if err != nil {
@@ -197,7 +197,7 @@ func (s *ArticleService) UpdateArticle(a *models.Article) error {
 
 // DeleteArticle removes the article with the given id.
 func (s *ArticleService) DeleteArticle(id int64) error {
-	_, err := s.DB.Exec(`DELETE FROM escalated_articles WHERE id = ?`, id)
+	_, err := s.DB.Exec(sqldialect.Rebind(s.DB, `DELETE FROM escalated_articles WHERE id = ?`), id)
 	return err
 }
 
@@ -206,7 +206,7 @@ func (s *ArticleService) DeleteArticle(id int64) error {
 func (s *ArticleService) CategoryExists(id int64) (bool, error) {
 	var one int
 	err := s.DB.QueryRow(
-		`SELECT 1 FROM escalated_article_categories WHERE id = ?`, id).Scan(&one)
+		sqldialect.Rebind(s.DB, `SELECT 1 FROM escalated_article_categories WHERE id = ?`), id).Scan(&one)
 	if err == sql.ErrNoRows {
 		return false, nil
 	}
@@ -248,10 +248,10 @@ const categoryColumns = `id, name, slug, parent_id, position, description, creat
 // with its article count (mirrors withCount('articles')).
 func (s *ArticleService) ListCategories() ([]ArticleCategoryWithCount, error) {
 	rows, err := s.DB.Query(
-		`SELECT ` + categoryColumns + `,
+		sqldialect.Rebind(s.DB, `SELECT `+categoryColumns+`,
 			(SELECT COUNT(*) FROM escalated_articles a WHERE a.category_id = c.id) AS articles_count
 		 FROM escalated_article_categories c
-		 ORDER BY position ASC, name ASC`)
+		 ORDER BY position ASC, name ASC`))
 	if err != nil {
 		return nil, err
 	}
@@ -272,7 +272,7 @@ func (s *ArticleService) ListCategories() ([]ArticleCategoryWithCount, error) {
 // FindCategoryByID returns the category with the given id or sql.ErrNoRows.
 func (s *ArticleService) FindCategoryByID(id int64) (*models.ArticleCategory, error) {
 	c, err := scanCategory(s.DB.QueryRow(
-		`SELECT `+categoryColumns+` FROM escalated_article_categories WHERE id = ?`, id))
+		sqldialect.Rebind(s.DB, `SELECT `+categoryColumns+` FROM escalated_article_categories WHERE id = ?`), id))
 	if err != nil {
 		return nil, err
 	}
@@ -285,8 +285,7 @@ func (s *ArticleService) CreateCategory(c *models.ArticleCategory) error {
 		c.Slug = slugify(c.Name)
 	}
 	now := time.Now()
-	res, err := s.DB.Exec(
-		`INSERT INTO escalated_article_categories
+	res, err := sqldialect.ExecInsert(s.DB, `INSERT INTO escalated_article_categories
 			(name, slug, parent_id, position, description, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		c.Name, c.Slug, c.ParentID, c.Position, c.Description, now, now,
@@ -311,9 +310,9 @@ func (s *ArticleService) UpdateCategory(c *models.ArticleCategory) error {
 	}
 	now := time.Now()
 	_, err := s.DB.Exec(
-		`UPDATE escalated_article_categories
+		sqldialect.Rebind(s.DB, `UPDATE escalated_article_categories
 			SET name = ?, slug = ?, parent_id = ?, position = ?, description = ?, updated_at = ?
-		 WHERE id = ?`,
+		 WHERE id = ?`),
 		c.Name, c.Slug, c.ParentID, c.Position, c.Description, now, c.ID,
 	)
 	if err != nil {
@@ -325,7 +324,7 @@ func (s *ArticleService) UpdateCategory(c *models.ArticleCategory) error {
 
 // DeleteCategory removes the category with the given id.
 func (s *ArticleService) DeleteCategory(id int64) error {
-	_, err := s.DB.Exec(`DELETE FROM escalated_article_categories WHERE id = ?`, id)
+	_, err := s.DB.Exec(sqldialect.Rebind(s.DB, `DELETE FROM escalated_article_categories WHERE id = ?`), id)
 	return err
 }
 

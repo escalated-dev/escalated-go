@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/renderer"
 )
@@ -54,12 +55,12 @@ func (h *SkillsHandler) t(name string) string {
 func (h *SkillsHandler) ListSkills(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.DB.QueryContext(
 		r.Context(),
-		fmt.Sprintf(`SELECT s.id, s.name, s.updated_at,
+		sqldialect.Rebind(h.DB, fmt.Sprintf(`SELECT s.id, s.name, s.updated_at,
 			(SELECT COUNT(*) FROM %s a WHERE a.skill_id = s.id),
 			(SELECT COUNT(*) FROM %s rt WHERE rt.skill_id = s.id),
 			(SELECT COUNT(*) FROM %s rd WHERE rd.skill_id = s.id)
 			FROM %s s ORDER BY s.name ASC`,
-			h.t("agent_skills"), h.t("skill_routing_tags"), h.t("skill_routing_departments"), h.t("skills")),
+			h.t("agent_skills"), h.t("skill_routing_tags"), h.t("skill_routing_departments"), h.t("skills"))),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -166,9 +167,7 @@ func (h *SkillsHandler) StoreSkill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := tx.ExecContext(
-		r.Context(),
-		fmt.Sprintf(`INSERT INTO %s (name, slug, description, created_at, updated_at) VALUES (?, ?, NULL, ?, ?)`, h.t("skills")),
+	res, err := sqldialect.ExecInsertOn(r.Context(), h.DB, tx, fmt.Sprintf(`INSERT INTO %s (name, slug, description, created_at, updated_at) VALUES (?, ?, NULL, ?, ?)`, h.t("skills")),
 		name, slug, now, now,
 	)
 	if err != nil {
@@ -221,7 +220,7 @@ func (h *SkillsHandler) UpdateSkill(w http.ResponseWriter, r *http.Request) {
 	defer func() { _ = tx.Rollback() }()
 
 	var curSlug string
-	row := tx.QueryRowContext(r.Context(), fmt.Sprintf(`SELECT slug FROM %s WHERE id = ?`, h.t("skills")), id)
+	row := tx.QueryRowContext(r.Context(), sqldialect.Rebind(h.DB, fmt.Sprintf(`SELECT slug FROM %s WHERE id = ?`, h.t("skills"))), id)
 	if err := row.Scan(&curSlug); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			http.Error(w, "not found", http.StatusNotFound)
@@ -244,7 +243,7 @@ func (h *SkillsHandler) UpdateSkill(w http.ResponseWriter, r *http.Request) {
 
 	if _, err := tx.ExecContext(
 		r.Context(),
-		fmt.Sprintf(`UPDATE %s SET name = ?, slug = ?, updated_at = ? WHERE id = ?`, h.t("skills")),
+		sqldialect.Rebind(h.DB, fmt.Sprintf(`UPDATE %s SET name = ?, slug = ?, updated_at = ? WHERE id = ?`, h.t("skills"))),
 		name, slug, now, id,
 	); err != nil {
 		if isUniqueViolation(err) {
@@ -273,7 +272,7 @@ func (h *SkillsHandler) DestroySkill(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	res, err := h.DB.ExecContext(r.Context(), fmt.Sprintf(`DELETE FROM %s WHERE id = ?`, h.t("skills")), id)
+	res, err := h.DB.ExecContext(r.Context(), sqldialect.Rebind(h.DB, fmt.Sprintf(`DELETE FROM %s WHERE id = ?`, h.t("skills"))), id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -346,9 +345,9 @@ func (h *SkillsHandler) validateWrite(ctx context.Context, in skillWriteBody, ex
 func (h *SkillsHandler) nameTaken(ctx context.Context, name string, excludeID int64) (bool, error) {
 	var row *sql.Row
 	if excludeID == 0 {
-		row = h.DB.QueryRowContext(ctx, fmt.Sprintf(`SELECT id FROM %s WHERE name = ? LIMIT 1`, h.t("skills")), name)
+		row = h.DB.QueryRowContext(ctx, sqldialect.Rebind(h.DB, fmt.Sprintf(`SELECT id FROM %s WHERE name = ? LIMIT 1`, h.t("skills"))), name)
 	} else {
-		row = h.DB.QueryRowContext(ctx, fmt.Sprintf(`SELECT id FROM %s WHERE name = ? AND id <> ? LIMIT 1`, h.t("skills")), name, excludeID)
+		row = h.DB.QueryRowContext(ctx, sqldialect.Rebind(h.DB, fmt.Sprintf(`SELECT id FROM %s WHERE name = ? AND id <> ? LIMIT 1`, h.t("skills"))), name, excludeID)
 	}
 	var id int64
 	switch err := row.Scan(&id); err {
@@ -372,7 +371,7 @@ func (h *SkillsHandler) idsExist(ctx context.Context, table string, ids []int64)
 	}
 	q := fmt.Sprintf(`SELECT COUNT(*) FROM %s WHERE id IN (%s)`, table, ph)
 	var cnt int
-	if err := h.DB.QueryRowContext(ctx, q, args...).Scan(&cnt); err != nil {
+	if err := h.DB.QueryRowContext(ctx, sqldialect.Rebind(h.DB, q), args...).Scan(&cnt); err != nil {
 		return err
 	}
 	if cnt != len(ids) {
@@ -393,9 +392,9 @@ func (h *SkillsHandler) allocateSlug(tx *sql.Tx, ctx context.Context, baseName s
 		}
 		var row *sql.Row
 		if excludeID == 0 {
-			row = tx.QueryRowContext(ctx, fmt.Sprintf(`SELECT id FROM %s WHERE slug = ? LIMIT 1`, h.t("skills")), candidate)
+			row = tx.QueryRowContext(ctx, sqldialect.Rebind(h.DB, fmt.Sprintf(`SELECT id FROM %s WHERE slug = ? LIMIT 1`, h.t("skills"))), candidate)
 		} else {
-			row = tx.QueryRowContext(ctx, fmt.Sprintf(`SELECT id FROM %s WHERE slug = ? AND id <> ? LIMIT 1`, h.t("skills")), candidate, excludeID)
+			row = tx.QueryRowContext(ctx, sqldialect.Rebind(h.DB, fmt.Sprintf(`SELECT id FROM %s WHERE slug = ? AND id <> ? LIMIT 1`, h.t("skills"))), candidate, excludeID)
 		}
 		var id int64
 		switch err := row.Scan(&id); err {
@@ -411,25 +410,25 @@ func (h *SkillsHandler) allocateSlug(tx *sql.Tx, ctx context.Context, baseName s
 }
 
 func (h *SkillsHandler) syncRelationsTx(tx *sql.Tx, ctx context.Context, skillID int64, in skillWriteBody) error {
-	if _, err := tx.ExecContext(ctx, fmt.Sprintf(`DELETE FROM %s WHERE skill_id = ?`, h.t("skill_routing_tags")), skillID); err != nil {
+	if _, err := tx.ExecContext(ctx, sqldialect.Rebind(h.DB, fmt.Sprintf(`DELETE FROM %s WHERE skill_id = ?`, h.t("skill_routing_tags"))), skillID); err != nil {
 		return err
 	}
 	for _, tid := range in.RoutingTagIDs {
-		if _, err := tx.ExecContext(ctx, fmt.Sprintf(`INSERT INTO %s (skill_id, tag_id) VALUES (?, ?)`, h.t("skill_routing_tags")), skillID, tid); err != nil {
+		if _, err := tx.ExecContext(ctx, sqldialect.Rebind(h.DB, fmt.Sprintf(`INSERT INTO %s (skill_id, tag_id) VALUES (?, ?)`, h.t("skill_routing_tags"))), skillID, tid); err != nil {
 			return err
 		}
 	}
 
-	if _, err := tx.ExecContext(ctx, fmt.Sprintf(`DELETE FROM %s WHERE skill_id = ?`, h.t("skill_routing_departments")), skillID); err != nil {
+	if _, err := tx.ExecContext(ctx, sqldialect.Rebind(h.DB, fmt.Sprintf(`DELETE FROM %s WHERE skill_id = ?`, h.t("skill_routing_departments"))), skillID); err != nil {
 		return err
 	}
 	for _, did := range in.RoutingDepartmentIDs {
-		if _, err := tx.ExecContext(ctx, fmt.Sprintf(`INSERT INTO %s (skill_id, department_id) VALUES (?, ?)`, h.t("skill_routing_departments")), skillID, did); err != nil {
+		if _, err := tx.ExecContext(ctx, sqldialect.Rebind(h.DB, fmt.Sprintf(`INSERT INTO %s (skill_id, department_id) VALUES (?, ?)`, h.t("skill_routing_departments"))), skillID, did); err != nil {
 			return err
 		}
 	}
 
-	if _, err := tx.ExecContext(ctx, fmt.Sprintf(`DELETE FROM %s WHERE skill_id = ?`, h.t("agent_skills")), skillID); err != nil {
+	if _, err := tx.ExecContext(ctx, sqldialect.Rebind(h.DB, fmt.Sprintf(`DELETE FROM %s WHERE skill_id = ?`, h.t("agent_skills"))), skillID); err != nil {
 		return err
 	}
 	now := time.Now()
@@ -440,7 +439,7 @@ func (h *SkillsHandler) syncRelationsTx(tx *sql.Tx, ctx context.Context, skillID
 		}
 		if _, err := tx.ExecContext(
 			ctx,
-			fmt.Sprintf(`INSERT INTO %s (user_id, skill_id, proficiency, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`, h.t("agent_skills")),
+			sqldialect.Rebind(h.DB, fmt.Sprintf(`INSERT INTO %s (user_id, skill_id, proficiency, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`, h.t("agent_skills"))),
 			a.UserID, skillID, prof, now, now,
 		); err != nil {
 			return err
@@ -451,7 +450,7 @@ func (h *SkillsHandler) syncRelationsTx(tx *sql.Tx, ctx context.Context, skillID
 
 func (h *SkillsHandler) loadFormLists(ctx context.Context) ([]models.SkillFormOption, []models.SkillFormOption, []SkillFormAgent, error) {
 	var tags []models.SkillFormOption
-	rows, err := h.DB.QueryContext(ctx, fmt.Sprintf(`SELECT id, name FROM %s ORDER BY name ASC`, h.t("tags")))
+	rows, err := h.DB.QueryContext(ctx, sqldialect.Rebind(h.DB, fmt.Sprintf(`SELECT id, name FROM %s ORDER BY name ASC`, h.t("tags"))))
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -468,7 +467,7 @@ func (h *SkillsHandler) loadFormLists(ctx context.Context) ([]models.SkillFormOp
 	}
 
 	var depts []models.SkillFormOption
-	rows2, err := h.DB.QueryContext(ctx, fmt.Sprintf(`SELECT id, name FROM %s ORDER BY name ASC`, h.t("departments")))
+	rows2, err := h.DB.QueryContext(ctx, sqldialect.Rebind(h.DB, fmt.Sprintf(`SELECT id, name FROM %s ORDER BY name ASC`, h.t("departments"))))
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -496,7 +495,7 @@ func (h *SkillsHandler) loadFormLists(ctx context.Context) ([]models.SkillFormOp
 
 func (h *SkillsHandler) loadSkillFormPayload(ctx context.Context, id int64) (*models.SkillFormPayload, error) {
 	var name string
-	err := h.DB.QueryRowContext(ctx, fmt.Sprintf(`SELECT name FROM %s WHERE id = ?`, h.t("skills")), id).Scan(&name)
+	err := h.DB.QueryRowContext(ctx, sqldialect.Rebind(h.DB, fmt.Sprintf(`SELECT name FROM %s WHERE id = ?`, h.t("skills"))), id).Scan(&name)
 	if err != nil {
 		return nil, err
 	}
@@ -508,7 +507,7 @@ func (h *SkillsHandler) loadSkillFormPayload(ctx context.Context, id int64) (*mo
 		Agents:               nil,
 	}
 
-	rtRows, err := h.DB.QueryContext(ctx, fmt.Sprintf(`SELECT tag_id FROM %s WHERE skill_id = ? ORDER BY tag_id`, h.t("skill_routing_tags")), id)
+	rtRows, err := h.DB.QueryContext(ctx, sqldialect.Rebind(h.DB, fmt.Sprintf(`SELECT tag_id FROM %s WHERE skill_id = ? ORDER BY tag_id`, h.t("skill_routing_tags"))), id)
 	if err != nil {
 		return nil, err
 	}
@@ -524,7 +523,7 @@ func (h *SkillsHandler) loadSkillFormPayload(ctx context.Context, id int64) (*mo
 		return nil, err
 	}
 
-	rdRows, err := h.DB.QueryContext(ctx, fmt.Sprintf(`SELECT department_id FROM %s WHERE skill_id = ? ORDER BY department_id`, h.t("skill_routing_departments")), id)
+	rdRows, err := h.DB.QueryContext(ctx, sqldialect.Rebind(h.DB, fmt.Sprintf(`SELECT department_id FROM %s WHERE skill_id = ? ORDER BY department_id`, h.t("skill_routing_departments"))), id)
 	if err != nil {
 		return nil, err
 	}
@@ -540,7 +539,7 @@ func (h *SkillsHandler) loadSkillFormPayload(ctx context.Context, id int64) (*mo
 		return nil, err
 	}
 
-	rows3, err := h.DB.QueryContext(ctx, fmt.Sprintf(`SELECT user_id, proficiency FROM %s WHERE skill_id = ? ORDER BY user_id`, h.t("agent_skills")), id)
+	rows3, err := h.DB.QueryContext(ctx, sqldialect.Rebind(h.DB, fmt.Sprintf(`SELECT user_id, proficiency FROM %s WHERE skill_id = ? ORDER BY user_id`, h.t("agent_skills"))), id)
 	if err != nil {
 		return nil, err
 	}

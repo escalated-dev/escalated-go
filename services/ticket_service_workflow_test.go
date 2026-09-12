@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/internal/testdb"
 )
 
@@ -33,7 +34,7 @@ func TestTicketServiceCreateFiresWorkflow(t *testing.T) {
 	var logCount int
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		_ = db.QueryRow(`SELECT COUNT(*) FROM escalated_workflow_logs WHERE ticket_id = ?`, ticket.ID).Scan(&logCount)
+		_ = db.QueryRow(sqldialect.Rebind(db, `SELECT COUNT(*) FROM escalated_workflow_logs WHERE ticket_id = ?`), ticket.ID).Scan(&logCount)
 		if logCount == 1 {
 			break
 		}
@@ -44,7 +45,7 @@ func TestTicketServiceCreateFiresWorkflow(t *testing.T) {
 	}
 
 	var status string
-	if err := db.QueryRow(`SELECT status FROM escalated_workflow_logs WHERE ticket_id = ?`, ticket.ID).Scan(&status); err != nil {
+	if err := db.QueryRow(sqldialect.Rebind(db, `SELECT status FROM escalated_workflow_logs WHERE ticket_id = ?`), ticket.ID).Scan(&status); err != nil {
 		t.Fatalf("read log status: %v", err)
 	}
 	if status != "success" {
@@ -54,7 +55,7 @@ func TestTicketServiceCreateFiresWorkflow(t *testing.T) {
 	// The action ran: an internal note with the interpolated reference.
 	var note string
 	if err := db.QueryRow(
-		`SELECT body FROM escalated_replies WHERE ticket_id = ? AND is_internal = TRUE`, ticket.ID,
+		sqldialect.Rebind(db, `SELECT body FROM escalated_replies WHERE ticket_id = ? AND is_internal = TRUE`), ticket.ID,
 	).Scan(&note); err != nil {
 		t.Fatalf("read workflow note: %v", err)
 	}

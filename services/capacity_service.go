@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
 )
 
@@ -38,7 +39,7 @@ func (s *CapacityService) IncrementLoad(userID models.UserID, channel string) er
 		return err
 	}
 	_, err = s.DB.Exec(
-		`UPDATE escalated_agent_capacity SET current_count = current_count + 1, updated_at = ? WHERE id = ?`,
+		sqldialect.Rebind(s.DB, `UPDATE escalated_agent_capacity SET current_count = current_count + 1, updated_at = ? WHERE id = ?`),
 		time.Now(), c.ID,
 	)
 	return err
@@ -54,7 +55,7 @@ func (s *CapacityService) DecrementLoad(userID models.UserID, channel string) er
 		return nil
 	}
 	_, err = s.DB.Exec(
-		`UPDATE escalated_agent_capacity SET current_count = current_count - 1, updated_at = ? WHERE id = ?`,
+		sqldialect.Rebind(s.DB, `UPDATE escalated_agent_capacity SET current_count = current_count - 1, updated_at = ? WHERE id = ?`),
 		time.Now(), c.ID,
 	)
 	return err
@@ -63,7 +64,7 @@ func (s *CapacityService) DecrementLoad(userID models.UserID, channel string) er
 // UpdateMaxConcurrent sets the ceiling for a capacity row.
 func (s *CapacityService) UpdateMaxConcurrent(id int64, maxConcurrent int) error {
 	_, err := s.DB.Exec(
-		`UPDATE escalated_agent_capacity SET max_concurrent = ?, updated_at = ? WHERE id = ?`,
+		sqldialect.Rebind(s.DB, `UPDATE escalated_agent_capacity SET max_concurrent = ?, updated_at = ? WHERE id = ?`),
 		maxConcurrent, time.Now(), id,
 	)
 	return err
@@ -72,9 +73,9 @@ func (s *CapacityService) UpdateMaxConcurrent(id int64, maxConcurrent int) error
 // AllCapacities returns every capacity row, ordered by agent then channel.
 func (s *CapacityService) AllCapacities() ([]models.AgentCapacity, error) {
 	rows, err := s.DB.Query(
-		`SELECT id, user_id, channel, max_concurrent, current_count, created_at, updated_at
+		sqldialect.Rebind(s.DB, `SELECT id, user_id, channel, max_concurrent, current_count, created_at, updated_at
 		   FROM escalated_agent_capacity
-		  ORDER BY user_id ASC, channel ASC`,
+		  ORDER BY user_id ASC, channel ASC`),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("capacity: list: %w", err)
@@ -98,8 +99,8 @@ func (s *CapacityService) firstOrCreate(userID models.UserID, channel string) (m
 	}
 
 	row := s.DB.QueryRow(
-		`SELECT id, user_id, channel, max_concurrent, current_count, created_at, updated_at
-		   FROM escalated_agent_capacity WHERE user_id = ? AND channel = ?`,
+		sqldialect.Rebind(s.DB, `SELECT id, user_id, channel, max_concurrent, current_count, created_at, updated_at
+		   FROM escalated_agent_capacity WHERE user_id = ? AND channel = ?`),
 		string(userID), channel,
 	)
 	c, err := scanCapacity(row)
@@ -111,8 +112,7 @@ func (s *CapacityService) firstOrCreate(userID models.UserID, channel string) (m
 	}
 
 	now := time.Now()
-	res, err := s.DB.Exec(
-		`INSERT INTO escalated_agent_capacity (user_id, channel, max_concurrent, current_count, created_at, updated_at)
+	res, err := sqldialect.ExecInsert(s.DB, `INSERT INTO escalated_agent_capacity (user_id, channel, max_concurrent, current_count, created_at, updated_at)
 		 VALUES (?, ?, 10, 0, ?, ?)`,
 		string(userID), channel, now, now,
 	)
