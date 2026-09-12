@@ -80,8 +80,9 @@ type Config struct {
 	// Defaults to "escalated_".
 	TablePrefix string
 
-	// DatabaseDialect is set by New/NewSQLite and can be overridden by advanced
-	// hosts. Supported values: "postgres", "sqlite".
+	// DatabaseDialect names the SQL dialect Escalated writes. Leave it empty and
+	// New detects it from the database DB is connected to; set it to skip
+	// detection. Supported values: "postgres", "sqlite".
 	DatabaseDialect string
 
 	// AdminCheck returns true if the current request is from an admin user.
@@ -140,10 +141,12 @@ type Config struct {
 // DefaultConfig returns a Config with sensible defaults.
 func DefaultConfig() Config {
 	return Config{
-		RoutePrefix:     "/escalated",
-		UIEnabled:       true,
-		TablePrefix:     "escalated_",
-		DatabaseDialect: "postgres",
+		RoutePrefix: "/escalated",
+		UIEnabled:   true,
+		TablePrefix: "escalated_",
+		// Left empty on purpose: New detects it from Config.DB. A default of
+		// "postgres" here is what let a SQLite host reach the PostgreSQL store
+		// with no error at startup.
 		Newsletters: NewsletterConfig{
 			DefaultTheme:        "default",
 			TrackingEnabled:     true,

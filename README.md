@@ -143,6 +143,8 @@ func main() {
     cfg.DB = db
     cfg.UIEnabled = false
 
+    // NewSQLite says it explicitly; escalated.New would detect the same thing
+    // from the connection.
     esc, err := escalated.NewSQLite(cfg)
     if err != nil {
         log.Fatal(err)
@@ -172,6 +174,40 @@ func main() {
 | `SkillAgentDirectory` | `handlers.SkillAgentDirectory` | nil | Lists agents for the Skills form. When nil, `available_agents` is empty |
 | `TicketSubjectResolver` | `func(type, id string) (models.TicketSubject, bool)` | nil | Loads host models for subject presentation |
 | `TicketSubjectTypes` | `[]string` | nil | Allowlist of `subject_type` values for API attach; empty disables API attach |
+
+### Which database you are on
+
+`escalated.New` works out whether `Config.DB` is connected to PostgreSQL or
+SQLite and picks the matching store. You do not tell it, and you cannot tell it
+wrong:
+
+```go
+db, _ := sql.Open("sqlite", "escalated.db")   // or "postgres", "pgx", ...
+
+cfg := escalated.DefaultConfig()
+cfg.DB = db
+
+esc, err := escalated.New(cfg)                // SQLite store, no flag needed
+```
+
+Detection reads the driver's import path first — `github.com/lib/pq`,
+`github.com/jackc/pgx/...`, `modernc.org/sqlite`, `github.com/mattn/go-sqlite3`
+and the rest are recognised without touching the database. A driver it does not
+recognise, such as a tracing or proxy wrapper, is asked directly with one
+statement.
+
+A database Escalated has no store for — MySQL, say — is named in the error
+rather than guessed at, because a wrong guess does not fail at startup. It fails
+on the first query whose SQL happens to differ.
+
+To skip detection, set the dialect yourself:
+
+```go
+cfg.DatabaseDialect = escalated.DialectPostgres
+```
+
+`escalated.DetectDialect(db)` is exported if you want the answer for your own
+code — an installer choosing which migrations to run, for instance.
 
 ### Separate databases
 
