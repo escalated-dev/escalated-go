@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Configurable database connection, documented and guarded.** `Config.DB` has
+  always been a `*sql.DB` the host opens and hands over, so Escalated's tables go
+  wherever that connection points — including a database the host application
+  otherwise never touches. That was never written down, and nothing stopped it
+  from quietly rotting.
+
+  The README now covers it, and a test fails the build if any statement in the
+  package references a table the host owns. On a separate database such a query
+  does not error; it returns no rows, which reads as users who do not exist.
+
+  Host user data continues to arrive through the `UserDirectory` and
+  `SkillAgentDirectory` interfaces, which run on the host's own connection.
+  `escalated_tickets.requester_id` is a plain unconstrained column with no
+  foreign key, so no query joins the two — no database can join across two
+  connections.
 - Admin users-management page (`GET/PATCH /admin/users`) backed by a host-supplied `handlers.UserDirectory` hook on `Config.UserDirectory`, mirroring escalated-laravel#94 (admin/agent role toggles, self-demote guard, name+email search)
 - Central translation loader at `internal/i18n` consuming `github.com/escalated-dev/escalated-locale/packages/go`, with deep-merge override support at `internal/i18n/overrides/{locale}.json` and a `T(key, locale, params)` helper
 - Attachment model, store, handler, and download endpoint (#20)

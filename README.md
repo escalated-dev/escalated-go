@@ -167,9 +167,52 @@ func main() {
 | `AdminCheck` | `func(*http.Request) bool` | `false` | Returns true for admin users |
 | `AgentCheck` | `func(*http.Request) bool` | `false` | Returns true for agent users |
 | `UserIDFunc` | `func(*http.Request) models.UserID` | `""` | Extracts current user's ID from request |
-| `DB` | `*sql.DB` | required | Database connection |
+| `DB` | `*sql.DB` | required | The connection Escalated's own tables live on — see [Separate databases](#separate-databases) |
+| `UserDirectory` | `handlers.UserDirectory` | nil | Your bridge to your own users table, for the admin users page. When nil that page lists nothing and the role endpoint responds 501 |
+| `SkillAgentDirectory` | `handlers.SkillAgentDirectory` | nil | Lists agents for the Skills form. When nil, `available_agents` is empty |
 | `TicketSubjectResolver` | `func(type, id string) (models.TicketSubject, bool)` | nil | Loads host models for subject presentation |
 | `TicketSubjectTypes` | `[]string` | nil | Allowlist of `subject_type` values for API attach; empty disables API attach |
+
+### Separate databases
+
+`Config.DB` is a `*sql.DB` you open and hand over, so Escalated's tables go
+wherever that connection points. Nothing requires it to be your application's
+database — it can be a schema shared with a legacy system, a separate reporting
+store, or simply a database you would rather not mix support data into:
+
+```go
+support, err := sql.Open("postgres", os.Getenv("SUPPORT_DATABASE_URL"))
+if err != nil {
+    log.Fatal(err)
+}
+
+cfg := escalated.DefaultConfig()
+cfg.DB = support             // Escalated's tables
+cfg.UserDirectory = myUsers  // your users, on your own connection
+```
+
+Run Escalated's migrations against that same connection. Your application's own
+migrations stay where they are.
+
+#### Your users are never on `Config.DB`
+
+This package issues no SQL against a table it does not own. It never queries a
+`users` table, and a test fails the build if any statement in the package
+references one.
+
+Host user data arrives through two interfaces you implement — `UserDirectory`
+(the admin users page: list, fetch, flip role flags) and `SkillAgentDirectory`
+(the agent dropdown on the Skills form). Both run on **your** connection, with
+your query, against your schema. Escalated only ever holds ids.
+
+That is also why there is no foreign key from `escalated_tickets.requester_id`
+to your users table: it is a plain unconstrained column, so the two databases
+need never meet. No query joins across them, because no database can join across
+two connections.
+
+The trade is that Escalated cannot filter or sort its tables by a user's own
+columns. Skill routing, agent load and assignment all work because they resolve
+ids from Escalated's tables first and then ask your directory for the people.
 
 ### Ticket subjects
 
