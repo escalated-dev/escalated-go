@@ -62,16 +62,44 @@ func (b newsletterMailerBridge) SendNewsletter(ctx context.Context, msg newslett
 }
 
 // New creates a new Escalated instance from the given config.
-// It initialises the default PostgreSQL store and the appropriate renderer
-// based on Config.UIEnabled.
+//
+// The store is chosen from the database Config.DB is actually connected to, so
+// a host that opened a SQLite connection gets the SQLite store without having
+// to know that NewSQLite exists. Set Config.DatabaseDialect to skip detection
+// and say which one you want.
+//
+// This used to assume PostgreSQL unconditionally. Handing it a SQLite
+// connection was not an error anyone saw at startup: the wrong SQL reached the
+// database on the first query that happened to differ.
 func New(cfg Config) (*Escalated, error) {
 	if cfg.DB == nil {
 		return nil, fmt.Errorf("escalated: Config.DB is required")
 	}
 
 	applyDefaults(&cfg)
-	cfg.DatabaseDialect = "postgres"
-	s := store.NewPostgresStore(cfg.DB, cfg.TablePrefix)
+
+	if cfg.DatabaseDialect == "" {
+		dialect, err := DetectDialect(cfg.DB)
+		if err != nil {
+			return nil, err
+		}
+
+		cfg.DatabaseDialect = dialect
+	}
+
+	var s store.Store
+
+	switch cfg.DatabaseDialect {
+	case DialectSQLite:
+		s = store.NewSQLiteStore(cfg.DB, cfg.TablePrefix)
+	case DialectPostgres:
+		s = store.NewPostgresStore(cfg.DB, cfg.TablePrefix)
+	default:
+		return nil, fmt.Errorf(
+			"escalated: unsupported Config.DatabaseDialect %q; use %q or %q",
+			cfg.DatabaseDialect, DialectPostgres, DialectSQLite,
+		)
+	}
 
 	var rend renderer.Renderer
 	if cfg.UIEnabled {
@@ -87,14 +115,16 @@ func New(cfg Config) (*Escalated, error) {
 	}, nil
 }
 
-// NewSQLite is like New but uses the SQLite store implementation.
+// NewSQLite is New with the SQLite store chosen explicitly, skipping detection.
+// New picks the same store on its own for a SQLite connection; this stays for
+// hosts that would rather be explicit, and for a driver detection cannot name.
 func NewSQLite(cfg Config) (*Escalated, error) {
 	if cfg.DB == nil {
 		return nil, fmt.Errorf("escalated: Config.DB is required")
 	}
 
 	applyDefaults(&cfg)
-	cfg.DatabaseDialect = "sqlite"
+	cfg.DatabaseDialect = DialectSQLite
 	s := store.NewSQLiteStore(cfg.DB, cfg.TablePrefix)
 
 	var rend renderer.Renderer
@@ -159,9 +189,6 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.TablePrefix == "" {
 		cfg.TablePrefix = "escalated_"
-	}
-	if cfg.DatabaseDialect == "" {
-		cfg.DatabaseDialect = "postgres"
 	}
 	if cfg.Newsletters.DefaultTheme == "" {
 		cfg.Newsletters.DefaultTheme = "default"

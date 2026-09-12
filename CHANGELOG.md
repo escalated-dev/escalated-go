@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`escalated.New` detects the database it was given.** It picks the PostgreSQL
+  or SQLite store from the connection in `Config.DB`, so a host that opened a
+  SQLite connection no longer has to know `NewSQLite` exists. `DetectDialect` is
+  exported for hosts that want the answer for their own code.
+
+  Detection reads the driver's import path first — lib/pq, pgx, modernc.org/sqlite,
+  mattn/go-sqlite3 and the rest are recognised without touching the database — and
+  falls back to a single statement for a driver it does not recognise, which is
+  what a tracing or proxy wrapper looks like.
+
+### Fixed
+- **`New` assumed PostgreSQL.** Handing it a SQLite connection was not an error
+  anyone saw at startup; the wrong SQL reached the database on the first query
+  that happened to differ. `Config.DatabaseDialect` now defaults to empty rather
+  than `"postgres"`, and a dialect Escalated has no store for is named in an
+  error instead of being silently treated as PostgreSQL.
 - **Configurable database connection, documented and guarded.** `Config.DB` has
   always been a `*sql.DB` the host opens and hands over, so Escalated's tables go
   wherever that connection points — including a database the host application
