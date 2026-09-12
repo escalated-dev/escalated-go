@@ -106,6 +106,12 @@ func migrationStatements(p string) []string {
 		)`, p+"tickets", userCol, userCol, p+"departments", p+"sla_policies"),
 
 		// 5. Replies
+		//
+		// The arguments used to be (replies, userCol, tickets), which put the
+		// user-key type where the tickets table belongs and the tickets table
+		// where the user-key type belongs -- `REFERENCES BIGINT(id)` and
+		// `author_id escalated_tickets`. PostgreSQL refuses that outright.
+		// Nothing had ever run these migrations, so nothing had ever said so.
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			id BIGSERIAL PRIMARY KEY,
 			ticket_id BIGINT NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
@@ -117,7 +123,7 @@ func migrationStatements(p string) []string {
 			is_pinned BOOLEAN NOT NULL DEFAULT FALSE,
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-		)`, p+"replies", userCol, p+"tickets"),
+		)`, p+"replies", p+"tickets", userCol),
 
 		// 6. Ticket tags join table
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
@@ -149,6 +155,10 @@ func migrationStatements(p string) []string {
 		)`, p+"ticket_subjects", p+"tickets"),
 
 		// 7. Ticket activities
+		//
+		// Same swap as replies above: the arguments were (ticket_activities,
+		// userCol, tickets), so the statement asked for `REFERENCES BIGINT(id)`
+		// and `causer_id escalated_tickets`.
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			id BIGSERIAL PRIMARY KEY,
 			ticket_id BIGINT NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
@@ -157,7 +167,7 @@ func migrationStatements(p string) []string {
 			causer_id %s,
 			details TEXT DEFAULT '{}',
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-		)`, p+"ticket_activities", userCol, p+"tickets"),
+		)`, p+"ticket_activities", p+"tickets", userCol),
 
 		// 8. Email Channels
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (

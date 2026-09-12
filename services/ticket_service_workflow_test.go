@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/escalated-dev/escalated-go/store"
+	"github.com/escalated-dev/escalated-go/internal/testdb"
 )
 
 // End-to-end proof of the P0 fix: creating a ticket through the TicketService
@@ -14,7 +14,7 @@ import (
 // webhooks but never touched a workflow, so no log was ever written.
 func TestTicketServiceCreateFiresWorkflow(t *testing.T) {
 	db := newWorkflowTestDB(t)
-	ts := NewTicketService(store.NewSQLiteStore(db, "escalated_"))
+	ts := NewTicketService(testdb.Store(t, db))
 	ts.Workflows = NewWorkflowRunner(db, discardLogger())
 
 	insertWorkflow(t, db, "ticket.created", `{}`,

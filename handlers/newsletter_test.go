@@ -11,7 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/escalated-dev/escalated-go/migrations"
+	"github.com/escalated-dev/escalated-go/internal/testdb"
+
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/renderer"
 	"github.com/escalated-dev/escalated-go/services/newsletter"
@@ -20,18 +21,12 @@ import (
 
 func newsletterHandlerTest(t *testing.T, permission func(*http.Request, string) bool) (*NewsletterHandler, *sql.DB, *newsletter.SQLStore) {
 	t.Helper()
-	db, err := sql.Open("sqlite", ":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := migrations.MigrateSQLite(db, "escalated_"); err != nil {
-		t.Fatal(err)
-	}
+	db := testdb.Open(t)
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "default.html"), []byte(`<!doctype html><body>{{.Body}}</body>`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	store := newsletter.NewSQLStore(db, "escalated_", "sqlite")
+	store := newsletter.NewSQLStore(db, testdb.Prefix, testdb.Dialect(t))
 	bounces := newsletter.NewBounceSuppressionStore(store)
 	segments := newsletter.NewContactSegmentResolver(store)
 	planner := newsletter.NewNewsletterPlanner(store, segments, bounces)

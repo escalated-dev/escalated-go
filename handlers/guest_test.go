@@ -8,23 +8,17 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/escalated-dev/escalated-go/internal/testdb"
+
 	_ "modernc.org/sqlite"
 
-	"github.com/escalated-dev/escalated-go/migrations"
 	"github.com/escalated-dev/escalated-go/services"
-	"github.com/escalated-dev/escalated-go/store"
 )
 
 func guestHandlerFixture(t *testing.T) (*GuestTicketHandler, *sql.DB) {
 	t.Helper()
-	db, err := sql.Open("sqlite", ":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := migrations.MigrateSQLite(db, "escalated_"); err != nil {
-		t.Fatal(err)
-	}
-	s := store.NewSQLiteStore(db, "escalated_")
+	db := testdb.Open(t)
+	s := testdb.Store(t, db)
 	return NewGuestTicketHandler(s, services.NewTicketService(s)), db
 }
 

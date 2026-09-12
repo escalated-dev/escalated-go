@@ -2,17 +2,17 @@ package router_test
 
 import (
 	"bytes"
-	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/internal/testdb"
+
 	"github.com/go-chi/chi/v5"
 	_ "modernc.org/sqlite"
 
 	escalated "github.com/escalated-dev/escalated-go"
-	"github.com/escalated-dev/escalated-go/migrations"
 	"github.com/escalated-dev/escalated-go/router"
 )
 
@@ -24,17 +24,7 @@ import (
 // helper forgets to register them.
 func newReportRouterEsc(t *testing.T) *escalated.Escalated {
 	t.Helper()
-	db, err := sql.Open("sqlite", ":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Force a single connection so the in-memory schema persists across queries.
-	db.SetMaxOpenConns(1)
-	t.Cleanup(func() { _ = db.Close() })
-
-	if err := migrations.MigrateSQLite(db, "escalated_"); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	db := testdb.Open(t)
 
 	now := time.Now()
 	seed := func(ref string, status, priority int, assigned, slaPolicy any, breached bool, created time.Time, firstResp, resolved any) {

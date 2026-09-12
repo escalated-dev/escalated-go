@@ -6,9 +6,10 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/escalated-dev/escalated-go/internal/testdb"
+
 	_ "modernc.org/sqlite"
 
-	"github.com/escalated-dev/escalated-go/migrations"
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/store"
 )
@@ -25,14 +26,8 @@ func (p fakeProject) TicketSubjectIcon() *string     { s := "folder"; return &s 
 
 func testSubjectStore(t *testing.T) (store.Store, *sql.DB) {
 	t.Helper()
-	db, err := sql.Open("sqlite", ":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := migrations.MigrateSQLite(db, "escalated_"); err != nil {
-		t.Fatal(err)
-	}
-	return store.NewSQLiteStore(db, "escalated_"), db
+	db := testdb.Open(t)
+	return testdb.Store(t, db), db
 }
 
 func testResolver(projects map[string]fakeProject) func(string, string) (models.TicketSubject, bool) {

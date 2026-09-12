@@ -2,14 +2,12 @@ package services
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 	"time"
 
-	_ "modernc.org/sqlite"
+	"github.com/escalated-dev/escalated-go/internal/testdb"
 
-	"github.com/escalated-dev/escalated-go/migrations"
-	"github.com/escalated-dev/escalated-go/store"
+	_ "modernc.org/sqlite"
 )
 
 func TestRetentionDays(t *testing.T) {
@@ -51,15 +49,8 @@ func TestRetentionCutoff(t *testing.T) {
 }
 
 func TestPurgeExpired(t *testing.T) {
-	db, err := sql.Open("sqlite", ":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	if err := migrations.MigrateSQLite(db, "escalated_"); err != nil {
-		t.Fatal(err)
-	}
-	s := store.NewSQLiteStore(db, "escalated_")
+	db := testdb.Open(t)
+	s := testdb.Store(t, db)
 	ctx := context.Background()
 
 	if err := s.SetSetting(ctx, "retention_attachments", "90_days"); err != nil {
