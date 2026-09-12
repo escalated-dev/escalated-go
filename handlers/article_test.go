@@ -2,30 +2,22 @@ package handlers
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/escalated-dev/escalated-go/internal/testdb"
+
 	_ "modernc.org/sqlite"
 
-	"github.com/escalated-dev/escalated-go/migrations"
 	"github.com/escalated-dev/escalated-go/models"
 )
 
 func articleFixture(t *testing.T) *ArticleHandler {
 	t.Helper()
-	db, err := sql.Open("sqlite", ":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	db.SetMaxOpenConns(1)
-	if err := migrations.MigrateSQLite(db, "escalated_"); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
+	db := testdb.Open(t)
 	return NewArticleHandler(db, nil)
 }
 

@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   test:
-    name: go test
+    name: go test - sqlite
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -22,3 +22,47 @@ jobs:
 
       - name: go test
         run: go test ./...
+
+  # The same suite against PostgreSQL, which is what escalated.New selects for
+  # any PostgreSQL connection and what the README documents. Every test opened
+  # SQLite until now, so the PostgreSQL migrations had never been executed by
+  # anything -- and two of them were broken outright.
+  #
+  # Four packages are deliberately not in this list: handlers, router, services
+  # and services/newsletter. They run raw SQL with `?` placeholders in 167
+  # places, which PostgreSQL does not accept, so they are SQLite-only until that
+  # is rewritten. Adding a package here is the reminder to check which it is.
+  postgres:
+    name: go test - postgres
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: escalated_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd=pg_isready
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+
+      - name: go test
+        env:
+          # Read by internal/testdb. An unrecognised value fails the test rather
+          # than falling back, so a broken leg fails instead of quietly running
+          # SQLite and reporting green.
+          ESCALATED_TEST_DRIVER: postgres
+          ESCALATED_TEST_DSN: postgres://postgres:postgres@127.0.0.1:5432/escalated_test?sslmode=disable
+        run: |
+          go test ./ ./actions/... ./internal/... ./middleware/...                   ./migrations/... ./models/... ./services/email/... ./store/...

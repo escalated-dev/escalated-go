@@ -9,7 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/escalated-dev/escalated-go/migrations"
+	"github.com/escalated-dev/escalated-go/internal/testdb"
+
 	"github.com/escalated-dev/escalated-go/models"
 	_ "modernc.org/sqlite"
 )
@@ -26,18 +27,12 @@ func (m *fakeMailer) SendNewsletter(context.Context, MailMessage) error {
 
 func newsletterTestDB(t *testing.T) (*sql.DB, *SQLStore, string) {
 	t.Helper()
-	db, err := sql.Open("sqlite", ":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := migrations.MigrateSQLite(db, "escalated_"); err != nil {
-		t.Fatal(err)
-	}
+	db := testdb.Open(t)
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "default.html"), []byte(`<!doctype html><body>{{.Body}}</body>`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	return db, NewSQLStore(db, "escalated_", "sqlite"), dir
+	return db, NewSQLStore(db, testdb.Prefix, testdb.Dialect(t)), dir
 }
 
 func seedContact(t *testing.T, db *sql.DB, email string, optedOut bool) int64 {

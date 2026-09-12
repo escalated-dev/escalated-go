@@ -1,17 +1,17 @@
 package router_test
 
 import (
-	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/escalated-dev/escalated-go/internal/testdb"
+
 	"github.com/go-chi/chi/v5"
 	_ "modernc.org/sqlite"
 
 	escalated "github.com/escalated-dev/escalated-go"
-	"github.com/escalated-dev/escalated-go/migrations"
 	"github.com/escalated-dev/escalated-go/router"
 )
 
@@ -21,17 +21,7 @@ import (
 // either helper forgets to register them (a 404 would surface here).
 func newWebhookRouterEsc(t *testing.T) *escalated.Escalated {
 	t.Helper()
-	db, err := sql.Open("sqlite", ":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Force a single connection so the in-memory schema persists across queries.
-	db.SetMaxOpenConns(1)
-	t.Cleanup(func() { _ = db.Close() })
-
-	if err := migrations.MigrateSQLite(db, "escalated_"); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	db := testdb.Open(t)
 
 	cfg := escalated.DefaultConfig()
 	cfg.DB = db

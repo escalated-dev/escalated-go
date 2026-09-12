@@ -2,31 +2,23 @@ package handlers
 
 import (
 	"context"
-	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/escalated-dev/escalated-go/internal/testdb"
+
 	_ "modernc.org/sqlite"
 
-	"github.com/escalated-dev/escalated-go/migrations"
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/services"
-	"github.com/escalated-dev/escalated-go/store"
 )
 
 func TestGuestRateFlow(t *testing.T) {
-	db, err := sql.Open("sqlite", ":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	if err := migrations.MigrateSQLite(db, "escalated_"); err != nil {
-		t.Fatal(err)
-	}
+	db := testdb.Open(t)
 
-	s := store.NewSQLiteStore(db, "escalated_")
+	s := testdb.Store(t, db)
 	ts := services.NewTicketService(s)
 	h := NewSatisfactionHandler(db)
 

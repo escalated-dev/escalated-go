@@ -4,24 +4,16 @@ import (
 	"database/sql"
 	"testing"
 
+	"github.com/escalated-dev/escalated-go/internal/testdb"
+
 	_ "modernc.org/sqlite"
 
-	"github.com/escalated-dev/escalated-go/migrations"
 	"github.com/escalated-dev/escalated-go/models"
 )
 
 func newArticleTestDB(t *testing.T) *sql.DB {
 	t.Helper()
-	db, err := sql.Open("sqlite", ":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Single connection so the in-memory schema persists across queries.
-	db.SetMaxOpenConns(1)
-	if err := migrations.MigrateSQLite(db, "escalated_"); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
+	db := testdb.Open(t)
 	return db
 }
 

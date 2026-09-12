@@ -7,7 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **The PostgreSQL migrations could not create the schema.** `escalated_replies`
+  and `escalated_ticket_activities` passed their `Sprintf` arguments in the
+  wrong order, so the statements asked PostgreSQL for `REFERENCES BIGINT(id)`
+  and a column typed `escalated_tickets`. Both are refused outright, which means
+  `migrations.Migrate` has never completed against a real PostgreSQL server.
+  Every test in the package opened SQLite, so nothing had ever said so.
+
+### Known limitation
+- **Four packages are SQLite-only: `handlers`, `router`, `services` and
+  `services/newsletter`.** They run raw SQL with `?` placeholders in 167 places,
+  which PostgreSQL does not accept — anything reaching those code paths on a
+  PostgreSQL connection fails with a syntax error. The `store` package, which
+  has a hand-written PostgreSQL implementation, is unaffected.
+
+  The new PostgreSQL CI leg runs every other package and names these four, so
+  the boundary is visible rather than assumed. Rewriting the placeholders is its
+  own piece of work.
+
 ### Added
+- **The test suite can run against PostgreSQL.** `internal/testdb` opens the
+  database the suite was told to use — SQLite by default, so running it locally
+  still needs nothing installed. PostgreSQL gets a schema per fixture, pinned
+  through `search_path`, so tests stay isolated on a shared server without a
+  database each.
+
+  An unrecognised `ESCALATED_TEST_DRIVER` fails the test rather than falling
+  back: a CI leg that quietly ran SQLite would report green having tested
+  nothing the matrix exists for.
+
+  `migrations/postgres_test.go` asserts the schema PostgreSQL actually ends up
+  with — the tables, the foreign keys that the swapped arguments turned into
+  references to a type, and the column types they mistyped.
 - **`escalated.New` detects the database it was given.** It picks the PostgreSQL
   or SQLite store from the connection in `Config.DB`, so a host that opened a
   SQLite connection no longer has to know `NewSQLite` exists. `DetectDialect` is

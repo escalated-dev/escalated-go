@@ -7,21 +7,16 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/escalated-dev/escalated-go/internal/testdb"
+
 	_ "modernc.org/sqlite"
 
-	"github.com/escalated-dev/escalated-go/migrations"
 	"github.com/escalated-dev/escalated-go/models"
 )
 
 func kbFixture(t *testing.T) (*KBHandler, *sql.DB) {
 	t.Helper()
-	db, err := sql.Open("sqlite", ":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := migrations.MigrateSQLite(db, "escalated_"); err != nil {
-		t.Fatal(err)
-	}
+	db := testdb.Open(t)
 	return NewKBHandler(db), db
 }
 
