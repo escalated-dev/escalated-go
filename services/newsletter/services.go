@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
 )
 
@@ -159,14 +160,14 @@ func (r *ContactSegmentResolver) CountMatches(ctx context.Context, filter map[st
 	where, args := r.where(filter, false)
 	q := fmt.Sprintf(`SELECT COUNT(*) FROM %s WHERE %s`, r.store.t("contacts"), where)
 	var n int
-	err := r.store.db.QueryRowContext(ctx, q, args...).Scan(&n)
+	err := r.store.db.QueryRowContext(ctx, sqldialect.Rebind(r.store.db, q), args...).Scan(&n)
 	return n, err
 }
 
 func (r *ContactSegmentResolver) filteredIDs(ctx context.Context, filter map[string]any, sendableOnly bool) ([]int64, error) {
 	where, args := r.where(filter, sendableOnly)
 	q := fmt.Sprintf(`SELECT id FROM %s WHERE %s ORDER BY id`, r.store.t("contacts"), where)
-	rows, err := r.store.db.QueryContext(ctx, q, args...)
+	rows, err := r.store.db.QueryContext(ctx, sqldialect.Rebind(r.store.db, q), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -375,7 +376,7 @@ func (d *NewsletterDispatcher) increment(now time.Time, count int) {
 func (d *NewsletterDispatcher) claim(ctx context.Context, limit int, now time.Time) ([]int64, error) {
 	q := fmt.Sprintf(`SELECT id FROM %s WHERE status=%s AND (next_attempt_at IS NULL OR next_attempt_at <= %s) ORDER BY id LIMIT %d`,
 		d.store.t("newsletter_deliveries"), d.store.p(1), d.store.p(2), limit)
-	rows, err := d.store.db.QueryContext(ctx, q, models.DeliveryPending, now)
+	rows, err := d.store.db.QueryContext(ctx, sqldialect.Rebind(d.store.db, q), models.DeliveryPending, now)
 	if err != nil {
 		return nil, err
 	}
@@ -398,7 +399,7 @@ func (d *NewsletterDispatcher) claim(ctx context.Context, limit int, now time.Ti
 	}
 	u := fmt.Sprintf(`UPDATE %s SET status='%s', claimed_at=%s WHERE id IN (%s) AND status='%s'`,
 		d.store.t("newsletter_deliveries"), models.DeliveryQueued, d.store.p(1), d.store.placeholders(2, len(ids)), models.DeliveryPending)
-	_, err = d.store.db.ExecContext(ctx, u, args...)
+	_, err = d.store.db.ExecContext(ctx, sqldialect.Rebind(d.store.db, u), args...)
 	return ids, err
 }
 
@@ -484,13 +485,13 @@ func (d *NewsletterDispatcher) reclaimStuckRows(ctx context.Context, now time.Ti
 	cutoff := now.Add(-time.Duration(d.cfg.ClaimTimeoutMinutes) * time.Minute)
 	q := fmt.Sprintf(`UPDATE %s SET status='%s', claimed_at=NULL WHERE status='%s' AND claimed_at < %s`,
 		d.store.t("newsletter_deliveries"), models.DeliveryPending, models.DeliveryQueued, d.store.p(1))
-	_, err := d.store.db.ExecContext(ctx, q, cutoff)
+	_, err := d.store.db.ExecContext(ctx, sqldialect.Rebind(d.store.db, q), cutoff)
 	return err
 }
 
 func (d *NewsletterDispatcher) finalizeCompleted(ctx context.Context) error {
 	q := fmt.Sprintf(`SELECT id FROM %s WHERE status=%s`, d.store.t("newsletters"), d.store.p(1))
-	rows, err := d.store.db.QueryContext(ctx, q, models.NewsletterSending)
+	rows, err := d.store.db.QueryContext(ctx, sqldialect.Rebind(d.store.db, q), models.NewsletterSending)
 	if err != nil {
 		return err
 	}
@@ -506,7 +507,7 @@ func (d *NewsletterDispatcher) finalizeCompleted(ctx context.Context) error {
 	for _, id := range ids {
 		var remaining int
 		cq := fmt.Sprintf(`SELECT COUNT(*) FROM %s WHERE newsletter_id=%s AND status IN ('pending','queued')`, d.store.t("newsletter_deliveries"), d.store.p(1))
-		if err := d.store.db.QueryRowContext(ctx, cq, id).Scan(&remaining); err != nil {
+		if err := d.store.db.QueryRowContext(ctx, sqldialect.Rebind(d.store.db, cq), id).Scan(&remaining); err != nil {
 			return err
 		}
 		if remaining == 0 {
@@ -521,7 +522,7 @@ func (d *NewsletterDispatcher) finalizeCompleted(ctx context.Context) error {
 
 func (d *NewsletterDispatcher) autoPause(ctx context.Context) error {
 	q := fmt.Sprintf(`SELECT id FROM %s WHERE status=%s`, d.store.t("newsletters"), d.store.p(1))
-	rows, err := d.store.db.QueryContext(ctx, q, models.NewsletterSending)
+	rows, err := d.store.db.QueryContext(ctx, sqldialect.Rebind(d.store.db, q), models.NewsletterSending)
 	if err != nil {
 		return err
 	}
@@ -537,7 +538,7 @@ func (d *NewsletterDispatcher) autoPause(ctx context.Context) error {
 	for _, id := range ids {
 		tq := fmt.Sprintf(`SELECT status FROM %s WHERE newsletter_id=%s AND status IN ('sent','bounced','complained','failed') ORDER BY id LIMIT %d`,
 			d.store.t("newsletter_deliveries"), d.store.p(1), d.cfg.AutoPauseThreshold)
-		tr, err := d.store.db.QueryContext(ctx, tq, id)
+		tr, err := d.store.db.QueryContext(ctx, sqldialect.Rebind(d.store.db, tq), id)
 		if err != nil {
 			return err
 		}

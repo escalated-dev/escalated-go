@@ -1,7 +1,6 @@
 package models
 
 import (
-	"encoding/json"
 	"time"
 )
 
@@ -38,18 +37,18 @@ func init() {
 
 // ChatSession tracks a real-time chat conversation linked to a ticket.
 type ChatSession struct {
-	ID               int64           `json:"id"`
-	TicketID         int64           `json:"ticket_id"`
-	Status           int             `json:"status"`
-	AgentID          *UserID         `json:"agent_id,omitempty"`
-	VisitorUserAgent *string         `json:"visitor_user_agent,omitempty"`
-	VisitorIP        *string         `json:"visitor_ip,omitempty"`
-	VisitorPageURL   *string         `json:"visitor_page_url,omitempty"`
-	AgentJoinedAt    *time.Time      `json:"agent_joined_at,omitempty"`
-	LastActivityAt   *time.Time      `json:"last_activity_at,omitempty"`
-	EndedAt          *time.Time      `json:"ended_at,omitempty"`
-	RawMetadata      json.RawMessage `json:"metadata,omitempty"`
-	CreatedAt        time.Time       `json:"created_at"`
+	ID               int64      `json:"id"`
+	TicketID         int64      `json:"ticket_id"`
+	Status           int        `json:"status"`
+	AgentID          *UserID    `json:"agent_id,omitempty"`
+	VisitorUserAgent *string    `json:"visitor_user_agent,omitempty"`
+	VisitorIP        *string    `json:"visitor_ip,omitempty"`
+	VisitorPageURL   *string    `json:"visitor_page_url,omitempty"`
+	AgentJoinedAt    *time.Time `json:"agent_joined_at,omitempty"`
+	LastActivityAt   *time.Time `json:"last_activity_at,omitempty"`
+	EndedAt          *time.Time `json:"ended_at,omitempty"`
+	RawMetadata      JSONText   `json:"metadata,omitempty"`
+	CreatedAt        time.Time  `json:"created_at"`
 }
 
 // IsActive returns true if the chat session is currently active.
@@ -71,7 +70,7 @@ func (s *ChatSession) StatusString() string {
 }
 
 // Metadata returns the raw JSON metadata for the session, or nil if empty.
-func (s *ChatSession) Metadata() json.RawMessage {
+func (s *ChatSession) Metadata() JSONText {
 	return s.RawMetadata
 }
 

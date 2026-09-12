@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/internal/testdb"
 
 	"github.com/escalated-dev/escalated-go/models"
@@ -41,7 +42,7 @@ func seedContact(t *testing.T, db *sql.DB, email string, optedOut bool) int64 {
 	if optedOut {
 		opt = time.Now()
 	}
-	res, err := db.Exec(`INSERT INTO escalated_contacts (email, metadata, marketing_opt_out_at, created_at, updated_at) VALUES (?, '{}', ?, ?, ?)`, email, opt, time.Now(), time.Now())
+	res, err := sqldialect.ExecInsert(db, `INSERT INTO escalated_contacts (email, metadata, marketing_opt_out_at, created_at, updated_at) VALUES (?, '{}', ?, ?, ?)`, email, opt, time.Now(), time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +52,7 @@ func seedContact(t *testing.T, db *sql.DB, email string, optedOut bool) int64 {
 
 func seedNewsletter(t *testing.T, db *sql.DB, listID int64, status string) int64 {
 	t.Helper()
-	res, err := db.Exec(`INSERT INTO escalated_newsletters (subject, from_email, target_list_id, status, created_at, updated_at) VALUES ('Hello', 'from@example.test', ?, ?, ?, ?)`, listID, status, time.Now(), time.Now())
+	res, err := sqldialect.ExecInsert(db, `INSERT INTO escalated_newsletters (subject, from_email, target_list_id, status, created_at, updated_at) VALUES ('Hello', 'from@example.test', ?, ?, ?, ?)`, listID, status, time.Now(), time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,10 +85,10 @@ func TestPlannerSkipsOptOutAndSuppressed(t *testing.T) {
 		t.Fatal(err)
 	}
 	var total, rows int
-	if err := db.QueryRow(`SELECT summary_total FROM escalated_newsletters WHERE id=?`, nid).Scan(&total); err != nil {
+	if err := db.QueryRow(sqldialect.Rebind(db, `SELECT summary_total FROM escalated_newsletters WHERE id=?`), nid).Scan(&total); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.QueryRow(`SELECT COUNT(*) FROM escalated_newsletter_deliveries WHERE newsletter_id=?`, nid).Scan(&rows); err != nil {
+	if err := db.QueryRow(sqldialect.Rebind(db, `SELECT COUNT(*) FROM escalated_newsletter_deliveries WHERE newsletter_id=?`), nid).Scan(&rows); err != nil {
 		t.Fatal(err)
 	}
 	if total != 1 || rows != 1 {
@@ -134,7 +135,7 @@ func TestDispatcherRateLimitBackoffAndFinalize(t *testing.T) {
 		t.Fatal(err)
 	}
 	var nextAttempt sql.NullTime
-	if err := db.QueryRow(`SELECT next_attempt_at FROM escalated_newsletter_deliveries WHERE status='pending' AND attempt_count=1`).Scan(&nextAttempt); err != nil {
+	if err := db.QueryRow(sqldialect.Rebind(db, `SELECT next_attempt_at FROM escalated_newsletter_deliveries WHERE status='pending' AND attempt_count=1`)).Scan(&nextAttempt); err != nil {
 		t.Fatal(err)
 	}
 	if !nextAttempt.Valid || time.Until(nextAttempt.Time) < 30*time.Second {
@@ -157,8 +158,8 @@ func TestTrackerOpenClickBounceComplaint(t *testing.T) {
 	tracker.RecordClick(ctx, "tok", "https://example.test")
 	tracker.RecordClick(ctx, "tok", "https://example.test/2")
 	var opened, clicked, clicks int
-	_ = db.QueryRow(`SELECT summary_opened, summary_clicked FROM escalated_newsletters WHERE id=?`, nid).Scan(&opened, &clicked)
-	_ = db.QueryRow(`SELECT clicks_count FROM escalated_newsletter_deliveries WHERE tracking_token='tok'`).Scan(&clicks)
+	_ = db.QueryRow(sqldialect.Rebind(db, `SELECT summary_opened, summary_clicked FROM escalated_newsletters WHERE id=?`), nid).Scan(&opened, &clicked)
+	_ = db.QueryRow(sqldialect.Rebind(db, `SELECT clicks_count FROM escalated_newsletter_deliveries WHERE tracking_token='tok'`)).Scan(&clicks)
 	if opened != 1 || clicked != 1 || clicks != 2 {
 		t.Fatalf("bad counters opened=%d clicked=%d clicks=%d", opened, clicked, clicks)
 	}

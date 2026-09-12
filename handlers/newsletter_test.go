@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/internal/testdb"
 
 	"github.com/escalated-dev/escalated-go/models"
@@ -83,13 +84,13 @@ func TestNewsletterHandler_SendgridWebhookRecordsHardBounce(t *testing.T) {
 	if err := store.CreateList(ctx, list); err != nil {
 		t.Fatal(err)
 	}
-	res, err := db.Exec(`INSERT INTO escalated_contacts (email, metadata, created_at, updated_at) VALUES ('a@example.test', '{}', ?, ?)`, time.Now(), time.Now())
+	res, err := sqldialect.ExecInsert(db, `INSERT INTO escalated_contacts (email, metadata, created_at, updated_at) VALUES ('a@example.test', '{}', ?, ?)`, time.Now(), time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
 	contactID, _ := res.LastInsertId()
 	nid := int64(0)
-	if err := db.QueryRow(`INSERT INTO escalated_newsletters (subject, from_email, target_list_id, status, created_at, updated_at) VALUES ('S', 'from@example.test', ?, 'sending', ?, ?) RETURNING id`, list.ID, time.Now(), time.Now()).Scan(&nid); err != nil {
+	if err := db.QueryRow(sqldialect.Rebind(db, `INSERT INTO escalated_newsletters (subject, from_email, target_list_id, status, created_at, updated_at) VALUES ('S', 'from@example.test', ?, 'sending', ?, ?) RETURNING id`), list.ID, time.Now(), time.Now()).Scan(&nid); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.InsertDelivery(ctx, &models.NewsletterDelivery{NewsletterID: nid, ContactID: contactID, EmailAtSend: "a@example.test", Status: models.DeliverySent, TrackingToken: "abc123"}); err != nil {

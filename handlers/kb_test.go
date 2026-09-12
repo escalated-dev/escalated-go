@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/internal/testdb"
 
 	_ "modernc.org/sqlite"
@@ -22,7 +23,7 @@ func kbFixture(t *testing.T) (*KBHandler, *sql.DB) {
 
 func mustExec(t *testing.T, db *sql.DB, q string) {
 	t.Helper()
-	if _, err := db.Exec(q); err != nil {
+	if _, err := db.Exec(sqldialect.Rebind(db, q)); err != nil {
 		t.Fatalf("exec %q: %v", q, err)
 	}
 }

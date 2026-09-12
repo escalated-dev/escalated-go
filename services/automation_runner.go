@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
 )
 
@@ -42,10 +43,10 @@ func NewAutomationRunner(db *sql.DB, logger *log.Logger) *AutomationRunner {
 // single bad rule does not abort the rest.
 func (r *AutomationRunner) Run() (int, error) {
 	rows, err := r.DB.Query(
-		`SELECT id, name, description, conditions, actions, active, position, last_run_at
+		sqldialect.Rebind(r.DB, `SELECT id, name, description, conditions, actions, active, position, last_run_at
 		   FROM escalated_automations
 		  WHERE active = TRUE
-		  ORDER BY position ASC, id ASC`,
+		  ORDER BY position ASC, id ASC`),
 	)
 	if err != nil {
 		return 0, fmt.Errorf("automation: list active: %w", err)
@@ -95,7 +96,7 @@ func (r *AutomationRunner) runOne(automation models.Automation) (int, error) {
 	}
 
 	if _, err := r.DB.Exec(
-		`UPDATE escalated_automations SET last_run_at = ?, updated_at = ? WHERE id = ?`,
+		sqldialect.Rebind(r.DB, `UPDATE escalated_automations SET last_run_at = ?, updated_at = ? WHERE id = ?`),
 		time.Now(), time.Now(), automation.ID,
 	); err != nil {
 		return 0, fmt.Errorf("update last_run_at: %w", err)
@@ -158,7 +159,7 @@ func (r *AutomationRunner) findMatchingTickets(a models.Automation) ([]models.Ti
 		strings.Join(clauses, " AND "),
 	)
 
-	rows, err := r.DB.Query(q, args...)
+	rows, err := r.DB.Query(sqldialect.Rebind(r.DB, q), args...)
 	if err != nil {
 		return nil, fmt.Errorf("query tickets: %w", err)
 	}
@@ -211,19 +212,19 @@ func (r *AutomationRunner) runAction(a models.Automation, t models.Ticket, actio
 	switch action.Type {
 	case "change_status":
 		_, err := r.DB.Exec(
-			`UPDATE escalated_tickets SET status = ?, updated_at = ? WHERE id = ?`,
+			sqldialect.Rebind(r.DB, `UPDATE escalated_tickets SET status = ?, updated_at = ? WHERE id = ?`),
 			toInt(action.Value), time.Now(), t.ID,
 		)
 		return err
 	case "change_priority":
 		_, err := r.DB.Exec(
-			`UPDATE escalated_tickets SET priority = ?, updated_at = ? WHERE id = ?`,
+			sqldialect.Rebind(r.DB, `UPDATE escalated_tickets SET priority = ?, updated_at = ? WHERE id = ?`),
 			toInt(action.Value), time.Now(), t.ID,
 		)
 		return err
 	case "assign":
 		_, err := r.DB.Exec(
-			`UPDATE escalated_tickets SET assigned_to = ?, updated_at = ? WHERE id = ?`,
+			sqldialect.Rebind(r.DB, `UPDATE escalated_tickets SET assigned_to = ?, updated_at = ? WHERE id = ?`),
 			models.UserID(toString(action.Value)), time.Now(), t.ID,
 		)
 		return err
@@ -231,7 +232,7 @@ func (r *AutomationRunner) runAction(a models.Automation, t models.Ticket, actio
 		// Find tag id by name; ignore unknown.
 		var tagID int64
 		err := r.DB.QueryRow(
-			`SELECT id FROM escalated_tags WHERE name = ?`,
+			sqldialect.Rebind(r.DB, `SELECT id FROM escalated_tags WHERE name = ?`),
 			toString(action.Value),
 		).Scan(&tagID)
 		if err == sql.ErrNoRows {
@@ -242,7 +243,7 @@ func (r *AutomationRunner) runAction(a models.Automation, t models.Ticket, actio
 		}
 		// Idempotent insert into the join table.
 		_, err = r.DB.Exec(
-			`INSERT OR IGNORE INTO escalated_ticket_tags (ticket_id, tag_id) VALUES (?, ?)`,
+			sqldialect.Rebind(r.DB, `INSERT OR IGNORE INTO escalated_ticket_tags (ticket_id, tag_id) VALUES (?, ?)`),
 			t.ID, tagID,
 		)
 		return err
@@ -252,8 +253,8 @@ func (r *AutomationRunner) runAction(a models.Automation, t models.Ticket, actio
 			"automation_id": a.ID,
 		})
 		_, err := r.DB.Exec(
-			`INSERT INTO escalated_replies (ticket_id, body, is_internal_note, metadata, created_at, updated_at)
-			 VALUES (?, ?, TRUE, ?, ?, ?)`,
+			sqldialect.Rebind(r.DB, `INSERT INTO escalated_replies (ticket_id, body, is_internal_note, metadata, created_at, updated_at)
+			 VALUES (?, ?, TRUE, ?, ?, ?)`),
 			t.ID, toString(action.Value), md, time.Now(), time.Now(),
 		)
 		return err

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/services"
 )
@@ -34,9 +35,9 @@ func NewWorkflowHandler(db *sql.DB) *WorkflowHandler {
 func (h *WorkflowHandler) List(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.DB.QueryContext(
 		r.Context(),
-		`SELECT id, name, description, trigger_event, conditions, actions, position, is_active, stop_on_match, created_at, updated_at
+		sqldialect.Rebind(h.DB, `SELECT id, name, description, trigger_event, conditions, actions, position, is_active, stop_on_match, created_at, updated_at
 		   FROM escalated_workflows
-		  ORDER BY position ASC, id ASC`,
+		  ORDER BY position ASC, id ASC`),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -61,8 +62,8 @@ func (h *WorkflowHandler) List(w http.ResponseWriter, r *http.Request) {
 		if desc.Valid {
 			wf.Description = &desc.String
 		}
-		wf.Conditions = json.RawMessage(conditions)
-		wf.Actions = json.RawMessage(actions)
+		wf.Conditions = models.JSONText(conditions)
+		wf.Actions = models.JSONText(actions)
 		wf.ComputeTrigger()
 		out = append(out, wf)
 	}
@@ -103,13 +104,11 @@ func (h *WorkflowHandler) Create(w http.ResponseWriter, r *http.Request) {
 		position = *in.Position
 	}
 
-	res, err := h.DB.ExecContext(
-		r.Context(),
-		`INSERT INTO escalated_workflows
+	res, err := sqldialect.ExecInsertContext(r.Context(), h.DB, `INSERT INTO escalated_workflows
 			(name, description, trigger_event, conditions, actions, position, is_active, stop_on_match, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		in.Name, in.Description, in.TriggerEvent,
-		workflowDefaultConditions(in.Conditions), defaultJSONArray(in.Actions),
+		workflowDefaultConditions(models.JSONText(in.Conditions)), defaultJSONArray(models.JSONText(in.Actions)),
 		position, isActive, stopOnMatch, time.Now(), time.Now(),
 	)
 	if err != nil {
@@ -189,7 +188,7 @@ func (h *WorkflowHandler) Update(w http.ResponseWriter, r *http.Request) {
 	args = append(args, id)
 
 	q := "UPDATE escalated_workflows SET " + joinSets(sets) + " WHERE id = ?"
-	if _, err := h.DB.ExecContext(r.Context(), q, args...); err != nil {
+	if _, err := h.DB.ExecContext(r.Context(), sqldialect.Rebind(h.DB, q), args...); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -205,13 +204,13 @@ func (h *WorkflowHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := h.DB.ExecContext(
-		r.Context(), `DELETE FROM escalated_workflow_logs WHERE workflow_id = ?`, id,
+		r.Context(), sqldialect.Rebind(h.DB, `DELETE FROM escalated_workflow_logs WHERE workflow_id = ?`), id,
 	); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if _, err := h.DB.ExecContext(
-		r.Context(), `DELETE FROM escalated_workflows WHERE id = ?`, id,
+		r.Context(), sqldialect.Rebind(h.DB, `DELETE FROM escalated_workflows WHERE id = ?`), id,
 	); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -244,11 +243,11 @@ func (h *WorkflowHandler) Logs(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := h.DB.QueryContext(
 		r.Context(),
-		`SELECT id, workflow_id, ticket_id, trigger_event, status, actions_executed, error_message, created_at
+		sqldialect.Rebind(h.DB, `SELECT id, workflow_id, ticket_id, trigger_event, status, actions_executed, error_message, created_at
 		   FROM escalated_workflow_logs
 		  WHERE workflow_id = ?
 		  ORDER BY created_at DESC, id DESC
-		  LIMIT 100`,
+		  LIMIT 100`),
 		id,
 	)
 	if err != nil {
@@ -269,7 +268,7 @@ func (h *WorkflowHandler) Logs(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		lg.ActionsExecuted = json.RawMessage(actions)
+		lg.ActionsExecuted = actions
 		if errMsg.Valid {
 			lg.ErrorMessage = &errMsg.String
 		}
@@ -282,7 +281,7 @@ func (h *WorkflowHandler) Logs(w http.ResponseWriter, r *http.Request) {
 // workflowDefaultConditions returns a "{}" RawMessage when raw is empty so the
 // conditions column is never NULL. Workflow conditions are a JSON object
 // ({all|any:[…]}), unlike the JSON-array actions handled by defaultJSONArray.
-func workflowDefaultConditions(raw json.RawMessage) []byte {
+func workflowDefaultConditions(raw models.JSONText) []byte {
 	if len(raw) == 0 {
 		return []byte("{}")
 	}

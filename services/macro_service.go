@@ -7,6 +7,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
 )
 
@@ -61,10 +62,10 @@ func NewMacroService(db *sql.DB, logger *log.Logger) *MacroService {
 // plus macros they created themselves.
 func (s *MacroService) ListForAgent(agentID models.UserID) ([]models.Macro, error) {
 	rows, err := s.DB.Query(
-		`SELECT id, name, description, actions, is_shared, created_by, created_at, updated_at
+		sqldialect.Rebind(s.DB, `SELECT id, name, description, actions, is_shared, created_by, created_at, updated_at
 		   FROM escalated_macros
 		  WHERE is_shared = TRUE OR created_by = ?
-		  ORDER BY name ASC`,
+		  ORDER BY name ASC`),
 		agentID,
 	)
 	if err != nil {
@@ -96,9 +97,9 @@ func (s *MacroService) FindByID(id int64) (*models.Macro, error) {
 	var m models.Macro
 	var createdBy sql.NullString
 	err := s.DB.QueryRow(
-		`SELECT id, name, description, actions, is_shared, created_by, created_at, updated_at
+		sqldialect.Rebind(s.DB, `SELECT id, name, description, actions, is_shared, created_by, created_at, updated_at
 		   FROM escalated_macros
-		  WHERE id = ?`,
+		  WHERE id = ?`),
 		id,
 	).Scan(
 		&m.ID, &m.Name, &m.Description, &m.Actions, &m.IsShared,
@@ -117,8 +118,7 @@ func (s *MacroService) FindByID(id int64) (*models.Macro, error) {
 // Create inserts a new macro and returns it with its assigned ID.
 func (s *MacroService) Create(m *models.Macro) error {
 	now := time.Now()
-	res, err := s.DB.Exec(
-		`INSERT INTO escalated_macros (name, description, actions, is_shared, created_by, created_at, updated_at)
+	res, err := sqldialect.ExecInsert(s.DB, `INSERT INTO escalated_macros (name, description, actions, is_shared, created_by, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		m.Name, m.Description, m.Actions, m.IsShared, m.CreatedBy, now, now,
 	)
@@ -138,9 +138,9 @@ func (s *MacroService) Create(m *models.Macro) error {
 // Update saves changes to the given macro.
 func (s *MacroService) Update(m *models.Macro) error {
 	_, err := s.DB.Exec(
-		`UPDATE escalated_macros
+		sqldialect.Rebind(s.DB, `UPDATE escalated_macros
 		    SET name = ?, description = ?, actions = ?, is_shared = ?, updated_at = ?
-		  WHERE id = ?`,
+		  WHERE id = ?`),
 		m.Name, m.Description, m.Actions, m.IsShared, time.Now(), m.ID,
 	)
 	return err
@@ -148,7 +148,7 @@ func (s *MacroService) Update(m *models.Macro) error {
 
 // Delete removes the macro with the given id.
 func (s *MacroService) Delete(id int64) error {
-	_, err := s.DB.Exec(`DELETE FROM escalated_macros WHERE id = ?`, id)
+	_, err := s.DB.Exec(sqldialect.Rebind(s.DB, `DELETE FROM escalated_macros WHERE id = ?`), id)
 	return err
 }
 
@@ -176,26 +176,26 @@ func (s *MacroService) runAction(action models.MacroAction, ticketID int64, agen
 	switch action.Type {
 	case "change_status", "set_status":
 		_, err := s.DB.Exec(
-			`UPDATE escalated_tickets SET status = ?, updated_at = ? WHERE id = ?`,
+			sqldialect.Rebind(s.DB, `UPDATE escalated_tickets SET status = ?, updated_at = ? WHERE id = ?`),
 			macroToInt(action.Value), time.Now(), ticketID,
 		)
 		return err
 	case "change_priority", "set_priority":
 		_, err := s.DB.Exec(
-			`UPDATE escalated_tickets SET priority = ?, updated_at = ? WHERE id = ?`,
+			sqldialect.Rebind(s.DB, `UPDATE escalated_tickets SET priority = ?, updated_at = ? WHERE id = ?`),
 			macroToInt(action.Value), time.Now(), ticketID,
 		)
 		return err
 	case "assign":
 		_, err := s.DB.Exec(
-			`UPDATE escalated_tickets SET assigned_to = ?, updated_at = ? WHERE id = ?`,
+			sqldialect.Rebind(s.DB, `UPDATE escalated_tickets SET assigned_to = ?, updated_at = ? WHERE id = ?`),
 			models.UserID(macroToString(action.Value)), time.Now(), ticketID,
 		)
 		return err
 	case "add_tag":
 		var tagID int64
 		err := s.DB.QueryRow(
-			`SELECT id FROM escalated_tags WHERE name = ?`,
+			sqldialect.Rebind(s.DB, `SELECT id FROM escalated_tags WHERE name = ?`),
 			macroToString(action.Value),
 		).Scan(&tagID)
 		if err == sql.ErrNoRows {
@@ -205,21 +205,21 @@ func (s *MacroService) runAction(action models.MacroAction, ticketID int64, agen
 			return err
 		}
 		_, err = s.DB.Exec(
-			`INSERT OR IGNORE INTO escalated_ticket_tags (ticket_id, tag_id) VALUES (?, ?)`,
+			sqldialect.Rebind(s.DB, `INSERT OR IGNORE INTO escalated_ticket_tags (ticket_id, tag_id) VALUES (?, ?)`),
 			ticketID, tagID,
 		)
 		return err
 	case "add_reply":
 		_, err := s.DB.Exec(
-			`INSERT INTO escalated_replies (ticket_id, author_id, body, is_internal_note, created_at, updated_at)
-			 VALUES (?, ?, ?, FALSE, ?, ?)`,
+			sqldialect.Rebind(s.DB, `INSERT INTO escalated_replies (ticket_id, author_id, body, is_internal_note, created_at, updated_at)
+			 VALUES (?, ?, ?, FALSE, ?, ?)`),
 			ticketID, agentID, macroToString(action.Value), time.Now(), time.Now(),
 		)
 		return err
 	case "add_note":
 		_, err := s.DB.Exec(
-			`INSERT INTO escalated_replies (ticket_id, author_id, body, is_internal_note, created_at, updated_at)
-			 VALUES (?, ?, ?, TRUE, ?, ?)`,
+			sqldialect.Rebind(s.DB, `INSERT INTO escalated_replies (ticket_id, author_id, body, is_internal_note, created_at, updated_at)
+			 VALUES (?, ?, ?, TRUE, ?, ?)`),
 			ticketID, agentID, macroToString(action.Value), time.Now(), time.Now(),
 		)
 		return err
@@ -227,8 +227,8 @@ func (s *MacroService) runAction(action models.MacroAction, ticketID int64, agen
 		// Frontend resolves the canned response template before POSTing;
 		// stored value is the resolved text body.
 		_, err := s.DB.Exec(
-			`INSERT INTO escalated_replies (ticket_id, author_id, body, is_internal_note, created_at, updated_at)
-			 VALUES (?, ?, ?, FALSE, ?, ?)`,
+			sqldialect.Rebind(s.DB, `INSERT INTO escalated_replies (ticket_id, author_id, body, is_internal_note, created_at, updated_at)
+			 VALUES (?, ?, ?, FALSE, ?, ?)`),
 			ticketID, agentID, macroToString(action.Value), time.Now(), time.Now(),
 		)
 		return err

@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/internal/testdb"
 
 	_ "modernc.org/sqlite"
@@ -21,8 +22,7 @@ func newWorkflowTestDB(t *testing.T) *sql.DB {
 func insertRunnerTicket(t *testing.T, db *sql.DB, status, priority int) *models.Ticket {
 	t.Helper()
 	now := time.Now()
-	res, err := db.Exec(
-		`INSERT INTO escalated_tickets (reference, subject, description, status, priority, ticket_type, metadata, created_at, updated_at)
+	res, err := sqldialect.ExecInsert(db, `INSERT INTO escalated_tickets (reference, subject, description, status, priority, ticket_type, metadata, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, '{}', ?, ?)`,
 		"ESC-1", "Login is broken", "Cannot sign in", status, priority, "problem", now, now,
 	)
@@ -42,8 +42,7 @@ func insertRunnerTicket(t *testing.T, db *sql.DB, status, priority int) *models.
 
 func insertWorkflow(t *testing.T, db *sql.DB, event, conditions, actions string, active, stopOnMatch bool, position int) int64 {
 	t.Helper()
-	res, err := db.Exec(
-		`INSERT INTO escalated_workflows (name, trigger_event, conditions, actions, is_active, stop_on_match, position)
+	res, err := sqldialect.ExecInsert(db, `INSERT INTO escalated_workflows (name, trigger_event, conditions, actions, is_active, stop_on_match, position)
 		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		"wf", event, conditions, actions, active, stopOnMatch, position,
 	)
@@ -71,7 +70,7 @@ func TestWorkflowRunnerFiresMatchingWorkflowAndLogs(t *testing.T) {
 
 	// Action 1: priority raised to urgent (3).
 	var priority int
-	if err := db.QueryRow(`SELECT priority FROM escalated_tickets WHERE id = ?`, ticket.ID).Scan(&priority); err != nil {
+	if err := db.QueryRow(sqldialect.Rebind(db, `SELECT priority FROM escalated_tickets WHERE id = ?`), ticket.ID).Scan(&priority); err != nil {
 		t.Fatalf("read ticket priority: %v", err)
 	}
 	if priority != models.PriorityUrgent {
@@ -81,7 +80,7 @@ func TestWorkflowRunnerFiresMatchingWorkflowAndLogs(t *testing.T) {
 	// Action 2: an internal note with the interpolated reference.
 	var noteBody string
 	if err := db.QueryRow(
-		`SELECT body FROM escalated_replies WHERE ticket_id = ? AND is_internal = TRUE`, ticket.ID,
+		sqldialect.Rebind(db, `SELECT body FROM escalated_replies WHERE ticket_id = ? AND is_internal = TRUE`), ticket.ID,
 	).Scan(&noteBody); err != nil {
 		t.Fatalf("read workflow note: %v", err)
 	}
@@ -93,8 +92,8 @@ func TestWorkflowRunnerFiresMatchingWorkflowAndLogs(t *testing.T) {
 	var count int
 	var status, event string
 	if err := db.QueryRow(
-		`SELECT COUNT(*), COALESCE(MAX(status), ''), COALESCE(MAX(trigger_event), '')
-		   FROM escalated_workflow_logs WHERE workflow_id = ? AND ticket_id = ?`,
+		sqldialect.Rebind(db, `SELECT COUNT(*), COALESCE(MAX(status), ''), COALESCE(MAX(trigger_event), '')
+		   FROM escalated_workflow_logs WHERE workflow_id = ? AND ticket_id = ?`),
 		wfID, ticket.ID,
 	).Scan(&count, &status, &event); err != nil {
 		t.Fatalf("count logs: %v", err)
@@ -125,7 +124,7 @@ func TestWorkflowRunnerSkipsNonMatchingWorkflow(t *testing.T) {
 	NewWorkflowRunner(db, discardLogger()).RunForEvent("ticket.created", ticket)
 
 	var priority int
-	if err := db.QueryRow(`SELECT priority FROM escalated_tickets WHERE id = ?`, ticket.ID).Scan(&priority); err != nil {
+	if err := db.QueryRow(sqldialect.Rebind(db, `SELECT priority FROM escalated_tickets WHERE id = ?`), ticket.ID).Scan(&priority); err != nil {
 		t.Fatalf("read ticket priority: %v", err)
 	}
 	if priority != models.PriorityMedium {
@@ -133,7 +132,7 @@ func TestWorkflowRunnerSkipsNonMatchingWorkflow(t *testing.T) {
 	}
 
 	var status string
-	if err := db.QueryRow(`SELECT status FROM escalated_workflow_logs WHERE ticket_id = ?`, ticket.ID).Scan(&status); err != nil {
+	if err := db.QueryRow(sqldialect.Rebind(db, `SELECT status FROM escalated_workflow_logs WHERE ticket_id = ?`), ticket.ID).Scan(&status); err != nil {
 		t.Fatalf("read log: %v", err)
 	}
 	if status != "skipped" {
@@ -155,13 +154,13 @@ func TestWorkflowRunnerFiltersByEventAndActive(t *testing.T) {
 	NewWorkflowRunner(db, discardLogger()).RunForEvent("ticket.created", ticket)
 
 	var priority int
-	_ = db.QueryRow(`SELECT priority FROM escalated_tickets WHERE id = ?`, ticket.ID).Scan(&priority)
+	_ = db.QueryRow(sqldialect.Rebind(db, `SELECT priority FROM escalated_tickets WHERE id = ?`), ticket.ID).Scan(&priority)
 	if priority != models.PriorityLow {
 		t.Errorf("ticket priority = %d, want unchanged %d (wrong workflow ran)", priority, models.PriorityLow)
 	}
 
 	var logs int
-	_ = db.QueryRow(`SELECT COUNT(*) FROM escalated_workflow_logs`).Scan(&logs)
+	_ = db.QueryRow(sqldialect.Rebind(db, `SELECT COUNT(*) FROM escalated_workflow_logs`)).Scan(&logs)
 	if logs != 0 {
 		t.Errorf("workflow_logs rows = %d, want 0 (no subscribed active workflow)", logs)
 	}
@@ -181,13 +180,13 @@ func TestWorkflowRunnerHonorsStopOnMatch(t *testing.T) {
 	NewWorkflowRunner(db, discardLogger()).RunForEvent("ticket.created", ticket)
 
 	var priority int
-	_ = db.QueryRow(`SELECT priority FROM escalated_tickets WHERE id = ?`, ticket.ID).Scan(&priority)
+	_ = db.QueryRow(sqldialect.Rebind(db, `SELECT priority FROM escalated_tickets WHERE id = ?`), ticket.ID).Scan(&priority)
 	if priority != models.PriorityLow {
 		t.Errorf("ticket priority = %d, want unchanged %d (second workflow ran despite stop_on_match)", priority, models.PriorityLow)
 	}
 
 	var logs int
-	_ = db.QueryRow(`SELECT COUNT(*) FROM escalated_workflow_logs`).Scan(&logs)
+	_ = db.QueryRow(sqldialect.Rebind(db, `SELECT COUNT(*) FROM escalated_workflow_logs`)).Scan(&logs)
 	if logs != 1 {
 		t.Errorf("workflow_logs rows = %d, want 1 (only the first workflow should have run)", logs)
 	}

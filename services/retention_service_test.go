@@ -2,9 +2,11 @@ package services
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/internal/testdb"
 
 	_ "modernc.org/sqlite"
@@ -57,10 +59,14 @@ func TestPurgeExpired(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// The ticket has to exist: ticket_id is a foreign key, which SQLite does
+	// not enforce unless asked and PostgreSQL always does.
+	ticketID := seedRetentionTicket(t, ctx, db)
+
 	for _, ts := range []time.Time{time.Now().AddDate(0, 0, -200), time.Now().AddDate(0, 0, -10)} {
 		if _, err := db.ExecContext(ctx,
-			`INSERT INTO escalated_attachments (ticket_id, original_filename, mime_type, storage_path, created_at)
-			 VALUES (1, 'f', 'text/plain', '/p', ?)`, ts); err != nil {
+			sqldialect.Rebind(db, `INSERT INTO escalated_attachments (ticket_id, original_filename, mime_type, storage_path, created_at)
+			 VALUES (?, 'f', 'text/plain', '/p', ?)`), ticketID, ts); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -68,7 +74,7 @@ func TestPurgeExpired(t *testing.T) {
 	rs := NewRetentionService(db, s)
 	count := func() int {
 		var n int
-		if err := db.QueryRow(`SELECT COUNT(1) FROM escalated_attachments`).Scan(&n); err != nil {
+		if err := db.QueryRow(sqldialect.Rebind(db, `SELECT COUNT(1) FROM escalated_attachments`)).Scan(&n); err != nil {
 			t.Fatal(err)
 		}
 		return n
@@ -97,4 +103,25 @@ func TestPurgeExpired(t *testing.T) {
 	if count() != 1 {
 		t.Fatalf("want 1 remaining, got %d", count())
 	}
+}
+
+// seedRetentionTicket creates the ticket the attachments hang off.
+func seedRetentionTicket(t *testing.T, ctx context.Context, db *sql.DB) int64 {
+	t.Helper()
+
+	now := time.Now()
+
+	res, err := sqldialect.ExecInsertContext(ctx, db,
+		`INSERT INTO escalated_tickets (reference, subject, description, status, priority, created_at, updated_at)
+		 VALUES ('RET-1', 'Retention', 'body', 1, 2, ?, ?)`, now, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	id, err := res.LastInsertId()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return id
 }

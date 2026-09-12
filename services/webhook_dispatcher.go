@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
 )
 
@@ -93,7 +94,7 @@ func (d *WebhookDispatcher) Dispatch(event string, payload map[string]any) {
 	}
 
 	rows, err := d.DB.Query(
-		`SELECT id, url, events, secret, active FROM escalated_webhooks WHERE active = TRUE`,
+		sqldialect.Rebind(d.DB, `SELECT id, url, events, secret, active FROM escalated_webhooks WHERE active = TRUE`),
 	)
 	if err != nil {
 		d.logger().Printf("escalated webhook: list active: %v", err)
@@ -208,8 +209,7 @@ func (d *WebhookDispatcher) maybeRetry(w models.Webhook, event string, payload m
 // recordAttempt inserts a delivery row for this attempt and returns its id.
 func (d *WebhookDispatcher) recordAttempt(webhookID int64, event string, payloadJSON []byte, attempt int) int64 {
 	now := time.Now()
-	res, err := d.DB.Exec(
-		`INSERT INTO escalated_webhook_deliveries (webhook_id, event, payload, attempts, created_at, updated_at)
+	res, err := sqldialect.ExecInsert(d.DB, `INSERT INTO escalated_webhook_deliveries (webhook_id, event, payload, attempts, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?)`,
 		webhookID, event, payloadJSON, attempt, now, now,
 	)
@@ -233,9 +233,9 @@ func (d *WebhookDispatcher) recordResult(deliveryID int64, code int, respBody st
 		deliveredAt = now
 	}
 	if _, err := d.DB.Exec(
-		`UPDATE escalated_webhook_deliveries
+		sqldialect.Rebind(d.DB, `UPDATE escalated_webhook_deliveries
 		    SET response_code = ?, response_body = ?, attempts = ?, delivered_at = ?, updated_at = ?
-		  WHERE id = ?`,
+		  WHERE id = ?`),
 		code, respBody, attempt, deliveredAt, now, deliveryID,
 	); err != nil {
 		d.logger().Printf("escalated webhook: record result: %v", err)
@@ -246,7 +246,7 @@ func (d *WebhookDispatcher) findWebhook(id int64) (*models.Webhook, error) {
 	var w models.Webhook
 	var secret sql.NullString
 	err := d.DB.QueryRow(
-		`SELECT id, url, events, secret, active FROM escalated_webhooks WHERE id = ?`,
+		sqldialect.Rebind(d.DB, `SELECT id, url, events, secret, active FROM escalated_webhooks WHERE id = ?`),
 		id,
 	).Scan(&w.ID, &w.URL, &w.Events, &secret, &w.Active)
 	if err != nil {

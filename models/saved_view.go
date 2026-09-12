@@ -7,14 +7,14 @@ import (
 
 // SavedView represents a saved ticket filter/view configuration.
 type SavedView struct {
-	ID       int64           `json:"id"`
-	Name     string          `json:"name"`
-	Filters  json.RawMessage `json:"filters"`
-	UserID   UserID          `json:"user_id"`
-	IsShared bool            `json:"is_shared"`
-	Position int             `json:"position"`
-	Icon     string          `json:"icon,omitempty"`
-	Color    string          `json:"color,omitempty"`
+	ID       int64    `json:"id"`
+	Name     string   `json:"name"`
+	Filters  JSONText `json:"filters"`
+	UserID   UserID   `json:"user_id"`
+	IsShared bool     `json:"is_shared"`
+	Position int      `json:"position"`
+	Icon     string   `json:"icon,omitempty"`
+	Color    string   `json:"color,omitempty"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/internal/testdb"
 
 	"github.com/go-chi/chi/v5"
@@ -27,20 +28,42 @@ func newReportRouterEsc(t *testing.T) *escalated.Escalated {
 	db := testdb.Open(t)
 
 	now := time.Now()
-	seed := func(ref string, status, priority int, assigned, slaPolicy any, breached bool, created time.Time, firstResp, resolved any) {
-		if _, err := db.Exec(
-			`INSERT INTO escalated_tickets
+
+	// sla_policy_id and satisfaction_ratings.ticket_id are foreign keys, which
+	// SQLite does not enforce unless asked and PostgreSQL always does. The rows
+	// they point at have to exist.
+	var slaPolicyID int64
+	if err := db.QueryRow(sqldialect.Rebind(db,
+		`INSERT INTO escalated_sla_policies (name, description, first_response_hours, resolution_hours, created_at, updated_at)
+		 VALUES ('Standard', 'seeded for reporting routes', '{}', '{}', ?, ?) RETURNING id`),
+		now, now).Scan(&slaPolicyID); err != nil {
+		t.Fatalf("seed sla policy: %v", err)
+	}
+
+	seed := func(ref string, status, priority int, assigned, slaPolicy any, breached bool, created time.Time, firstResp, resolved any) int64 {
+		res, err := sqldialect.ExecInsert(db, `INSERT INTO escalated_tickets
 			   (reference, subject, description, status, priority, assigned_to, sla_policy_id,
 			    sla_breached, first_response_at, resolved_at, created_at, updated_at)
 			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			ref, ref, "body", status, priority, assigned, slaPolicy, breached, firstResp, resolved, created, created,
-		); err != nil {
+		)
+		if err != nil {
 			t.Fatalf("seed %s: %v", ref, err)
 		}
+
+		id, err := res.LastInsertId()
+		if err != nil {
+			t.Fatalf("seed %s id: %v", ref, err)
+		}
+
+		return id
 	}
-	seed("R-1", 5, 2, "3", 1, false, now.AddDate(0, 0, -2), now.AddDate(0, 0, -2).Add(time.Hour), now.AddDate(0, 0, -2).Add(3*time.Hour))
-	seed("R-2", 6, 1, "3", 1, true, now.AddDate(0, 0, -1), now.AddDate(0, 0, -1).Add(2*time.Hour), now.AddDate(0, 0, -1).Add(4*time.Hour))
-	if _, err := db.Exec(`INSERT INTO escalated_satisfaction_ratings (ticket_id, rating, created_at) VALUES (1, 5, ?)`, now); err != nil {
+
+	ticketID := seed("R-1", 5, 2, "3", slaPolicyID, false, now.AddDate(0, 0, -2), now.AddDate(0, 0, -2).Add(time.Hour), now.AddDate(0, 0, -2).Add(3*time.Hour))
+	seed("R-2", 6, 1, "3", slaPolicyID, true, now.AddDate(0, 0, -1), now.AddDate(0, 0, -1).Add(2*time.Hour), now.AddDate(0, 0, -1).Add(4*time.Hour))
+
+	// The rating hangs off a real ticket rather than an assumed id of 1.
+	if _, err := db.Exec(sqldialect.Rebind(db, `INSERT INTO escalated_satisfaction_ratings (ticket_id, rating, created_at) VALUES (?, 5, ?)`), ticketID, now); err != nil {
 		t.Fatalf("seed rating: %v", err)
 	}
 

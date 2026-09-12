@@ -16,7 +16,7 @@ type Webhook struct {
 	ID  int64  `json:"id"`
 	URL string `json:"url"`
 	// Events is a JSON array of subscribed event names (e.g. ["ticket.created"]).
-	Events json.RawMessage `json:"events"`
+	Events JSONText `json:"events"`
 	// Secret, when set, signs each delivery via X-Escalated-Signature.
 	Secret    *string   `json:"secret,omitempty"`
 	Active    bool      `json:"active"`

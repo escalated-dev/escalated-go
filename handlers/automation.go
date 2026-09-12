@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/services"
 )
@@ -39,9 +40,9 @@ func NewAutomationHandler(db *sql.DB, runner *services.AutomationRunner) *Automa
 func (h *AutomationHandler) List(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.DB.QueryContext(
 		r.Context(),
-		`SELECT id, name, description, conditions, actions, active, position, last_run_at, created_at, updated_at
+		sqldialect.Rebind(h.DB, `SELECT id, name, description, conditions, actions, active, position, last_run_at, created_at, updated_at
 		   FROM escalated_automations
-		  ORDER BY position ASC, id ASC`,
+		  ORDER BY position ASC, id ASC`),
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -84,8 +85,8 @@ func (h *AutomationHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conditions := defaultJSONArray(in.Conditions)
-	actions := defaultJSONArray(in.Actions)
+	conditions := defaultJSONArray(models.JSONText(in.Conditions))
+	actions := defaultJSONArray(models.JSONText(in.Actions))
 	active := true
 	if in.Active != nil {
 		active = *in.Active
@@ -95,9 +96,7 @@ func (h *AutomationHandler) Create(w http.ResponseWriter, r *http.Request) {
 		position = *in.Position
 	}
 
-	res, err := h.DB.ExecContext(
-		r.Context(),
-		`INSERT INTO escalated_automations (name, description, conditions, actions, active, position, created_at, updated_at)
+	res, err := sqldialect.ExecInsertContext(r.Context(), h.DB, `INSERT INTO escalated_automations (name, description, conditions, actions, active, position, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		in.Name, in.Description, conditions, actions, active, position, time.Now(), time.Now(),
 	)
@@ -170,7 +169,7 @@ func (h *AutomationHandler) Update(w http.ResponseWriter, r *http.Request) {
 	args = append(args, id)
 
 	q := "UPDATE escalated_automations SET " + joinSets(sets) + " WHERE id = ?"
-	if _, err := h.DB.ExecContext(r.Context(), q, args...); err != nil {
+	if _, err := h.DB.ExecContext(r.Context(), sqldialect.Rebind(h.DB, q), args...); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -187,7 +186,7 @@ func (h *AutomationHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	if _, err := h.DB.ExecContext(
 		r.Context(),
-		`DELETE FROM escalated_automations WHERE id = ?`,
+		sqldialect.Rebind(h.DB, `DELETE FROM escalated_automations WHERE id = ?`),
 		id,
 	); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -207,7 +206,7 @@ func (h *AutomationHandler) Run(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"affected": affected})
 }
 
-func defaultJSONArray(raw json.RawMessage) []byte {
+func defaultJSONArray(raw models.JSONText) []byte {
 	if len(raw) == 0 {
 		return []byte("[]")
 	}

@@ -1,7 +1,6 @@
 package models
 
 import (
-	"encoding/json"
 	"time"
 )
 
@@ -14,7 +13,7 @@ type WebhookDelivery struct {
 	WebhookID int64  `json:"webhook_id"`
 	Event     string `json:"event"`
 	// Payload is the JSON payload object sent under the "payload" key.
-	Payload json.RawMessage `json:"payload,omitempty"`
+	Payload JSONText `json:"payload,omitempty"`
 	// ResponseCode is the HTTP status, or 0 on transport error. Nil until sent.
 	ResponseCode *int       `json:"response_code,omitempty"`
 	ResponseBody *string    `json:"response_body,omitempty"`

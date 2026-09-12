@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/internal/testdb"
 
 	_ "modernc.org/sqlite"
@@ -23,8 +24,7 @@ func openReportTestDB(t *testing.T) *sql.DB {
 
 func seedReportTicket(t *testing.T, db *sql.DB, ref, subject string, status, priority int, assignedTo, slaPolicyID any, slaBreached bool, createdAt time.Time, firstResponseAt, resolvedAt any) int64 {
 	t.Helper()
-	res, err := db.Exec(
-		`INSERT INTO escalated_tickets
+	res, err := sqldialect.ExecInsert(db, `INSERT INTO escalated_tickets
 		   (reference, subject, description, status, priority, assigned_to, sla_policy_id,
 		    sla_breached, first_response_at, resolved_at, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -44,7 +44,7 @@ func seedReportTicket(t *testing.T, db *sql.DB, ref, subject string, status, pri
 func seedReportRating(t *testing.T, db *sql.DB, ticketID int64, rating int, createdAt time.Time) {
 	t.Helper()
 	if _, err := db.Exec(
-		`INSERT INTO escalated_satisfaction_ratings (ticket_id, rating, created_at) VALUES (?, ?, ?)`,
+		sqldialect.Rebind(db, `INSERT INTO escalated_satisfaction_ratings (ticket_id, rating, created_at) VALUES (?, ?, ?)`),
 		ticketID, rating, createdAt,
 	); err != nil {
 		t.Fatalf("seed rating: %v", err)
@@ -59,6 +59,7 @@ func TestReportHandler_SeededData(t *testing.T) {
 	h := NewReportHandler(db, "escalated_")
 
 	now := time.Now()
+	slaPolicyID := seedSLAPolicy(t, db)
 	t1 := now.AddDate(0, 0, -3)
 	t2 := now.AddDate(0, 0, -2)
 	t3 := now.AddDate(0, 0, -1)
@@ -66,9 +67,9 @@ func TestReportHandler_SeededData(t *testing.T) {
 
 	// Agent "7": two tickets, both resolved, one SLA breach.
 	id1 := seedReportTicket(t, db, "T-1", "Login broken", models.StatusResolved, models.PriorityHigh,
-		"7", 1, false, t1, t1.Add(2*time.Hour), t1.Add(5*time.Hour))
+		"7", slaPolicyID, false, t1, t1.Add(2*time.Hour), t1.Add(5*time.Hour))
 	id2 := seedReportTicket(t, db, "T-2", "Billing issue", models.StatusClosed, models.PriorityMedium,
-		"7", 1, true, t2, t2.Add(1*time.Hour), t2.Add(3*time.Hour))
+		"7", slaPolicyID, true, t2, t2.Add(1*time.Hour), t2.Add(3*time.Hour))
 	// Agent "9": one open ticket, no policy, slow first response, unresolved.
 	seedReportTicket(t, db, "T-3", "Question", models.StatusOpen, models.PriorityLow,
 		"9", nil, false, t3, t3.Add(10*time.Hour), nil)
@@ -176,4 +177,26 @@ func TestReportHandler_SeededData(t *testing.T) {
 	eq("period.previous.total_created", prev["total_created"], float64(0))
 	changes := pc["changes"].(map[string]any)
 	eq("period.changes.total_created", changes["total_created"], float64(100))
+}
+
+// seedSLAPolicy creates the policy the seeded tickets reference. sla_policy_id
+// is a foreign key, which SQLite does not enforce unless asked and PostgreSQL
+// always does -- so an id of 1 with no policy behind it passed on one and
+// failed on the other.
+func seedSLAPolicy(t *testing.T, db *sql.DB) int64 {
+	t.Helper()
+
+	res, err := sqldialect.ExecInsert(db,
+		`INSERT INTO escalated_sla_policies (name, description, first_response_hours, resolution_hours, created_at, updated_at)
+		 VALUES ('Standard', 'seeded for reporting tests', '{}', '{}', ?, ?)`, time.Now(), time.Now())
+	if err != nil {
+		t.Fatalf("seed sla policy: %v", err)
+	}
+
+	id, err := res.LastInsertId()
+	if err != nil {
+		t.Fatalf("seed sla policy id: %v", err)
+	}
+
+	return id
 }

@@ -7,18 +7,18 @@ import (
 
 // Workflow represents an automation rule that triggers on events.
 type Workflow struct {
-	ID           int64           `json:"id"`
-	Name         string          `json:"name"`
-	Description  *string         `json:"description,omitempty"`
-	TriggerEvent string          `json:"trigger_event"`
-	Trigger      string          `json:"trigger"` // Alias for frontend compatibility
-	Conditions   json.RawMessage `json:"conditions"`
-	Actions      json.RawMessage `json:"actions"`
-	Position     int             `json:"position"`
-	IsActive     bool            `json:"is_active"`
-	StopOnMatch  bool            `json:"stop_on_match"`
-	CreatedAt    time.Time       `json:"created_at"`
-	UpdatedAt    time.Time       `json:"updated_at"`
+	ID           int64     `json:"id"`
+	Name         string    `json:"name"`
+	Description  *string   `json:"description,omitempty"`
+	TriggerEvent string    `json:"trigger_event"`
+	Trigger      string    `json:"trigger"` // Alias for frontend compatibility
+	Conditions   JSONText  `json:"conditions"`
+	Actions      JSONText  `json:"actions"`
+	Position     int       `json:"position"`
+	IsActive     bool      `json:"is_active"`
+	StopOnMatch  bool      `json:"stop_on_match"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 // ComputeTrigger populates the Trigger alias from TriggerEvent.
@@ -28,16 +28,16 @@ func (w *Workflow) ComputeTrigger() {
 
 // WorkflowLog records the execution result of a workflow.
 type WorkflowLog struct {
-	ID                 int64           `json:"-"`
-	WorkflowID         int64           `json:"-"`
-	TicketID           int64           `json:"-"`
-	TriggerEvent       string          `json:"-"`
-	ConditionsMatched  bool            `json:"-"`
-	ActionsExecutedRaw json.RawMessage `json:"-"`
-	ErrorMessage       *string         `json:"-"`
-	StartedAt          *time.Time      `json:"-"`
-	CompletedAt        *time.Time      `json:"-"`
-	CreatedAt          time.Time       `json:"-"`
+	ID                 int64      `json:"-"`
+	WorkflowID         int64      `json:"-"`
+	TicketID           int64      `json:"-"`
+	TriggerEvent       string     `json:"-"`
+	ConditionsMatched  bool       `json:"-"`
+	ActionsExecutedRaw JSONText   `json:"-"`
+	ErrorMessage       *string    `json:"-"`
+	StartedAt          *time.Time `json:"-"`
+	CompletedAt        *time.Time `json:"-"`
+	CreatedAt          time.Time  `json:"-"`
 
 	// Relationship data (populated via JOIN)
 	WorkflowName    *string `json:"-"`
@@ -46,20 +46,20 @@ type WorkflowLog struct {
 
 // WorkflowLogJSON is the serialized form expected by the frontend.
 type WorkflowLogJSON struct {
-	ID              int64           `json:"id"`
-	WorkflowID      int64           `json:"workflow_id"`
-	TicketID        int64           `json:"ticket_id"`
-	TriggerEvent    string          `json:"trigger_event"`
-	Event           string          `json:"event"`
-	WorkflowName    *string         `json:"workflow_name"`
-	TicketReference *string         `json:"ticket_reference"`
-	Matched         bool            `json:"matched"`
-	ActionsExecuted int             `json:"actions_executed"`
-	ActionDetails   json.RawMessage `json:"action_details"`
-	DurationMs      *int64          `json:"duration_ms"`
-	Status          string          `json:"status"`
-	ErrorMessage    *string         `json:"error_message,omitempty"`
-	CreatedAt       time.Time       `json:"created_at"`
+	ID              int64     `json:"id"`
+	WorkflowID      int64     `json:"workflow_id"`
+	TicketID        int64     `json:"ticket_id"`
+	TriggerEvent    string    `json:"trigger_event"`
+	Event           string    `json:"event"`
+	WorkflowName    *string   `json:"workflow_name"`
+	TicketReference *string   `json:"ticket_reference"`
+	Matched         bool      `json:"matched"`
+	ActionsExecuted int       `json:"actions_executed"`
+	ActionDetails   JSONText  `json:"action_details"`
+	DurationMs      *int64    `json:"duration_ms"`
+	Status          string    `json:"status"`
+	ErrorMessage    *string   `json:"error_message,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
 }
 
 // ToJSON converts a WorkflowLog to its frontend-compatible JSON representation.
@@ -69,7 +69,7 @@ func (l *WorkflowLog) ToJSON() WorkflowLogJSON {
 	actionsCount := 0
 	rawActions := l.ActionsExecutedRaw
 	if rawActions == nil {
-		rawActions = json.RawMessage("[]")
+		rawActions = JSONText("[]")
 	}
 	if err := json.Unmarshal(rawActions, &actions); err == nil {
 		actionsCount = len(actions)
@@ -108,11 +108,11 @@ func (l *WorkflowLog) ToJSON() WorkflowLogJSON {
 
 // DelayedAction represents a workflow action scheduled for future execution.
 type DelayedAction struct {
-	ID         int64           `json:"id"`
-	WorkflowID int64           `json:"workflow_id"`
-	TicketID   int64           `json:"ticket_id"`
-	ActionData json.RawMessage `json:"action_data"`
-	ExecuteAt  time.Time       `json:"execute_at"`
-	Executed   bool            `json:"executed"`
-	CreatedAt  time.Time       `json:"created_at"`
+	ID         int64     `json:"id"`
+	WorkflowID int64     `json:"workflow_id"`
+	TicketID   int64     `json:"ticket_id"`
+	ActionData JSONText  `json:"action_data"`
+	ExecuteAt  time.Time `json:"execute_at"`
+	Executed   bool      `json:"executed"`
+	CreatedAt  time.Time `json:"created_at"`
 }

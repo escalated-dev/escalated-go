@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
 )
 
@@ -38,10 +39,10 @@ func NewEscalationService(db *sql.DB, logger *log.Logger) *EscalationService {
 // does not abort the rest.
 func (s *EscalationService) EvaluateRules() (int, error) {
 	rows, err := s.DB.Query(
-		`SELECT id, name, conditions, actions
+		sqldialect.Rebind(s.DB, `SELECT id, name, conditions, actions
 		   FROM escalated_escalation_rules
 		  WHERE is_active = 1
-		  ORDER BY sort_order ASC, id ASC`,
+		  ORDER BY sort_order ASC, id ASC`),
 	)
 	if err != nil {
 		return 0, fmt.Errorf("escalation: list active: %w", err)
@@ -100,7 +101,7 @@ func (s *EscalationService) findMatchingTicketIDs(rule models.EscalationRule) ([
 		strings.Join(clauses, " AND "),
 	)
 
-	rows, err := s.DB.Query(q, args...)
+	rows, err := s.DB.Query(sqldialect.Rebind(s.DB, q), args...)
 	if err != nil {
 		return nil, fmt.Errorf("query tickets: %w", err)
 	}
@@ -180,25 +181,25 @@ func (s *EscalationService) runAction(action models.EscalationAction, ticketID i
 	switch action.Type {
 	case "escalate":
 		_, err := s.DB.Exec(
-			`UPDATE escalated_tickets SET status = ?, updated_at = ? WHERE id = ?`,
+			sqldialect.Rebind(s.DB, `UPDATE escalated_tickets SET status = ?, updated_at = ? WHERE id = ?`),
 			models.StatusEscalated, time.Now(), ticketID,
 		)
 		return err
 	case "change_priority":
 		_, err := s.DB.Exec(
-			`UPDATE escalated_tickets SET priority = ?, updated_at = ? WHERE id = ?`,
+			sqldialect.Rebind(s.DB, `UPDATE escalated_tickets SET priority = ?, updated_at = ? WHERE id = ?`),
 			toInt(action.Value), time.Now(), ticketID,
 		)
 		return err
 	case "assign_to":
 		_, err := s.DB.Exec(
-			`UPDATE escalated_tickets SET assigned_to = ?, updated_at = ? WHERE id = ?`,
+			sqldialect.Rebind(s.DB, `UPDATE escalated_tickets SET assigned_to = ?, updated_at = ? WHERE id = ?`),
 			models.UserID(toString(action.Value)), time.Now(), ticketID,
 		)
 		return err
 	case "change_department":
 		_, err := s.DB.Exec(
-			`UPDATE escalated_tickets SET department_id = ?, updated_at = ? WHERE id = ?`,
+			sqldialect.Rebind(s.DB, `UPDATE escalated_tickets SET department_id = ?, updated_at = ? WHERE id = ?`),
 			toInt(action.Value), time.Now(), ticketID,
 		)
 		return err

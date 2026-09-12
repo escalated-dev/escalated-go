@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
 )
 
@@ -101,7 +102,7 @@ func (s *SkillRoutingService) tagIDsForTicket(ctx context.Context, ticket *model
 	}
 	rows, err := s.db.QueryContext(
 		ctx,
-		fmt.Sprintf(`SELECT tag_id FROM %s WHERE ticket_id = ? ORDER BY tag_id`, s.t("ticket_tags")),
+		sqldialect.Rebind(s.db, fmt.Sprintf(`SELECT tag_id FROM %s WHERE ticket_id = ? ORDER BY tag_id`, s.t("ticket_tags"))),
 		ticket.ID,
 	)
 	if err != nil {
@@ -136,7 +137,7 @@ func (s *SkillRoutingService) requiredSkillIDs(ctx context.Context, ticket *mode
 			`SELECT DISTINCT skill_id FROM %s WHERE tag_id IN (%s)`,
 			s.t("skill_routing_tags"), ph,
 		)
-		rows, err := s.db.QueryContext(ctx, q, args...)
+		rows, err := s.db.QueryContext(ctx, sqldialect.Rebind(s.db, q), args...)
 		if err != nil {
 			return nil, err
 		}
@@ -154,7 +155,7 @@ func (s *SkillRoutingService) requiredSkillIDs(ctx context.Context, ticket *mode
 	if ticket.DepartmentID != nil {
 		rows, err := s.db.QueryContext(
 			ctx,
-			fmt.Sprintf(`SELECT DISTINCT skill_id FROM %s WHERE department_id = ?`, s.t("skill_routing_departments")),
+			sqldialect.Rebind(s.db, fmt.Sprintf(`SELECT DISTINCT skill_id FROM %s WHERE department_id = ?`, s.t("skill_routing_departments"))),
 			*ticket.DepartmentID,
 		)
 		if err != nil {
@@ -197,7 +198,7 @@ func (s *SkillRoutingService) candidatesWithAllSkills(ctx context.Context, requi
 		s.t("agent_skills"), ph,
 	)
 
-	rows, err := s.db.QueryContext(ctx, q, args...)
+	rows, err := s.db.QueryContext(ctx, sqldialect.Rebind(s.db, q), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +236,7 @@ func (s *SkillRoutingService) openTicketLoads(ctx context.Context, userIDs []mod
 		s.t("tickets"), ph,
 	)
 
-	rows, err := s.db.QueryContext(ctx, q, args...)
+	rows, err := s.db.QueryContext(ctx, sqldialect.Rebind(s.db, q), args...)
 	if err != nil {
 		return nil, err
 	}

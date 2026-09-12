@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
 )
 
@@ -50,7 +51,7 @@ func (h *SatisfactionHandler) GuestRate(w http.ResponseWriter, r *http.Request) 
 
 	var id int64
 	err := h.DB.QueryRowContext(r.Context(),
-		`SELECT id FROM escalated_tickets WHERE guest_token = ?`, token).Scan(&id)
+		sqldialect.Rebind(h.DB, `SELECT id FROM escalated_tickets WHERE guest_token = ?`), token).Scan(&id)
 	if err == sql.ErrNoRows {
 		http.Error(w, "ticket not found", http.StatusNotFound)
 		return
@@ -75,7 +76,7 @@ func (h *SatisfactionHandler) rateByTicketID(w http.ResponseWriter, r *http.Requ
 
 	var status int
 	err := h.DB.QueryRowContext(r.Context(),
-		`SELECT status FROM escalated_tickets WHERE id = ?`, id).Scan(&status)
+		sqldialect.Rebind(h.DB, `SELECT status FROM escalated_tickets WHERE id = ?`), id).Scan(&status)
 	if err == sql.ErrNoRows {
 		http.Error(w, "ticket not found", http.StatusNotFound)
 		return
@@ -91,7 +92,7 @@ func (h *SatisfactionHandler) rateByTicketID(w http.ResponseWriter, r *http.Requ
 
 	var existing int
 	if err := h.DB.QueryRowContext(r.Context(),
-		`SELECT COUNT(1) FROM escalated_satisfaction_ratings WHERE ticket_id = ?`, id).Scan(&existing); err != nil {
+		sqldialect.Rebind(h.DB, `SELECT COUNT(1) FROM escalated_satisfaction_ratings WHERE ticket_id = ?`), id).Scan(&existing); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -101,8 +102,8 @@ func (h *SatisfactionHandler) rateByTicketID(w http.ResponseWriter, r *http.Requ
 	}
 
 	if _, err := h.DB.ExecContext(r.Context(),
-		`INSERT INTO escalated_satisfaction_ratings (ticket_id, rating, comment, created_at)
-		 VALUES (?, ?, ?, ?)`,
+		sqldialect.Rebind(h.DB, `INSERT INTO escalated_satisfaction_ratings (ticket_id, rating, comment, created_at)
+		 VALUES (?, ?, ?, ?)`),
 		id, in.Rating, in.Comment, time.Now(),
 	); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

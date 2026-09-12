@@ -57,7 +57,7 @@ func TestAttachDetachSubjectHTTP(t *testing.T) {
 		Subject:     "Help",
 		Description: "body",
 		Status:      models.StatusOpen,
-		Metadata:    json.RawMessage(`{}`),
+		Metadata:    models.JSONText(`{}`),
 	}
 	if err := s.CreateTicket(ctx, ticket); err != nil {
 		t.Fatal(err)

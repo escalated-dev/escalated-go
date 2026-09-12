@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
 )
 
@@ -38,7 +39,7 @@ func (h *KBHandler) ListArticles(w http.ResponseWriter, r *http.Request) {
 	}
 	q += " ORDER BY published_at DESC, id DESC"
 
-	rows, err := h.DB.QueryContext(r.Context(), q, args...)
+	rows, err := h.DB.QueryContext(r.Context(), sqldialect.Rebind(h.DB, q), args...)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -65,8 +66,8 @@ func (h *KBHandler) ListArticles(w http.ResponseWriter, r *http.Request) {
 // ListCategories handles GET /api/kb/categories.
 func (h *KBHandler) ListCategories(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.DB.QueryContext(r.Context(),
-		`SELECT id, name, slug, parent_id, position, description, created_at, updated_at
-		FROM escalated_article_categories ORDER BY position ASC, name ASC`)
+		sqldialect.Rebind(h.DB, `SELECT id, name, slug, parent_id, position, description, created_at, updated_at
+		FROM escalated_article_categories ORDER BY position ASC, name ASC`))
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -103,8 +104,8 @@ func (h *KBHandler) ShowArticle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	row := h.DB.QueryRowContext(r.Context(),
-		`SELECT id, category_id, title, slug, body, status, view_count, helpful_count, not_helpful_count, published_at, created_at, updated_at
-		FROM escalated_articles WHERE slug = ? AND status = ?`, slug, models.ArticleStatusPublished)
+		sqldialect.Rebind(h.DB, `SELECT id, category_id, title, slug, body, status, view_count, helpful_count, not_helpful_count, published_at, created_at, updated_at
+		FROM escalated_articles WHERE slug = ? AND status = ?`), slug, models.ArticleStatusPublished)
 
 	a, err := scanArticle(row)
 	if err == sql.ErrNoRows {
@@ -117,7 +118,7 @@ func (h *KBHandler) ShowArticle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := h.DB.ExecContext(r.Context(),
-		`UPDATE escalated_articles SET view_count = view_count + 1 WHERE id = ?`, a.ID); err == nil {
+		sqldialect.Rebind(h.DB, `UPDATE escalated_articles SET view_count = view_count + 1 WHERE id = ?`), a.ID); err == nil {
 		a.ViewCount++
 	}
 

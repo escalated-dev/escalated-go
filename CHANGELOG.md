@@ -15,16 +15,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `migrations.Migrate` has never completed against a real PostgreSQL server.
   Every test in the package opened SQLite, so nothing had ever said so.
 
-### Known limitation
-- **Four packages are SQLite-only: `handlers`, `router`, `services` and
-  `services/newsletter`.** They run raw SQL with `?` placeholders in 167 places,
-  which PostgreSQL does not accept — anything reaching those code paths on a
-  PostgreSQL connection fails with a syntax error. The `store` package, which
-  has a hand-written PostgreSQL implementation, is unaffected.
+- **Everything outside the store only worked on SQLite.** Handlers, services, the
+  newsletter store and the workflow runners build SQL inline with `?`
+  placeholders, which PostgreSQL rejects as a syntax error. 196 statements now
+  go through `sqldialect.Rebind`, which rewrites them as `$1, $2, …` for a
+  PostgreSQL driver and leaves them alone for everything else — including `?`
+  inside a string literal, where it is data rather than a placeholder.
 
-  The new PostgreSQL CI leg runs every other package and names these four, so
-  the boundary is visible rather than assumed. Rewriting the placeholders is its
-  own piece of work.
+- **Inserts could not read back the new row's id.** PostgreSQL's driver does not
+  implement `LastInsertId`; the value comes back from a `RETURNING` clause.
+  `sqldialect.ExecInsert` adds one and returns a result of the same shape, so
+  every call site reads the id exactly as before.
+
+- **Every JSON column failed to read on PostgreSQL.** `json.RawMessage` is a
+  `[]byte`, and `database/sql` will only scan a `[]byte` into it. SQLite's driver
+  hands back `[]byte`; lib/pq hands back a `string`, and the read failed with
+  "unsupported Scan". The 23 JSON columns are now `models.JSONText`, which scans
+  from either and marshals identically.
+
+- **Timestamps came back shifted by the server's time zone.** The PostgreSQL
+  migrations declared `TIMESTAMP`, which has no time zone, so the driver wrote
+  the local wall clock and read it back labelled UTC. A newsletter retry
+  scheduled a minute ahead came back hours in the past. They are `TIMESTAMPTZ`
+  now, which is what every one of those columns means; SQLite keeps `TIMESTAMP`,
+  having no time zones to get wrong.
 
 ### Added
 - **The test suite can run against PostgreSQL.** `internal/testdb` opens the
@@ -39,7 +53,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   `migrations/postgres_test.go` asserts the schema PostgreSQL actually ends up
   with — the tables, the foreign keys that the swapped arguments turned into
-  references to a type, and the column types they mistyped.
+  references to a type, and the column types they mistyped. The whole suite now
+  runs on both: **PostgreSQL went from 215 failures to none.**
 - **`escalated.New` detects the database it was given.** It picks the PostgreSQL
   or SQLite store from the connection in `Config.DB`, so a host that opened a
   SQLite connection no longer has to know `NewSQLite` exists. `DetectDialect` is

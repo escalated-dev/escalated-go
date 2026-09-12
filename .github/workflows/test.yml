@@ -25,13 +25,7 @@ jobs:
 
   # The same suite against PostgreSQL, which is what escalated.New selects for
   # any PostgreSQL connection and what the README documents. Every test opened
-  # SQLite until now, so the PostgreSQL migrations had never been executed by
-  # anything -- and two of them were broken outright.
-  #
-  # Four packages are deliberately not in this list: handlers, router, services
-  # and services/newsletter. They run raw SQL with `?` placeholders in 167
-  # places, which PostgreSQL does not accept, so they are SQLite-only until that
-  # is rewritten. Adding a package here is the reminder to check which it is.
+  # SQLite until recently, so none of this had ever run against a server.
   postgres:
     name: go test - postgres
     runs-on: ubuntu-latest
@@ -64,5 +58,4 @@ jobs:
           # SQLite and reporting green.
           ESCALATED_TEST_DRIVER: postgres
           ESCALATED_TEST_DSN: postgres://postgres:postgres@127.0.0.1:5432/escalated_test?sslmode=disable
-        run: |
-          go test ./ ./actions/... ./internal/... ./middleware/...                   ./migrations/... ./models/... ./services/email/... ./store/...
+        run: go test ./...
