@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-12
+
 ### Fixed
 - **The PostgreSQL migrations could not create the schema.** `escalated_replies`
   and `escalated_ticket_activities` passed their `Sprintf` arguments in the
