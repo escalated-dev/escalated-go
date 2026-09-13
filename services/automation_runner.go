@@ -248,14 +248,12 @@ func (r *AutomationRunner) runAction(a models.Automation, t models.Ticket, actio
 		)
 		return err
 	case "add_note":
-		md, _ := json.Marshal(map[string]interface{}{
-			"system_note":   true,
-			"automation_id": a.ID,
-		})
+		// Written the way the workflow runner writes its notes: internal, and
+		// system-authored, since no agent wrote it.
 		_, err := r.DB.Exec(
-			sqldialect.Rebind(r.DB, `INSERT INTO escalated_replies (ticket_id, body, is_internal_note, metadata, created_at, updated_at)
-			 VALUES (?, ?, TRUE, ?, ?, ?)`),
-			t.ID, toString(action.Value), md, time.Now(), time.Now(),
+			sqldialect.Rebind(r.DB, `INSERT INTO escalated_replies (ticket_id, body, is_internal, is_system, created_at, updated_at)
+			 VALUES (?, ?, TRUE, TRUE, ?, ?)`),
+			t.ID, toString(action.Value), time.Now(), time.Now(),
 		)
 		return err
 	case "add_follower":

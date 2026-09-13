@@ -211,14 +211,14 @@ func (s *MacroService) runAction(action models.MacroAction, ticketID int64, agen
 		return err
 	case "add_reply":
 		_, err := s.DB.Exec(
-			sqldialect.Rebind(s.DB, `INSERT INTO escalated_replies (ticket_id, author_id, body, is_internal_note, created_at, updated_at)
+			sqldialect.Rebind(s.DB, `INSERT INTO escalated_replies (ticket_id, author_id, body, is_internal, created_at, updated_at)
 			 VALUES (?, ?, ?, FALSE, ?, ?)`),
 			ticketID, agentID, macroToString(action.Value), time.Now(), time.Now(),
 		)
 		return err
 	case "add_note":
 		_, err := s.DB.Exec(
-			sqldialect.Rebind(s.DB, `INSERT INTO escalated_replies (ticket_id, author_id, body, is_internal_note, created_at, updated_at)
+			sqldialect.Rebind(s.DB, `INSERT INTO escalated_replies (ticket_id, author_id, body, is_internal, created_at, updated_at)
 			 VALUES (?, ?, ?, TRUE, ?, ?)`),
 			ticketID, agentID, macroToString(action.Value), time.Now(), time.Now(),
 		)
@@ -227,7 +227,7 @@ func (s *MacroService) runAction(action models.MacroAction, ticketID int64, agen
 		// Frontend resolves the canned response template before POSTing;
 		// stored value is the resolved text body.
 		_, err := s.DB.Exec(
-			sqldialect.Rebind(s.DB, `INSERT INTO escalated_replies (ticket_id, author_id, body, is_internal_note, created_at, updated_at)
+			sqldialect.Rebind(s.DB, `INSERT INTO escalated_replies (ticket_id, author_id, body, is_internal, created_at, updated_at)
 			 VALUES (?, ?, ?, FALSE, ?, ?)`),
 			ticketID, agentID, macroToString(action.Value), time.Now(), time.Now(),
 		)
