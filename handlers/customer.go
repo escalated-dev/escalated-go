@@ -48,7 +48,7 @@ func (h *CustomerHandler) Index(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Show displays a single ticket to the customer.
+// Show displays a single ticket to the customer who requested it.
 func (h *CustomerHandler) Show(w http.ResponseWriter, r *http.Request) {
 	id, err := idFromPath(r)
 	if err != nil {
@@ -59,6 +59,10 @@ func (h *CustomerHandler) Show(w http.ResponseWriter, r *http.Request) {
 	t, err := h.tickets.Get(r.Context(), id)
 	if err != nil || t == nil {
 		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	if !requestedBy(t, h.userID(r)) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
 
@@ -127,11 +131,23 @@ func (h *CustomerHandler) Create(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]any{"ticket": t})
 }
 
-// Reply handles a customer adding a reply to their ticket.
+// Reply handles a customer adding a reply to a ticket they requested.
 func (h *CustomerHandler) Reply(w http.ResponseWriter, r *http.Request) {
 	id, err := idFromPath(r)
 	if err != nil {
 		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+
+	uid := h.userID(r)
+
+	t, err := h.tickets.Get(r.Context(), id)
+	if err != nil || t == nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	if !requestedBy(t, uid) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
 
@@ -143,7 +159,6 @@ func (h *CustomerHandler) Reply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	uid := h.userID(r)
 	authorType := "User"
 
 	reply, err := h.tickets.AddReply(r.Context(), id, in.Body, &authorType, &uid, false)
@@ -153,4 +168,11 @@ func (h *CustomerHandler) Reply(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, map[string]any{"reply": reply})
+}
+
+// requestedBy reports whether uid is the ticket's requester. A ticket with no
+// requester, such as a guest ticket, belongs to no signed-in user, and an empty
+// uid is nobody.
+func requestedBy(t *models.Ticket, uid models.UserID) bool {
+	return !uid.Empty() && t.RequesterID != nil && *t.RequesterID == uid
 }
