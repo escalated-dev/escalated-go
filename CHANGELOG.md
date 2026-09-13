@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-13
+
+### Fixed
+- **Automation and macro actions that write a reply always failed.** The
+  `add_note` automation action, and the `add_reply`, `add_note` and
+  `insert_canned_reply` macro actions, inserted into `is_internal_note` (and the
+  automation into `metadata` as well). `escalated_replies` has `is_internal` and
+  `is_system` and never had either column, so every one of them failed on
+  insert, on SQLite and PostgreSQL alike. Automation notes are now written
+  internal and system-authored, the way workflow notes already were; macro
+  notes and replies keep the agent who applied the macro as their author.
+
 ## [0.1.0] - 2026-09-12
 
 ### Fixed
