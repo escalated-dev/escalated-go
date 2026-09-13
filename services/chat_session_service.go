@@ -42,7 +42,12 @@ type StartSessionInput struct {
 // and a ChatSession in waiting state. Attempts auto-routing.
 func (cs *ChatSessionService) StartSession(ctx context.Context, in StartSessionInput) (*models.Ticket, *models.ChatSession, error) {
 	channel := models.ChannelChat
-	guestToken := models.GenerateReference("GT")
+	// The guest token is the bearer credential for the visitor's chat, so it
+	// comes from the token generator and never the reference generator.
+	guestToken, err := models.GenerateGuestToken()
+	if err != nil {
+		return nil, nil, err
+	}
 
 	subject := in.Subject
 	if subject == "" {

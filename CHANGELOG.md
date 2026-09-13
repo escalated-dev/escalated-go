@@ -18,6 +18,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   replaced, other unique violations fail at once, and older six-character
   references keep resolving.
 
+### Security
+- **A live-chat guest token could be guessed.** `ChatSessionService.StartSession`
+  issued the token with `GenerateReference("GT")`: `GT-`, the year and month,
+  and 3 random bytes, so 24 random bits. On a host that serves live chat, the
+  token is the visitor's only credential: the public
+  `/api/guest/tickets/{token}` route opens the ticket with it alone, and the
+  widget's chat and lookup handlers accept it with the ticket reference. All of
+  a month's chat tokens could be enumerated. New chats get their token
+  from `GenerateGuestToken`, 32 bytes from `crypto/rand` (256 bits), as guest
+  tickets already did. The widget now compares tokens in constant time. Tokens
+  already stored keep working, and are no stronger than before.
+
 ## [0.1.2] - 2026-09-13
 
 ### Security
