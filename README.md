@@ -322,7 +322,15 @@ All routes are prefixed with `RoutePrefix` (default `/escalated`).
 | `GET` | `/api/departments` | List departments |
 | `GET` | `/api/tags` | List tags |
 
+The ticket, department and tag routes above require `AgentCheck` or
+`AdminCheck` and return 403 to anyone else. The `/api/auth/*`, `/api/guest/*`
+and `/api/kb/*` routes are public.
+
 ### Customer UI (when `UIEnabled: true`)
+
+These routes require a signed-in user, meaning `UserIDFunc` returns a
+non-empty id, and return 401 otherwise. A customer can view and reply only to
+tickets they requested. Any other ticket returns 403.
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -330,6 +338,16 @@ All routes are prefixed with `RoutePrefix` (default `/escalated`).
 | `POST` | `/tickets` | Submit a ticket |
 | `GET` | `/tickets/{id}` | View ticket |
 | `POST` | `/tickets/{id}/replies` | Reply to ticket |
+
+### Attachments (always mounted)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/attachments/{id}/download` | Download an attachment |
+
+Agents and admins can download any attachment. A signed-in customer can
+download attachments on tickets they requested, but not attachments on
+internal notes. Anyone else gets 401 or 403.
 
 ### Agent UI (requires `AgentCheck`)
 

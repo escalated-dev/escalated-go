@@ -37,6 +37,9 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	customerH := handlers.NewCustomerHandler(s, ticketSvc, rend, cfg.UserIDFunc)
 	adminH := handlers.NewAdminHandler(s, rend)
 	attachH := handlers.NewAttachmentHandler(s, cfg.RoutePrefix)
+	attachH.AgentCheck = cfg.AgentCheck
+	attachH.AdminCheck = cfg.AdminCheck
+	attachH.UserID = cfg.UserIDFunc
 	autoH := handlers.NewAutomationHandler(cfg.DB, services.NewAutomationRunner(cfg.DB, nil))
 	escH := handlers.NewEscalationHandler(cfg.DB, services.NewEscalationService(cfg.DB, nil))
 	satH := handlers.NewSatisfactionHandler(cfg.DB)
@@ -62,19 +65,24 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 
 	prefix := cfg.RoutePrefix
 
-	// Attachment downloads — always mounted
+	// Attachment downloads — always mounted. The handler authorizes each
+	// download through the attachment's ticket (see AttachmentHandler).
 	mux.HandleFunc("GET "+prefix+"/attachments/{id}/download", attachH.Download)
 
-	// JSON API — always mounted
-	mux.HandleFunc("GET "+prefix+"/api/tickets", apiH.ListTickets)
-	mux.HandleFunc("POST "+prefix+"/api/tickets", apiH.CreateTicket)
-	mux.HandleFunc("GET "+prefix+"/api/tickets/{id}", apiH.ShowTicket)
-	mux.HandleFunc("PATCH "+prefix+"/api/tickets/{id}", apiH.UpdateTicket)
-	mux.HandleFunc("POST "+prefix+"/api/tickets/{id}/replies", apiH.CreateReply)
-	mux.HandleFunc("POST "+prefix+"/api/tickets/{id}/subjects", subjectH.AttachSubject)
-	mux.HandleFunc("DELETE "+prefix+"/api/tickets/{id}/subjects/{subject}", subjectH.DetachSubject)
-	mux.HandleFunc("GET "+prefix+"/api/departments", apiH.ListDepartments)
-	mux.HandleFunc("GET "+prefix+"/api/tags", apiH.ListTags)
+	// JSON API — always mounted. Tickets, departments and tags are agent-level,
+	// like /agent: these routes list every ticket, return internal notes and
+	// change status and priority. The auth, guest and knowledge-base routes
+	// below stay public.
+	apiMW := middleware.RequireAgentOrAdmin(cfg.AgentCheck, cfg.AdminCheck)
+	mux.Handle("GET "+prefix+"/api/tickets", apiMW(http.HandlerFunc(apiH.ListTickets)))
+	mux.Handle("POST "+prefix+"/api/tickets", apiMW(http.HandlerFunc(apiH.CreateTicket)))
+	mux.Handle("GET "+prefix+"/api/tickets/{id}", apiMW(http.HandlerFunc(apiH.ShowTicket)))
+	mux.Handle("PATCH "+prefix+"/api/tickets/{id}", apiMW(http.HandlerFunc(apiH.UpdateTicket)))
+	mux.Handle("POST "+prefix+"/api/tickets/{id}/replies", apiMW(http.HandlerFunc(apiH.CreateReply)))
+	mux.Handle("POST "+prefix+"/api/tickets/{id}/subjects", apiMW(http.HandlerFunc(subjectH.AttachSubject)))
+	mux.Handle("DELETE "+prefix+"/api/tickets/{id}/subjects/{subject}", apiMW(http.HandlerFunc(subjectH.DetachSubject)))
+	mux.Handle("GET "+prefix+"/api/departments", apiMW(http.HandlerFunc(apiH.ListDepartments)))
+	mux.Handle("GET "+prefix+"/api/tags", apiMW(http.HandlerFunc(apiH.ListTags)))
 
 	// Authentication — delegated to host-app callbacks (handlers.APIAuth).
 	mux.HandleFunc("POST "+prefix+"/api/auth/login", authH.Login)
@@ -108,12 +116,14 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	}
 
 	if cfg.UIEnabled {
-		// Customer routes
-		mux.HandleFunc("GET "+prefix+"/tickets", customerH.Index)
-		mux.HandleFunc("POST "+prefix+"/tickets", customerH.Create)
-		mux.HandleFunc("GET "+prefix+"/tickets/{id}", customerH.Show)
-		mux.HandleFunc("POST "+prefix+"/tickets/{id}/replies", customerH.Reply)
-		mux.HandleFunc("POST "+prefix+"/tickets/{id}/rate", satH.Rate)
+		// Customer routes — a signed-in user only. Show and Reply are further
+		// limited to the ticket's requester in the handler.
+		userMW := middleware.RequireUser(cfg.UserIDFunc)
+		mux.Handle("GET "+prefix+"/tickets", userMW(http.HandlerFunc(customerH.Index)))
+		mux.Handle("POST "+prefix+"/tickets", userMW(http.HandlerFunc(customerH.Create)))
+		mux.Handle("GET "+prefix+"/tickets/{id}", userMW(http.HandlerFunc(customerH.Show)))
+		mux.Handle("POST "+prefix+"/tickets/{id}/replies", userMW(http.HandlerFunc(customerH.Reply)))
+		mux.Handle("POST "+prefix+"/tickets/{id}/rate", userMW(http.HandlerFunc(satH.Rate)))
 
 		// Agent routes (wrapped with agent middleware)
 		agentMW := middleware.RequireAgent(cfg.AgentCheck)

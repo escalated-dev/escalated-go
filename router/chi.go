@@ -47,6 +47,9 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	customerH := handlers.NewCustomerHandler(s, ticketSvc, rend, cfg.UserIDFunc)
 	adminH := handlers.NewAdminHandler(s, rend)
 	attachH := handlers.NewAttachmentHandler(s, cfg.RoutePrefix)
+	attachH.AgentCheck = cfg.AgentCheck
+	attachH.AdminCheck = cfg.AdminCheck
+	attachH.UserID = cfg.UserIDFunc
 	autoH := handlers.NewAutomationHandler(cfg.DB, services.NewAutomationRunner(cfg.DB, nil))
 	escH := handlers.NewEscalationHandler(cfg.DB, services.NewEscalationService(cfg.DB, nil))
 	satH := handlers.NewSatisfactionHandler(cfg.DB)
@@ -83,21 +86,29 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 			r.Use(middleware.Inertia(""))
 		}
 
-		// Attachment downloads — always mounted
+		// Attachment downloads — always mounted. The handler authorizes each
+		// download through the attachment's ticket (see AttachmentHandler).
 		r.Get("/attachments/{id}/download", attachH.Download)
 
 		// JSON API — always mounted
 		r.Route("/api", func(r chi.Router) {
-			r.Get("/tickets", apiH.ListTickets)
-			r.Post("/tickets", apiH.CreateTicket)
-			r.Get("/tickets/{id}", apiH.ShowTicket)
-			r.Patch("/tickets/{id}", apiH.UpdateTicket)
-			r.Post("/tickets/{id}/replies", apiH.CreateReply)
-			r.Post("/tickets/{id}/subjects", subjectH.AttachSubject)
-			r.Delete("/tickets/{id}/subjects/{subject}", subjectH.DetachSubject)
-			r.Post("/tickets/{id}/actions/{action}", apiH.CustomAction)
-			r.Get("/departments", apiH.ListDepartments)
-			r.Get("/tags", apiH.ListTags)
+			// Tickets, departments and tags are agent-level, like /agent: these
+			// routes list every ticket, return internal notes and change status
+			// and priority. The auth, guest and knowledge-base routes below stay
+			// public.
+			r.Group(func(r chi.Router) {
+				r.Use(middleware.RequireAgentOrAdmin(cfg.AgentCheck, cfg.AdminCheck))
+				r.Get("/tickets", apiH.ListTickets)
+				r.Post("/tickets", apiH.CreateTicket)
+				r.Get("/tickets/{id}", apiH.ShowTicket)
+				r.Patch("/tickets/{id}", apiH.UpdateTicket)
+				r.Post("/tickets/{id}/replies", apiH.CreateReply)
+				r.Post("/tickets/{id}/subjects", subjectH.AttachSubject)
+				r.Delete("/tickets/{id}/subjects/{subject}", subjectH.DetachSubject)
+				r.Post("/tickets/{id}/actions/{action}", apiH.CustomAction)
+				r.Get("/departments", apiH.ListDepartments)
+				r.Get("/tags", apiH.ListTags)
+			})
 
 			// Authentication — delegated to host-app callbacks (handlers.APIAuth).
 			r.Post("/auth/login", authH.Login)
@@ -137,8 +148,10 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 
 		// UI routes — only when enabled (Inertia middleware registered above).
 		if cfg.UIEnabled {
-			// Customer routes
+			// Customer routes — a signed-in user only. Show and Reply are further
+			// limited to the ticket's requester in the handler.
 			r.Route("/tickets", func(r chi.Router) {
+				r.Use(middleware.RequireUser(cfg.UserIDFunc))
 				r.Get("/", customerH.Index)
 				r.Post("/", customerH.Create)
 				r.Get("/{id}", customerH.Show)
