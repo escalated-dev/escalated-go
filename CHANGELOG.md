@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **A new ticket could fail because its reference was already taken.** The
+  reference's random part was 3 bytes, 24 bits for each month, and the
+  `reference` column is unique, so a busy site lost a ticket whenever a draw
+  matched a stored one. The random part is now 8 characters of Crockford base32
+  (40 bits), e.g. `ESC-2609-7KQ2M9XH`. When an insert still hits a taken
+  reference, `CreateTicket` inserts again under a fresh one, up to three
+  attempts, on SQLite and PostgreSQL. A reference the caller sets is never
+  replaced, other unique violations fail at once, and older six-character
+  references keep resolving.
+
 ## [0.1.2] - 2026-09-13
 
 ### Security

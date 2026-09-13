@@ -28,10 +28,9 @@ func (s *PostgresStore) t(name string) string {
 
 // --- Tickets ---
 
+// CreateTicket inserts t. A reference it generates is retried when already
+// taken; see insertTicket.
 func (s *PostgresStore) CreateTicket(ctx context.Context, t *models.Ticket) error {
-	if t.Reference == "" {
-		t.Reference = models.GenerateReference("")
-	}
 	now := time.Now()
 	t.CreatedAt = now
 	t.UpdatedAt = now
@@ -45,13 +44,15 @@ func (s *PostgresStore) CreateTicket(ctx context.Context, t *models.Ticket) erro
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
 		RETURNING id`, s.t("tickets"))
 
-	return s.db.QueryRowContext(ctx, q,
-		t.Reference, t.Subject, t.Description, t.Status, t.Priority, t.TicketType,
-		t.RequesterType, t.RequesterID, t.GuestName, t.GuestEmail, t.GuestToken, t.ContactID,
-		t.AssignedTo, t.DepartmentID, t.SLAPolicyID, t.MergedIntoID,
-		t.SLAFirstResponseDueAt, t.SLAResolutionDueAt, t.SLABreached,
-		t.FirstResponseAt, t.ResolvedAt, t.ClosedAt, t.Metadata, t.CreatedAt, t.UpdatedAt,
-	).Scan(&t.ID)
+	return insertTicket(t, s.prefix, func() error {
+		return s.db.QueryRowContext(ctx, q,
+			t.Reference, t.Subject, t.Description, t.Status, t.Priority, t.TicketType,
+			t.RequesterType, t.RequesterID, t.GuestName, t.GuestEmail, t.GuestToken, t.ContactID,
+			t.AssignedTo, t.DepartmentID, t.SLAPolicyID, t.MergedIntoID,
+			t.SLAFirstResponseDueAt, t.SLAResolutionDueAt, t.SLABreached,
+			t.FirstResponseAt, t.ResolvedAt, t.ClosedAt, t.Metadata, t.CreatedAt, t.UpdatedAt,
+		).Scan(&t.ID)
+	})
 }
 
 func (s *PostgresStore) GetTicket(ctx context.Context, id int64) (*models.Ticket, error) {
