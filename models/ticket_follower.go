@@ -38,7 +38,7 @@ func FollowerRecipients(userIDs []UserID, excludeUserID UserID) []UserID {
 // AddFollower idempotently records a user as following a ticket.
 func AddFollower(db *sql.DB, ticketID int64, userID UserID) error {
 	_, err := db.Exec(
-		sqldialect.Rebind(db, `INSERT OR IGNORE INTO escalated_ticket_followers (ticket_id, user_id) VALUES (?, ?)`),
+		sqldialect.Rebind(db, `INSERT INTO escalated_ticket_followers (ticket_id, user_id) VALUES (?, ?) ON CONFLICT DO NOTHING`),
 		ticketID, userID,
 	)
 	return err

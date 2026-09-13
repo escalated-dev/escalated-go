@@ -243,7 +243,7 @@ func (r *AutomationRunner) runAction(a models.Automation, t models.Ticket, actio
 		}
 		// Idempotent insert into the join table.
 		_, err = r.DB.Exec(
-			sqldialect.Rebind(r.DB, `INSERT OR IGNORE INTO escalated_ticket_tags (ticket_id, tag_id) VALUES (?, ?)`),
+			sqldialect.Rebind(r.DB, `INSERT INTO escalated_ticket_tags (ticket_id, tag_id) VALUES (?, ?) ON CONFLICT DO NOTHING`),
 			t.ID, tagID,
 		)
 		return err
