@@ -74,6 +74,8 @@ func TestWebhookDispatcherFiltersAndSigns(t *testing.T) {
 	insertWebhook(t, db, unsub.URL, []string{"ticket.closed"}, nil, true)
 
 	d := NewWebhookDispatcher(db, discardLogger())
+	// The test servers listen on loopback, which the default client refuses.
+	d.Client = &http.Client{Timeout: 5 * time.Second}
 	payload := map[string]any{
 		"ticket": map[string]any{"id": 7, "reference": "ESC-7"},
 	}
@@ -149,6 +151,8 @@ func TestWebhookDispatcherNoSecretNoSignature(t *testing.T) {
 	insertWebhook(t, db, srv.URL, []string{"reply.created"}, nil, true)
 
 	d := NewWebhookDispatcher(db, discardLogger())
+	// The test servers listen on loopback, which the default client refuses.
+	d.Client = &http.Client{Timeout: 5 * time.Second}
 	d.Dispatch("reply.created", map[string]any{"reply": map[string]any{"id": 1}})
 
 	if gotSig != "" {
@@ -179,6 +183,8 @@ func TestWebhookDispatcherRetriesAndSkipsInactive(t *testing.T) {
 	insertWebhook(t, db, inactive.URL, []string{"ticket.created"}, nil, false)
 
 	d := NewWebhookDispatcher(db, discardLogger())
+	// The test servers listen on loopback, which the default client refuses.
+	d.Client = &http.Client{Timeout: 5 * time.Second}
 	d.RetryBackoff = 0 // no sleeping in tests
 	d.Dispatch("ticket.created", map[string]any{})
 
