@@ -32,12 +32,47 @@ func UserIDColumnType() string {
 // a minute ahead coming back hours in the past. These columns all mean an
 // instant, and TIMESTAMPTZ is the type that stores one.
 func Migrate(db *sql.DB, prefix string) error {
-	for _, stmt := range migrationStatements(prefix) {
+	stmts := append(migrationStatements(prefix), postgresUpgradeStatements(prefix)...)
+	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {
 			return fmt.Errorf("migration error: %w\nSQL: %s", err, stmt)
 		}
 	}
 	return nil
+}
+
+// postgresUpgradeStatements bring an existing PostgreSQL schema forward where a
+// shipped CREATE TABLE declared a column with the wrong type. Migrate runs on
+// every start, and CREATE TABLE IF NOT EXISTS never touches a table that is
+// already there, so a correction has to be a statement of its own, written to
+// do nothing once it has been applied. They run after the CREATE TABLEs, so a
+// fresh install takes the same path as an upgraded one.
+//
+// SQLite needs none of these: it has no boolean type to disagree with, and
+// MigrateSQLite does not run them.
+func postgresUpgradeStatements(p string) []string {
+	return []string{
+		// escalation_rules.is_active shipped as INTEGER NOT NULL DEFAULT 1. Every
+		// other is_active column is BOOLEAN and the handlers bind a Go bool, which
+		// PostgreSQL refuses for an integer column, so a rule could be neither
+		// created nor switched on or off. Stored values carry over: 0 becomes
+		// false and anything else true.
+		fmt.Sprintf(`DO $$
+BEGIN
+	IF EXISTS (
+		SELECT 1 FROM information_schema.columns
+		 WHERE table_schema = current_schema()
+		   AND table_name = '%[1]s'
+		   AND column_name = 'is_active'
+		   AND data_type = 'integer'
+	) THEN
+		ALTER TABLE %[1]s ALTER COLUMN is_active DROP DEFAULT;
+		ALTER TABLE %[1]s ALTER COLUMN is_active TYPE BOOLEAN USING is_active <> 0;
+		ALTER TABLE %[1]s ALTER COLUMN is_active SET DEFAULT TRUE;
+	END IF;
+END
+$$`, p+"escalation_rules"),
+	}
 }
 
 func migrationStatements(p string) []string {
@@ -603,6 +638,8 @@ func engineAddonStatements(p string) []string {
 	return []string{
 		// Escalation rules (time-based). sort_order/is_active avoid the SQL
 		// reserved word `order`; the JSON contract exposes order/is_active.
+		// is_active is left as shipped here; on PostgreSQL
+		// postgresUpgradeStatements converts it to BOOLEAN.
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			id BIGSERIAL PRIMARY KEY,
 			name VARCHAR(255) NOT NULL,
