@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-09-13
+
 ### Fixed
 - **A new ticket could fail because its reference was already taken.** The
   reference's random part was 3 bytes, 24 bits for each month, and the
