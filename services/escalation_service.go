@@ -41,7 +41,7 @@ func (s *EscalationService) EvaluateRules() (int, error) {
 	rows, err := s.DB.Query(
 		sqldialect.Rebind(s.DB, `SELECT id, name, conditions, actions
 		   FROM escalated_escalation_rules
-		  WHERE is_active = 1
+		  WHERE is_active = TRUE
 		  ORDER BY sort_order ASC, id ASC`),
 	)
 	if err != nil {
