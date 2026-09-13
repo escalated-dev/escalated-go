@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"strings"
 	"time"
 )
 
@@ -290,16 +289,48 @@ func (t *Ticket) TimeToResolution() time.Duration {
 	return t.ResolvedAt.Sub(t.CreatedAt)
 }
 
-// GenerateReference creates a ticket reference like "ESC-2604-A1B2C3".
+// referenceAlphabet is Crockford's base32: the digits and the uppercase letters
+// without I, L, O and U, so a reference read aloud or copied by hand has no
+// 1/I/L or 0/O to mix up. Every character is inside the inbound subject-tag
+// pattern `[0-9A-Z-]`.
+const referenceAlphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+
+// GenerateReference creates a ticket reference: the prefix ("ESC" when empty),
+// the year and month, and 8 characters of Crockford base32 carrying 40 random
+// bits, e.g. "ESC-2609-7KQ2M9XH".
+//
+// The reference is random, so it can match one already stored; the stores'
+// CreateTicket retries under a fresh reference when it does. References
+// written before, with six hex characters, are stored as they are and keep
+// resolving.
+//
+// A reference identifies a ticket. It is not a secret and must never be used
+// as one: use GenerateGuestToken for bearer access.
 func GenerateReference(prefix string) string {
+	var random [5]byte
+	// crypto/rand.Read does not return an error: it crashes the program if the
+	// operating system cannot supply randomness.
+	_, _ = rand.Read(random[:])
+	return formatReference(prefix, time.Now(), random)
+}
+
+// formatReference is the deterministic half of GenerateReference: each 5-bit
+// group of the 40 random bits becomes one character.
+func formatReference(prefix string, now time.Time, random [5]byte) string {
 	if prefix == "" {
 		prefix = "ESC"
 	}
-	timestamp := time.Now().Format("0601")
-	b := make([]byte, 3)
-	_, _ = rand.Read(b)
-	seq := strings.ToUpper(fmt.Sprintf("%X", b))
-	return fmt.Sprintf("%s-%s-%s", prefix, timestamp, seq)
+
+	bits := uint64(random[0])<<32 | uint64(random[1])<<24 | uint64(random[2])<<16 |
+		uint64(random[3])<<8 | uint64(random[4])
+
+	var suffix [8]byte
+	for i := len(suffix) - 1; i >= 0; i-- {
+		suffix[i] = referenceAlphabet[bits&0x1f]
+		bits >>= 5
+	}
+
+	return prefix + "-" + now.Format("0601") + "-" + string(suffix[:])
 }
 
 // RelatedTicket is a lightweight representation of a linked ticket.

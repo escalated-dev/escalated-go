@@ -29,10 +29,9 @@ func (s *SQLiteStore) t(name string) string {
 
 // --- Tickets ---
 
+// CreateTicket inserts t. A reference it generates is retried when already
+// taken; see insertTicket.
 func (s *SQLiteStore) CreateTicket(ctx context.Context, t *models.Ticket) error {
-	if t.Reference == "" {
-		t.Reference = models.GenerateReference("")
-	}
 	now := time.Now()
 	t.CreatedAt = now
 	t.UpdatedAt = now
@@ -45,13 +44,17 @@ func (s *SQLiteStore) CreateTicket(ctx context.Context, t *models.Ticket) error 
 		 first_response_at, resolved_at, closed_at, metadata, created_at, updated_at)
 		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, s.t("tickets"))
 
-	res, err := s.db.ExecContext(ctx, q,
-		t.Reference, t.Subject, t.Description, t.Status, t.Priority, t.TicketType,
-		t.RequesterType, t.RequesterID, t.GuestName, t.GuestEmail, t.GuestToken, t.ContactID,
-		t.AssignedTo, t.DepartmentID, t.SLAPolicyID, t.MergedIntoID,
-		t.SLAFirstResponseDueAt, t.SLAResolutionDueAt, t.SLABreached,
-		t.FirstResponseAt, t.ResolvedAt, t.ClosedAt, t.Metadata, t.CreatedAt, t.UpdatedAt,
-	)
+	var res sql.Result
+	err := insertTicket(t, s.prefix, func() (err error) {
+		res, err = s.db.ExecContext(ctx, q,
+			t.Reference, t.Subject, t.Description, t.Status, t.Priority, t.TicketType,
+			t.RequesterType, t.RequesterID, t.GuestName, t.GuestEmail, t.GuestToken, t.ContactID,
+			t.AssignedTo, t.DepartmentID, t.SLAPolicyID, t.MergedIntoID,
+			t.SLAFirstResponseDueAt, t.SLAResolutionDueAt, t.SLABreached,
+			t.FirstResponseAt, t.ResolvedAt, t.ClosedAt, t.Metadata, t.CreatedAt, t.UpdatedAt,
+		)
+		return err
+	})
 	if err != nil {
 		return err
 	}
