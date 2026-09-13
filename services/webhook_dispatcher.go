@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -50,7 +51,10 @@ var SupportedWebhookEvents = []string{
 // Callers should invoke Dispatch in a goroutine so a slow endpoint never blocks
 // the request path.
 type WebhookDispatcher struct {
-	DB     *sql.DB
+	DB *sql.DB
+	// Client sends deliveries. The default from NewWebhookDispatcher refuses to
+	// connect to loopback, private and link-local addresses and does not follow
+	// redirects. A host that replaces it takes over that policy.
 	Client *http.Client
 	Logger *log.Logger
 	// MaxAttempts caps the total number of delivery attempts (default 3).
@@ -61,15 +65,16 @@ type WebhookDispatcher struct {
 	RetryBackoff time.Duration
 }
 
-// NewWebhookDispatcher constructs a dispatcher with a 10s HTTP client and a
-// default logger when logger is nil.
+// NewWebhookDispatcher constructs a dispatcher with a 10s HTTP client that only
+// connects to public addresses and does not follow redirects, and a default
+// logger when logger is nil.
 func NewWebhookDispatcher(db *sql.DB, logger *log.Logger) *WebhookDispatcher {
 	if logger == nil {
 		logger = log.Default()
 	}
 	return &WebhookDispatcher{
 		DB:           db,
-		Client:       &http.Client{Timeout: 10 * time.Second},
+		Client:       newWebhookHTTPClient(10 * time.Second),
 		Logger:       logger,
 		MaxAttempts:  3,
 		RetryBackoff: 30 * time.Second,
@@ -180,7 +185,11 @@ func (d *WebhookDispatcher) send(w models.Webhook, event string, payload map[str
 		d.recordResult(deliveryID, 0, err.Error(), attempt, false)
 		d.logger().Printf("escalated webhook delivery failed: webhook=%d event=%s attempt=%d err=%v",
 			w.ID, event, attempt, err)
-		d.maybeRetry(w, event, payload, attempt)
+		// A refused destination is a policy decision, not a transient failure,
+		// so there is nothing for a retry to wait out.
+		if !errors.Is(err, ErrWebhookDestinationNotAllowed) {
+			d.maybeRetry(w, event, payload, attempt)
+		}
 		return
 	}
 	defer resp.Body.Close()

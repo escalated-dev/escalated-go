@@ -83,6 +83,10 @@ func (h *WebhookHandler) Create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "events is required", http.StatusBadRequest)
 		return
 	}
+	if err := services.ValidateWebhookURL(r.Context(), in.URL); err != nil {
+		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+		return
+	}
 
 	events := defaultJSONArray(models.JSONText(in.Events))
 	active := true
@@ -126,6 +130,10 @@ func (h *WebhookHandler) Update(w http.ResponseWriter, r *http.Request) {
 	args := []any{}
 
 	if in.URL != nil {
+		if err := services.ValidateWebhookURL(r.Context(), *in.URL); err != nil {
+			http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+			return
+		}
 		sets = append(sets, "url = ?")
 		args = append(args, *in.URL)
 	}
