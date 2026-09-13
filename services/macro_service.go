@@ -205,7 +205,7 @@ func (s *MacroService) runAction(action models.MacroAction, ticketID int64, agen
 			return err
 		}
 		_, err = s.DB.Exec(
-			sqldialect.Rebind(s.DB, `INSERT OR IGNORE INTO escalated_ticket_tags (ticket_id, tag_id) VALUES (?, ?)`),
+			sqldialect.Rebind(s.DB, `INSERT INTO escalated_ticket_tags (ticket_id, tag_id) VALUES (?, ?) ON CONFLICT DO NOTHING`),
 			ticketID, tagID,
 		)
 		return err

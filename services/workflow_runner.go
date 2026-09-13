@@ -261,7 +261,7 @@ func (r *WorkflowRunner) tagAction(ticketID int64, name string, add bool) error 
 	}
 	if add {
 		_, err = r.DB.Exec(
-			sqldialect.Rebind(r.DB, `INSERT OR IGNORE INTO escalated_ticket_tags (ticket_id, tag_id) VALUES (?, ?)`),
+			sqldialect.Rebind(r.DB, `INSERT INTO escalated_ticket_tags (ticket_id, tag_id) VALUES (?, ?) ON CONFLICT DO NOTHING`),
 			ticketID, tagID,
 		)
 		return err
