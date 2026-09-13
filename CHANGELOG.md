@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-09-13
+
+### Security
+- **The JSON API, customer ticket pages and attachment downloads had no access
+  check.** Only `/agent` and `/admin` were guarded, on both routers. Anyone could
+  list every ticket through `/api/tickets`, read internal notes, change status
+  and priority, open or reply to another customer's ticket, and download any
+  attachment by id. Now:
+  - The API's ticket, department and tag routes require `AgentCheck` or
+    `AdminCheck`. The auth, guest and knowledge-base routes stay public.
+  - Customer routes require a signed-in user (`UserIDFunc` returning an id). Show
+    and Reply are limited to the ticket's requester.
+  - Attachments download for agents and admins, or for the requester of the
+    owning ticket, and never from an internal note.
+
+  **Hosts must wire `AgentCheck`/`AdminCheck` for API clients and `UserIDFunc`
+  for customer pages.** Requests without them now get 401 or 403 (#113).
+- **Webhook URLs could point at internal addresses.** Creating or updating a
+  webhook now refuses loopback, private, link-local, carrier-grade NAT and
+  reserved destinations (422). The dispatcher's default client checks the
+  address it actually connects to, doesn't follow redirects or use a proxy, and
+  doesn't retry a refused destination. A host that sets its own
+  `WebhookDispatcher.Client` owns that policy (#114).
+
+### Fixed
+- **Tagging and following failed on PostgreSQL.** Workflow, automation and macro
+  `add_tag`, and `AddFollower`, used SQLite's `INSERT OR IGNORE`, which
+  PostgreSQL rejects as a syntax error. They now use `ON CONFLICT DO NOTHING`
+  (#111).
+- **Escalation rules couldn't be created or toggled on PostgreSQL.**
+  `escalation_rules.is_active` shipped as `INTEGER` while the handlers bind a
+  bool. A PostgreSQL upgrade step converts the column to `BOOLEAN DEFAULT TRUE`,
+  keeping stored values, and is a no-op once applied (#112).
+
 ## [0.1.1] - 2026-09-13
 
 ### Fixed
