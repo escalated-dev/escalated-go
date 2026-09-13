@@ -167,7 +167,7 @@ func (h *WidgetChatHandler) findSessionByRef(r *http.Request, ref, token string)
 	if err != nil || t == nil {
 		return nil, err
 	}
-	if t.GuestToken == nil || *t.GuestToken != token {
+	if !guestTokenMatches(t.GuestToken, token) {
 		return nil, nil
 	}
 	if t.Channel == nil || *t.Channel != models.ChannelChat {

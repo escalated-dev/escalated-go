@@ -186,7 +186,7 @@ func (h *WidgetHandler) LookupTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if t.GuestToken == nil || *t.GuestToken != token {
+	if !guestTokenMatches(t.GuestToken, token) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "invalid token"})
 		return
 	}
