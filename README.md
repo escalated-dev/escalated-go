@@ -17,6 +17,8 @@
 
 # Escalated Go
 
+[![Views](https://hits.sh/github.com/escalated-dev/escalated-go.svg?style=flat&label=views&color=007ec6)](https://hits.sh/github.com/escalated-dev/escalated-go/)
+
 Embeddable support ticket system for Go applications. Works with standard `net/http`, Chi, and any router that accepts `http.HandlerFunc`.
 
 ## Features
