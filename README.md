@@ -500,4 +500,4 @@ Follow-up PR will add the Store interfaces for newsletters (postgres + sqlite) a
 
 ## License
 
-MIT
+MIT - Copyright (c) Escalated.dev. See [LICENSE](LICENSE).
