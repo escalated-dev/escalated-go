@@ -3,6 +3,7 @@ package email
 import (
 	"context"
 	"log"
+	"strings"
 
 	"github.com/escalated-dev/escalated-go/models"
 )
@@ -67,8 +68,18 @@ type CreateTicketInputShim struct {
 // Mirrors the NestJS reference InboundRouterService and the .NET /
 // Spring ports.
 type InboundEmailService struct {
-	router  *InboundRouter
-	tickets TicketWriter
+	router     *InboundRouter
+	tickets    TicketWriter
+	requesters RequesterEmailResolver
+}
+
+// RequesterEmailResolver returns the email address of a ticket's
+// host-app requester (RequesterType / RequesterID). The package does
+// not own the host's user table, so hosts whose customers reply by
+// email register one via WithRequesterEmailResolver. Return "" when
+// the requester is unknown.
+type RequesterEmailResolver interface {
+	RequesterEmail(ctx context.Context, ticket *models.Ticket) (string, error)
 }
 
 // NewInboundEmailService wires an InboundRouter + a TicketWriter for
@@ -77,17 +88,32 @@ func NewInboundEmailService(router *InboundRouter, tickets TicketWriter) *Inboun
 	return &InboundEmailService{router: router, tickets: tickets}
 }
 
+// WithRequesterEmailResolver registers the lookup used to accept
+// email replies from a ticket's host-app requester. Without one, only
+// guest tickets (GuestEmail) accept email replies; replies to user
+// tickets open a new ticket instead. Returns the service for chaining.
+func (s *InboundEmailService) WithRequesterEmailResolver(r RequesterEmailResolver) *InboundEmailService {
+	s.requesters = r
+	return s
+}
+
 // Process executes the full inbound pipeline on a parsed message.
 // Returns a ProcessResult carrying the outcome.
 //
 // Resolution:
 //
-//   - router.ResolveTicket → ticket found: AddReply(body, "inbound_email")
-//     outcome = REPLIED_TO_EXISTING.
-//   - router miss + noise (SNS confirmation, empty body+subject):
-//     outcome = SKIPPED, no side effects.
-//   - router miss + real content: Create(subject, body, guest name/email)
-//     outcome = CREATED_NEW.
+//   - router.ResolveTicket → ticket found and From is the ticket's
+//     requester: AddReply posted as that requester (the requester
+//     user, or an "inbound_email" guest reply). outcome =
+//     REPLIED_TO_EXISTING.
+//   - noise (SNS confirmation, empty body+subject): outcome = SKIPPED,
+//     no side effects.
+//   - router miss, or a sender who is not the requester:
+//     Create(subject, body, guest name/email) outcome = CREATED_NEW.
+//
+// A thread match alone never posts a reply: Message-IDs and ticket
+// references are guessable, and the From header is unauthenticated,
+// so the reply author always comes from the ticket, never from From.
 //
 // Attachment persistence is out of scope: provider-hosted attachments
 // (Mailgun DownloadURL without inline Content) surface in
@@ -99,17 +125,23 @@ func (s *InboundEmailService) Process(ctx context.Context, message InboundMessag
 	}
 
 	if ticket != nil {
-		authorType := "inbound_email"
-		reply, err := s.tickets.AddReply(ctx, ticket.ID, message.Body(), &authorType, nil, false)
+		authorType, authorID, accepted, err := s.replyAuthor(ctx, ticket, message)
 		if err != nil {
 			return ProcessResult{}, err
 		}
-		return ProcessResult{
-			Outcome:                    OutcomeRepliedToExisting,
-			TicketID:                   ticket.ID,
-			ReplyID:                    reply.ID,
-			PendingAttachmentDownloads: pendingDownloads(message),
-		}, nil
+		if accepted {
+			reply, err := s.tickets.AddReply(ctx, ticket.ID, message.Body(), authorType, authorID, false)
+			if err != nil {
+				return ProcessResult{}, err
+			}
+			return ProcessResult{
+				Outcome:                    OutcomeRepliedToExisting,
+				TicketID:                   ticket.ID,
+				ReplyID:                    reply.ID,
+				PendingAttachmentDownloads: pendingDownloads(message),
+			}, nil
+		}
+		log.Printf("[InboundEmailService] inbound email matched ticket #%d but not its requester; opening a new ticket", ticket.ID)
 	}
 
 	if isNoiseEmail(message) {
@@ -140,6 +172,41 @@ func (s *InboundEmailService) Process(ctx context.Context, message InboundMessag
 		TicketID:                   newTicket.ID,
 		PendingAttachmentDownloads: pendingDownloads(message),
 	}, nil
+}
+
+// replyAuthor decides who a threaded inbound email may post as. It
+// accepts the message only when From (case-insensitive) is the
+// ticket's guest email or its requester's email, and returns the
+// requester as the author. Anyone else — including a staff member
+// whose address appears in From — is not accepted.
+func (s *InboundEmailService) replyAuthor(ctx context.Context, ticket *models.Ticket, message InboundMessage) (*string, *models.UserID, bool, error) {
+	sender := normalizeEmail(message.FromEmail)
+	if sender == "" {
+		return nil, nil, false, nil
+	}
+
+	if ticket.GuestEmail != nil && normalizeEmail(*ticket.GuestEmail) == sender {
+		authorType := "inbound_email"
+		return &authorType, nil, true, nil
+	}
+
+	if ticket.RequesterType != nil && ticket.RequesterID != nil && *ticket.RequesterID != "" && s.requesters != nil {
+		email, err := s.requesters.RequesterEmail(ctx, ticket)
+		if err != nil {
+			return nil, nil, false, err
+		}
+		if normalizeEmail(email) == sender {
+			authorType := *ticket.RequesterType
+			authorID := *ticket.RequesterID
+			return &authorType, &authorID, true, nil
+		}
+	}
+
+	return nil, nil, false, nil
+}
+
+func normalizeEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
 }
 
 // IsNoiseEmail returns true for messages we should skip rather than

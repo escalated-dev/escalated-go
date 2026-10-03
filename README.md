@@ -40,6 +40,7 @@ Embeddable support ticket system for Go applications. Works with standard `net/h
 - **Saved views / custom queues** — Save, name, and share filter presets as reusable ticket views
 - **Embeddable support widget** — Lightweight `<script>` widget with KB search, ticket form, and status check
 - **Email threading** — Outbound emails include proper `In-Reply-To` and `References` headers for correct threading in mail clients
+- **Inbound email replies** — `email.InboundEmailService` turns provider webhooks into replies or new tickets. With an inbound secret set, only the signed Reply-To address links mail to a ticket; without one, the `In-Reply-To` / `References` headers and the `[ESC-...]` subject reference are used. A matched email becomes a reply only when `From` is the ticket's requester (the guest email, or the requester's email via `WithRequesterEmailResolver`), and it is posted as that requester. Anyone else, including an address belonging to an agent, gets a new ticket
 - **Branded email templates** — Configurable logo, primary color, and footer text for all outbound emails
 - **Real-time updates** — Server-Sent Events (SSE) endpoint for live ticket updates with automatic polling fallback
 - **Knowledge base toggle** — Enable or disable the public knowledge base from admin settings

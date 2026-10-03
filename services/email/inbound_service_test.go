@@ -16,12 +16,15 @@ type fakeTicketWriter struct {
 	replyErr     error
 
 	createCalls []CreateTicketInputShim
-	replyCalls  []struct {
-		ticketID   int64
-		body       string
-		authorType *string
-		internal   bool
-	}
+	replyCalls  []fakeReplyCall
+}
+
+type fakeReplyCall struct {
+	ticketID   int64
+	body       string
+	authorType *string
+	authorID   *models.UserID
+	internal   bool
 }
 
 func (f *fakeTicketWriter) Create(_ context.Context, in CreateTicketInputShim) (*models.Ticket, error) {
@@ -35,13 +38,8 @@ func (f *fakeTicketWriter) Create(_ context.Context, in CreateTicketInputShim) (
 	return f.createReturn, nil
 }
 
-func (f *fakeTicketWriter) AddReply(_ context.Context, ticketID int64, body string, authorType *string, _ *models.UserID, internal bool) (*models.Reply, error) {
-	f.replyCalls = append(f.replyCalls, struct {
-		ticketID   int64
-		body       string
-		authorType *string
-		internal   bool
-	}{ticketID, body, authorType, internal})
+func (f *fakeTicketWriter) AddReply(_ context.Context, ticketID int64, body string, authorType *string, authorID *models.UserID, internal bool) (*models.Reply, error) {
+	f.replyCalls = append(f.replyCalls, fakeReplyCall{ticketID, body, authorType, authorID, internal})
 	if f.replyErr != nil {
 		return nil, f.replyErr
 	}
@@ -66,7 +64,8 @@ func newInboundSvc(t *testing.T, secret string, ticket *models.Ticket) (*Inbound
 }
 
 func TestInboundService_ExistingTicketMatched_AddsReply(t *testing.T) {
-	ticket := &models.Ticket{ID: 42}
+	guestEmail := "customer@example.com"
+	ticket := &models.Ticket{ID: 42, GuestEmail: &guestEmail}
 	svc, _, writer := newInboundSvc(t, "", ticket)
 
 	msg := InboundMessage{
