@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **Inbound email could post on any ticket.** `InboundEmailService` added a
+  reply to whichever ticket the `In-Reply-To` / `References` headers, the
+  signed Reply-To or the subject reference pointed at, whoever sent it. Ticket
+  Message-IDs and references are guessable. Now, when the router has an inbound
+  secret, only the signed Reply-To address links mail to a ticket. A matched
+  email becomes a reply only when `From` (case-insensitive) is the ticket's
+  guest email or its requester's email, and the reply is posted as that
+  requester; the author is never taken from `From`. Anything else opens a new
+  ticket for the sender, so no mail is dropped. Hosts whose user requesters
+  reply by email register `WithRequesterEmailResolver`; without one, replies to
+  user tickets open a new ticket.
+
 ## [0.1.3] - 2026-09-13
 
 ### Fixed
