@@ -48,6 +48,10 @@ func (f *fakeWriter) AddReply(_ context.Context, _ int64, _ string, _ *string, _
 	return f.replyReturn, nil
 }
 
+func (f *fakeWriter) ChangeStatus(_ context.Context, _ int64, _ int, _ *models.UserID) error {
+	return nil
+}
+
 func newTestHandler(t *testing.T, lookup *fakeLookup, writer *fakeWriter) *InboundEmailHandler {
 	t.Helper()
 	router := email.NewInboundRouter(lookup, testDomain, testSecret)
