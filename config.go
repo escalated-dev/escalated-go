@@ -7,6 +7,7 @@ import (
 
 	"github.com/escalated-dev/escalated-go/actions"
 	"github.com/escalated-dev/escalated-go/handlers"
+	"github.com/escalated-dev/escalated-go/middleware"
 	"github.com/escalated-dev/escalated-go/models"
 )
 
@@ -136,6 +137,15 @@ type Config struct {
 	// the callbacks the app needs. Unconfigured endpoints respond 501. See
 	// handlers.APIAuth.
 	APIAuth handlers.APIAuth
+
+	// GuestRateLimit caps the unauthenticated guest endpoints per client IP:
+	// ticket submissions (POST /api/guest/tickets) at 5 a minute and guest
+	// replies at 10 a minute by default, answering 429 with Retry-After. The
+	// zero value is enabled with those defaults and an in-memory store; set
+	// Store for a counter shared between instances. Behind a proxy, every guest
+	// shares the proxy's address unless a trusted real-IP middleware runs first
+	// or ClientIP is set. See middleware.GuestRateLimitConfig.
+	GuestRateLimit middleware.GuestRateLimitConfig
 }
 
 // DefaultConfig returns a Config with sensible defaults.
