@@ -329,6 +329,15 @@ The ticket, department and tag routes above require `AgentCheck` or
 `AdminCheck` and return 403 to anyone else. The `/api/auth/*`, `/api/guest/*`
 and `/api/kb/*` routes are public.
 
+`POST /api/guest/tickets` is rate-limited per client IP: 5 tickets a minute by
+default, then 429 with `Retry-After`. Configure it with `Config.GuestRateLimit`
+(`TicketsPerMinute`, `RepliesPerMinute`, `Disabled`, a shared `Store` for
+several instances, or a `ClientIP` func). The client IP is `r.RemoteAddr`, so
+behind a proxy every guest shares one limit unless a real-IP middleware that
+trusts only your proxies runs first, or `ClientIP` is set. If you mount
+`handlers.WidgetHandler.CreateTicket` yourself, wrap it with
+`middleware.NewGuestRateLimiter(cfg).Middleware(middleware.GuestTicketScope)`.
+
 ### Customer UI (when `UIEnabled: true`)
 
 These routes require a signed-in user, meaning `UserIDFunc` returns a

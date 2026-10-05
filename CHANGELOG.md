@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **The guest ticket endpoint was not rate-limited.** `POST /api/guest/tickets`
+  now allows 5 tickets per client IP per minute and answers 429 with
+  `Retry-After` beyond that. `Config.GuestRateLimit` sets the limits
+  (`TicketsPerMinute`, `RepliesPerMinute`), switches it off (`Disabled`), and
+  takes a shared `Store` for multi-instance deployments and a `ClientIP` func.
+  `middleware.GuestRateLimiter` counts ticket submissions and replies in
+  separate buckets and runs before the handler, so a guest-token check behind
+  it counts refused requests too. Behind a proxy, run a trusted real-IP
+  middleware first or every guest shares one IP.
+
 ### Changed
 - **A requester's email reply reopens a resolved or closed ticket.** When
   `InboundEmailService` accepts a reply from the ticket's requester and the
