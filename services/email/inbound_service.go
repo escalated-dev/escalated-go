@@ -41,10 +41,15 @@ type PendingAttachment struct {
 }
 
 // TicketWriter is the minimal contract InboundEmailService needs on
-// the ticket-write path. Implementations: services.TicketService.
+// the ticket-write path. Implementations: services.TicketService
+// (AddReply and ChangeStatus match its signatures; Create goes through
+// the host's adapter).
 type TicketWriter interface {
 	Create(ctx context.Context, in CreateTicketInputShim) (*models.Ticket, error)
 	AddReply(ctx context.Context, ticketID int64, body string, authorType *string, authorID *models.UserID, internal bool) (*models.Reply, error)
+	// ChangeStatus moves a ticket to newStatus. Used to reopen a
+	// resolved or closed ticket when its requester replies by email.
+	ChangeStatus(ctx context.Context, ticketID int64, newStatus int, causerID *models.UserID) error
 }
 
 // CreateTicketInputShim mirrors services.CreateTicketInput with a
@@ -104,7 +109,9 @@ func (s *InboundEmailService) WithRequesterEmailResolver(r RequesterEmailResolve
 //
 //   - router.ResolveTicket → ticket found and From is the ticket's
 //     requester: AddReply posted as that requester (the requester
-//     user, or an "inbound_email" guest reply). outcome =
+//     user, or an "inbound_email" guest reply). A resolved or closed
+//     ticket is then reopened (ChangeStatus to StatusReopened); a
+//     failed reopen is logged and the reply stands. outcome =
 //     REPLIED_TO_EXISTING.
 //   - noise (SNS confirmation, empty body+subject): outcome = SKIPPED,
 //     no side effects.
@@ -134,6 +141,7 @@ func (s *InboundEmailService) Process(ctx context.Context, message InboundMessag
 			if err != nil {
 				return ProcessResult{}, err
 			}
+			s.reopenIfFinished(ctx, ticket, authorID)
 			return ProcessResult{
 				Outcome:                    OutcomeRepliedToExisting,
 				TicketID:                   ticket.ID,
@@ -203,6 +211,18 @@ func (s *InboundEmailService) replyAuthor(ctx context.Context, ticket *models.Ti
 	}
 
 	return nil, nil, false, nil
+}
+
+// reopenIfFinished reopens a resolved or closed ticket after its
+// requester replied, matching the Laravel reference. A refused or
+// failed transition is logged; the reply has already been posted.
+func (s *InboundEmailService) reopenIfFinished(ctx context.Context, ticket *models.Ticket, causerID *models.UserID) {
+	if ticket.Status != models.StatusResolved && ticket.Status != models.StatusClosed {
+		return
+	}
+	if err := s.tickets.ChangeStatus(ctx, ticket.ID, models.StatusReopened, causerID); err != nil {
+		log.Printf("[InboundEmailService] could not reopen ticket #%d from inbound email reply: %v", ticket.ID, err)
+	}
 }
 
 func normalizeEmail(email string) string {

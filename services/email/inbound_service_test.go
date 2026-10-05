@@ -14,9 +14,17 @@ type fakeTicketWriter struct {
 	createErr    error
 	replyReturn  *models.Reply
 	replyErr     error
+	statusErr    error
 
 	createCalls []CreateTicketInputShim
 	replyCalls  []fakeReplyCall
+	statusCalls []fakeStatusCall
+}
+
+type fakeStatusCall struct {
+	ticketID  int64
+	newStatus int
+	causerID  *models.UserID
 }
 
 type fakeReplyCall struct {
@@ -47,6 +55,11 @@ func (f *fakeTicketWriter) AddReply(_ context.Context, ticketID int64, body stri
 		return &models.Reply{ID: 202}, nil
 	}
 	return f.replyReturn, nil
+}
+
+func (f *fakeTicketWriter) ChangeStatus(_ context.Context, ticketID int64, newStatus int, causerID *models.UserID) error {
+	f.statusCalls = append(f.statusCalls, fakeStatusCall{ticketID, newStatus, causerID})
+	return f.statusErr
 }
 
 func newInboundSvc(t *testing.T, secret string, ticket *models.Ticket) (*InboundEmailService, *fakeTicketLookup, *fakeTicketWriter) {

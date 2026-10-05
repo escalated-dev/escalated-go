@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **A requester's email reply reopens a resolved or closed ticket.** When
+  `InboundEmailService` accepts a reply from the ticket's requester and the
+  ticket is resolved or closed, it now moves the ticket to `reopened`, as the
+  Laravel, .NET, Spring and Phoenix ports do. Mail from anyone else still opens
+  a new ticket and leaves the matched one alone. A failed reopen is logged; the
+  reply is kept. **Breaking for custom writers:** `email.TicketWriter` gains
+  `ChangeStatus(ctx, ticketID, newStatus, causerID) error`, the same signature
+  as `services.TicketService.ChangeStatus`, so an adapter over `TicketService`
+  can forward it directly.
+
 ### Security
 - **Inbound email could post on any ticket.** `InboundEmailService` added a
   reply to whichever ticket the `In-Reply-To` / `References` headers, the
