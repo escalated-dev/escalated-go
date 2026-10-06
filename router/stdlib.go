@@ -48,6 +48,8 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	scH := handlers.NewSideConversationHandler(cfg.DB)
 	authH := handlers.NewAuthHandler(cfg.APIAuth)
 	guestH := handlers.NewGuestTicketHandler(s, ticketSvc)
+	// Per-client-IP limits on the unauthenticated guest endpoints.
+	guestLimit := middleware.NewGuestRateLimiter(cfg.GuestRateLimit)
 	kbH := handlers.NewKBHandler(cfg.DB)
 	retentionH := handlers.NewRetentionHandler(services.NewRetentionService(cfg.DB, s))
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
@@ -94,7 +96,7 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	mux.HandleFunc("POST "+prefix+"/api/auth/validate", authH.Validate)
 
 	// Anonymous (guest) ticket submission + lookup by token.
-	mux.HandleFunc("POST "+prefix+"/api/guest/tickets", guestH.Create)
+	mux.Handle("POST "+prefix+"/api/guest/tickets", guestLimit.Middleware(middleware.GuestTicketScope)(http.HandlerFunc(guestH.Create)))
 	mux.HandleFunc("GET "+prefix+"/api/guest/tickets/{token}", guestH.Show)
 	mux.HandleFunc("POST "+prefix+"/api/guest/tickets/{token}/rate", satH.GuestRate)
 

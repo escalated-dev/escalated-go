@@ -40,6 +40,7 @@ Embeddable support ticket system for Go applications. Works with standard `net/h
 - **Saved views / custom queues** — Save, name, and share filter presets as reusable ticket views
 - **Embeddable support widget** — Lightweight `<script>` widget with KB search, ticket form, and status check
 - **Email threading** — Outbound emails include proper `In-Reply-To` and `References` headers for correct threading in mail clients
+- **Inbound email replies** — `email.InboundEmailService` turns provider webhooks into replies or new tickets. With an inbound secret set, only the signed Reply-To address links mail to a ticket; without one, the `In-Reply-To` / `References` headers and the `[ESC-...]` subject reference are used. A matched email becomes a reply only when `From` is the ticket's requester (the guest email, or the requester's email via `WithRequesterEmailResolver`), and it is posted as that requester. A requester's reply to a resolved or closed ticket reopens it. Anyone else, including an address belonging to an agent, gets a new ticket
 - **Branded email templates** — Configurable logo, primary color, and footer text for all outbound emails
 - **Real-time updates** — Server-Sent Events (SSE) endpoint for live ticket updates with automatic polling fallback
 - **Knowledge base toggle** — Enable or disable the public knowledge base from admin settings
@@ -327,6 +328,15 @@ All routes are prefixed with `RoutePrefix` (default `/escalated`).
 The ticket, department and tag routes above require `AgentCheck` or
 `AdminCheck` and return 403 to anyone else. The `/api/auth/*`, `/api/guest/*`
 and `/api/kb/*` routes are public.
+
+`POST /api/guest/tickets` is rate-limited per client IP: 5 tickets a minute by
+default, then 429 with `Retry-After`. Configure it with `Config.GuestRateLimit`
+(`TicketsPerMinute`, `RepliesPerMinute`, `Disabled`, a shared `Store` for
+several instances, or a `ClientIP` func). The client IP is `r.RemoteAddr`, so
+behind a proxy every guest shares one limit unless a real-IP middleware that
+trusts only your proxies runs first, or `ClientIP` is set. If you mount
+`handlers.WidgetHandler.CreateTicket` yourself, wrap it with
+`middleware.NewGuestRateLimiter(cfg).Middleware(middleware.GuestTicketScope)`.
 
 ### Customer UI (when `UIEnabled: true`)
 

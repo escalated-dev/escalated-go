@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **The guest ticket endpoint was not rate-limited.** `POST /api/guest/tickets`
+  now allows 5 tickets per client IP per minute and answers 429 with
+  `Retry-After` beyond that. `Config.GuestRateLimit` sets the limits
+  (`TicketsPerMinute`, `RepliesPerMinute`), switches it off (`Disabled`), and
+  takes a shared `Store` for multi-instance deployments and a `ClientIP` func.
+  `middleware.GuestRateLimiter` counts ticket submissions and replies in
+  separate buckets and runs before the handler, so a guest-token check behind
+  it counts refused requests too. Behind a proxy, run a trusted real-IP
+  middleware first or every guest shares one IP.
+
+### Changed
+- **A requester's email reply reopens a resolved or closed ticket.** When
+  `InboundEmailService` accepts a reply from the ticket's requester and the
+  ticket is resolved or closed, it now moves the ticket to `reopened`, as the
+  Laravel, .NET, Spring and Phoenix ports do. Mail from anyone else still opens
+  a new ticket and leaves the matched one alone. A failed reopen is logged; the
+  reply is kept. **Breaking for custom writers:** `email.TicketWriter` gains
+  `ChangeStatus(ctx, ticketID, newStatus, causerID) error`, the same signature
+  as `services.TicketService.ChangeStatus`, so an adapter over `TicketService`
+  can forward it directly.
+
+### Security
+- **Inbound email could post on any ticket.** `InboundEmailService` added a
+  reply to whichever ticket the `In-Reply-To` / `References` headers, the
+  signed Reply-To or the subject reference pointed at, whoever sent it. Ticket
+  Message-IDs and references are guessable. Now, when the router has an inbound
+  secret, only the signed Reply-To address links mail to a ticket. A matched
+  email becomes a reply only when `From` (case-insensitive) is the ticket's
+  guest email or its requester's email, and the reply is posted as that
+  requester; the author is never taken from `From`. Anything else opens a new
+  ticket for the sender, so no mail is dropped. Hosts whose user requesters
+  reply by email register `WithRequesterEmailResolver`; without one, replies to
+  user tickets open a new ticket.
+
 ## [0.1.3] - 2026-09-13
 
 ### Fixed

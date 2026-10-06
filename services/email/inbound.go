@@ -83,6 +83,13 @@ type TicketLookup interface {
 //     headers; forged signatures are rejected via hmac.Equal.
 //  4. Subject-line reference tag ([{PREFIX}-...]).
 //
+// Message-IDs and references are guessable, so once a secret is
+// configured (and outbound mail therefore carries the signed
+// Reply-To) only path 3 is used. Without a secret the unsigned paths
+// remain as a compatibility mode. Either way a match is only a
+// lookup: InboundEmailService still requires the sender to be the
+// ticket's requester before posting a reply.
+//
 // Mirrors the NestJS reference and the 5 per-framework inbound-verify
 // PRs (Laravel, Rails, Django, Adonis, WordPress) + the greenfield
 // .NET / Spring routers.
@@ -97,7 +104,8 @@ type InboundRouter struct {
 //
 // domain is the outbound email domain the package stamps on
 // Message-IDs. secret is the HMAC key used for signed Reply-To
-// addresses — empty disables the signed Reply-To branch.
+// addresses. When set, it is the only path that links mail to a
+// ticket; empty falls back to the unsigned header and subject paths.
 func NewInboundRouter(store TicketLookup, domain, secret string) *InboundRouter {
 	return &InboundRouter{
 		store:        store,
@@ -112,6 +120,19 @@ func NewInboundRouter(store TicketLookup, domain, secret string) *InboundRouter 
 // the store are returned as-is so the caller can decide whether to
 // drop, retry, or dead-letter the message.
 func (r *InboundRouter) ResolveTicket(ctx context.Context, message InboundMessage) (*models.Ticket, error) {
+	// 3. With a secret configured, only the signed Reply-To on the
+	// recipient address identifies a ticket.
+	if r.secret != "" {
+		if message.ToEmail == "" {
+			return nil, nil
+		}
+		ticketID, ok := VerifyReplyTo(message.ToEmail, r.secret)
+		if !ok {
+			return nil, nil
+		}
+		return r.store.GetTicket(ctx, ticketID)
+	}
+
 	// 1 + 2. Parse canonical Message-IDs out of our own headers.
 	for _, raw := range CandidateHeaderMessageIDs(message) {
 		ticketID, ok := ParseTicketIDFromMessageID(raw)
@@ -127,18 +148,7 @@ func (r *InboundRouter) ResolveTicket(ctx context.Context, message InboundMessag
 		}
 	}
 
-	// 3. Signed Reply-To on the recipient address.
-	if r.secret != "" && message.ToEmail != "" {
-		if ticketID, ok := VerifyReplyTo(message.ToEmail, r.secret); ok {
-			ticket, err := r.store.GetTicket(ctx, ticketID)
-			if err != nil {
-				return nil, err
-			}
-			if ticket != nil {
-				return ticket, nil
-			}
-		}
-	}
+	// 3. The signed Reply-To path is handled above.
 
 	// 4. Subject-line reference tag.
 	if match := r.subjectRegex.FindStringSubmatch(message.Subject); match != nil {

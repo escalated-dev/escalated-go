@@ -48,6 +48,10 @@ func (f *fakeWriter) AddReply(_ context.Context, _ int64, _ string, _ *string, _
 	return f.replyReturn, nil
 }
 
+func (f *fakeWriter) ChangeStatus(_ context.Context, _ int64, _ int, _ *models.UserID) error {
+	return nil
+}
+
 func newTestHandler(t *testing.T, lookup *fakeLookup, writer *fakeWriter) *InboundEmailHandler {
 	t.Helper()
 	router := email.NewInboundRouter(lookup, testDomain, testSecret)
@@ -109,8 +113,43 @@ func TestInboundHandler_NewTicket_ReturnsCreatedOutcome(t *testing.T) {
 	}
 }
 
+func TestInboundHandler_UnsignedThreadedMail_OpensNewTicket(t *testing.T) {
+	guestEmail := "alice@example.com"
+	existing := &models.Ticket{ID: 55, Reference: "ESC-00055", GuestEmail: &guestEmail}
+	lookup := &fakeLookup{
+		byID:  map[int64]*models.Ticket{55: existing},
+		byRef: map[string]*models.Ticket{"ESC-00055": existing},
+	}
+	writer := &fakeWriter{createReturn: &models.Ticket{ID: 56}}
+	h := newTestHandler(t, lookup, writer)
+
+	payload := `{
+		"From": "mallory@example.net",
+		"To": "support@example.com",
+		"Subject": "Re: [ESC-00055] Help with invoice",
+		"TextBody": "Please send the refund elsewhere.",
+		"Headers": [
+			{"Name": "In-Reply-To", "Value": "<ticket-55@support.example.com>"}
+		]
+	}`
+
+	rec := postInbound(t, h, payload, testSecret)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+	body := decodeBody(t, rec)
+	if body["outcome"] != "created_new" || body["ticket_id"].(float64) != 56 {
+		t.Errorf("body = %v, want created_new on ticket 56", body)
+	}
+	if writer.replyCalls != 0 || writer.createCalls != 1 {
+		t.Errorf("calls: create=%d reply=%d, want 1/0", writer.createCalls, writer.replyCalls)
+	}
+}
+
 func TestInboundHandler_MatchedReply_ReturnsMatched(t *testing.T) {
-	existing := &models.Ticket{ID: 55, Reference: "ESC-00055"}
+	guestEmail := "alice@example.com"
+	existing := &models.Ticket{ID: 55, Reference: "ESC-00055", GuestEmail: &guestEmail}
 	lookup := &fakeLookup{
 		byID:  map[int64]*models.Ticket{55: existing},
 		byRef: map[string]*models.Ticket{},
@@ -120,7 +159,7 @@ func TestInboundHandler_MatchedReply_ReturnsMatched(t *testing.T) {
 
 	payload := `{
 		"From": "alice@example.com",
-		"To": "support@example.com",
+		"To": "` + email.BuildReplyTo(55, testSecret, testDomain) + `",
 		"Subject": "Re: Help with invoice",
 		"TextBody": "Thanks, forwarding the PDF now.",
 		"Headers": [

@@ -58,6 +58,8 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	scH := handlers.NewSideConversationHandler(cfg.DB)
 	authH := handlers.NewAuthHandler(cfg.APIAuth)
 	guestH := handlers.NewGuestTicketHandler(s, ticketSvc)
+	// Per-client-IP limits on the unauthenticated guest endpoints.
+	guestLimit := middleware.NewGuestRateLimiter(cfg.GuestRateLimit)
 	kbH := handlers.NewKBHandler(cfg.DB)
 	retentionH := handlers.NewRetentionHandler(services.NewRetentionService(cfg.DB, s))
 	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
@@ -120,7 +122,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 			r.Post("/auth/validate", authH.Validate)
 
 			// Anonymous (guest) ticket submission + lookup by token.
-			r.Post("/guest/tickets", guestH.Create)
+			r.With(guestLimit.Middleware(middleware.GuestTicketScope)).Post("/guest/tickets", guestH.Create)
 			r.Get("/guest/tickets/{token}", guestH.Show)
 			r.Post("/guest/tickets/{token}/rate", satH.GuestRate)
 
