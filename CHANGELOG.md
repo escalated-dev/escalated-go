@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-08
+
+### Upgrading
+
+- **Custom `email.TicketWriter` implementations must add `ChangeStatus`.**
+  The interface gains `ChangeStatus(ctx, ticketID, newStatus, causerID) error`,
+  used to reopen a resolved or closed ticket when its requester replies. An
+  adapter over `services.TicketService` can forward to its `ChangeStatus`.
+- **Register `WithRequesterEmailResolver` if your users reply by email.**
+  Inbound email becomes a reply only when `From` is the ticket's requester.
+  Without a resolver, only guest tickets (`GuestEmail`) accept email replies;
+  replies to user tickets open a new ticket.
+- **Agents reply in the app.** Mail from anyone other than the requester, an
+  agent's address included, opens a new ticket for the sender.
+- **Pass an inbound secret to `NewInboundRouter`.** With one set, only the
+  signed Reply-To address links mail to a ticket; `In-Reply-To` / `References`
+  and subject references are used only without a secret.
+- **Guest endpoints are rate-limited per client IP** (5 tickets and 10 replies
+  a minute). Behind a proxy, run a trusted real-IP middleware first or every
+  guest shares one limit; set `Config.GuestRateLimit.Store` for a shared
+  counter across instances, or `Disabled` if you throttle upstream.
+
 ### Security
 - **The guest ticket endpoint was not rate-limited.** `POST /api/guest/tickets`
   now allows 5 tickets per client IP per minute and answers 429 with
@@ -17,19 +39,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   separate buckets and runs before the handler, so a guest-token check behind
   it counts refused requests too. Behind a proxy, run a trusted real-IP
   middleware first or every guest shares one IP.
-
-### Changed
-- **A requester's email reply reopens a resolved or closed ticket.** When
-  `InboundEmailService` accepts a reply from the ticket's requester and the
-  ticket is resolved or closed, it now moves the ticket to `reopened`, as the
-  Laravel, .NET, Spring and Phoenix ports do. Mail from anyone else still opens
-  a new ticket and leaves the matched one alone. A failed reopen is logged; the
-  reply is kept. **Breaking for custom writers:** `email.TicketWriter` gains
-  `ChangeStatus(ctx, ticketID, newStatus, causerID) error`, the same signature
-  as `services.TicketService.ChangeStatus`, so an adapter over `TicketService`
-  can forward it directly.
-
-### Security
 - **Inbound email could post on any ticket.** `InboundEmailService` added a
   reply to whichever ticket the `In-Reply-To` / `References` headers, the
   signed Reply-To or the subject reference pointed at, whoever sent it. Ticket
@@ -41,6 +50,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ticket for the sender, so no mail is dropped. Hosts whose user requesters
   reply by email register `WithRequesterEmailResolver`; without one, replies to
   user tickets open a new ticket.
+
+### Changed
+- **A requester's email reply reopens a resolved or closed ticket.** When
+  `InboundEmailService` accepts a reply from the ticket's requester and the
+  ticket is resolved or closed, it now moves the ticket to `reopened`, as the
+  Laravel, .NET, Spring and Phoenix ports do. Mail from anyone else still opens
+  a new ticket and leaves the matched one alone. A failed reopen is logged; the
+  reply is kept. **Breaking for custom writers:** `email.TicketWriter` gains
+  `ChangeStatus(ctx, ticketID, newStatus, causerID) error`, the same signature
+  as `services.TicketService.ChangeStatus`, so an adapter over `TicketService`
+  can forward it directly.
 
 ## [0.1.3] - 2026-09-13
 
