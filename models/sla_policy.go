@@ -7,9 +7,11 @@ import (
 
 // SLAPolicy defines response and resolution time targets per priority level.
 type SLAPolicy struct {
-	ID          int64   `json:"id"`
-	Name        string  `json:"name"`
-	Description *string `json:"description,omitempty"`
+	DepartmentID *int64  `json:"department_id,omitempty"`
+	TicketType   *string `json:"ticket_type,omitempty"`
+	ID           int64   `json:"id"`
+	Name         string  `json:"name"`
+	Description  *string `json:"description,omitempty"`
 
 	// FirstResponseHours is a JSON map of priority -> hours, e.g. {"low":24,"medium":8,"high":4}
 	FirstResponseHours JSONText `json:"first_response_hours"`

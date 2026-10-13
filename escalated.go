@@ -28,6 +28,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/escalated-dev/escalated-go/ticketaccess"
+
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/renderer"
 	"github.com/escalated-dev/escalated-go/services/newsletter"
@@ -40,6 +42,7 @@ const Version = "0.1.0"
 // Escalated is the central container that holds the store, renderer, and config.
 // Create one with New() and pass it to router.MountChi or router.MountStdlib.
 type Escalated struct {
+	Access   *ticketaccess.Access
 	Config   Config
 	Store    store.Store
 	Renderer renderer.Renderer
@@ -108,7 +111,15 @@ func New(cfg Config) (*Escalated, error) {
 		rend = renderer.NewJSONRenderer()
 	}
 
+	access, err := ticketaccess.New(cfg.DB, cfg.TablePrefix, ticketaccess.Options{Visibility: cfg.Visibility, Accounts: cfg.Accounts, TargetedSLAs: cfg.TargetedSLAs, ResolveUser: cfg.TicketAccessUserResolver})
+	if err != nil {
+		return nil, err
+	}
+	if configured, ok := s.(interface{ ConfigureTicketAccess(*ticketaccess.Access) }); ok {
+		configured.ConfigureTicketAccess(access)
+	}
 	return &Escalated{
+		Access:   access,
 		Config:   cfg,
 		Store:    s,
 		Renderer: rend,
@@ -134,7 +145,13 @@ func NewSQLite(cfg Config) (*Escalated, error) {
 		rend = renderer.NewJSONRenderer()
 	}
 
+	access, err := ticketaccess.New(cfg.DB, cfg.TablePrefix, ticketaccess.Options{Visibility: cfg.Visibility, Accounts: cfg.Accounts, TargetedSLAs: cfg.TargetedSLAs, ResolveUser: cfg.TicketAccessUserResolver})
+	if err != nil {
+		return nil, err
+	}
+	s.ConfigureTicketAccess(access)
 	return &Escalated{
+		Access:   access,
 		Config:   cfg,
 		Store:    s,
 		Renderer: rend,
@@ -220,4 +237,9 @@ func applyDefaults(cfg *Config) {
 	if cfg.UserIDFunc == nil {
 		cfg.UserIDFunc = func(_ *http.Request) models.UserID { return "" }
 	}
+}
+
+// TicketAccessMiddleware scopes all package query paths after host authentication.
+func (e *Escalated) TicketAccessMiddleware(next http.Handler) http.Handler {
+	return e.Access.Middleware(e.Config.AgentCheck, e.Config.AdminCheck, e.Config.UserIDFunc)(next)
 }

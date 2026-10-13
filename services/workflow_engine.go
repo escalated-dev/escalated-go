@@ -51,15 +51,16 @@ var TriggerEvents = []string{
 
 // TicketData holds ticket fields for condition evaluation
 type TicketData struct {
-	Status       string
-	Priority     string
-	AssignedTo   string
-	DepartmentID *int
-	Channel      string
-	TicketType   string
-	Subject      string
-	Description  string
-	Reference    string
+	AccountType, AccountID string
+	Status                 string
+	Priority               string
+	AssignedTo             string
+	DepartmentID           *int
+	Channel                string
+	TicketType             string
+	Subject                string
+	Description            string
+	Reference              string
 }
 
 // DryRunResult holds the result of a dry run
@@ -97,6 +98,21 @@ func EvaluateConditions(group WorkflowConditionGroup, ticket TicketData) bool {
 }
 
 func evaluateSingle(c WorkflowCondition, ticket TicketData) bool {
+	if c.Field == "account" {
+		empty := ticket.AccountType == "" || ticket.AccountID == ""
+		if c.Operator == "is_empty" {
+			return empty
+		}
+		if c.Operator == "is_not_empty" {
+			return !empty
+		}
+		account := routingAccount(c.Value)
+		if account == nil {
+			return false
+		}
+		equal := !empty && ticket.AccountType == account.Type && ticket.AccountID == account.ID
+		return (c.Operator == "equals" && equal) || (c.Operator == "not_equals" && !equal)
+	}
 	actual := resolveField(c.Field, ticket)
 	return applyOperator(c.Operator, actual, c.Value)
 }

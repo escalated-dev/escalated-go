@@ -29,7 +29,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	// Event-driven Workflows: the runner fires active workflows on the ticket
 	// lifecycle (created/replied/status-changed/assigned) off the request path,
 	// mirroring the webhook dispatcher. The admin CRUD handler manages the rows.
-	ticketSvc.Workflows = services.NewWorkflowRunner(cfg.DB, nil)
+	ticketSvc.Workflows = services.NewWorkflowRunner(cfg.DB, nil, esc.Access)
 
 	actionRegistry := actions.NewRegistry(cfg.TicketActions)
 
@@ -50,8 +50,8 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	attachH.AgentCheck = cfg.AgentCheck
 	attachH.AdminCheck = cfg.AdminCheck
 	attachH.UserID = cfg.UserIDFunc
-	autoH := handlers.NewAutomationHandler(cfg.DB, services.NewAutomationRunner(cfg.DB, nil))
-	escH := handlers.NewEscalationHandler(cfg.DB, services.NewEscalationService(cfg.DB, nil))
+	autoH := handlers.NewAutomationHandler(cfg.DB, services.NewAutomationRunner(cfg.DB, nil, esc.Access))
+	escH := handlers.NewEscalationHandler(cfg.DB, services.NewEscalationService(cfg.DB, nil, esc.Access))
 	satH := handlers.NewSatisfactionHandler(cfg.DB)
 	capH := handlers.NewCapacityHandler(cfg.DB)
 	linkH := handlers.NewTicketLinkHandler(cfg.DB)
@@ -62,7 +62,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	guestLimit := middleware.NewGuestRateLimiter(cfg.GuestRateLimit)
 	kbH := handlers.NewKBHandler(cfg.DB)
 	retentionH := handlers.NewRetentionHandler(services.NewRetentionService(cfg.DB, s))
-	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
+	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil, esc.Access))
 	cannedH := handlers.NewCannedResponseHandler(cfg.DB, services.NewCannedResponseService(cfg.DB, nil))
 	articleH := handlers.NewArticleHandler(cfg.DB, services.NewArticleService(cfg.DB, nil))
 	webhookH := handlers.NewWebhookHandler(cfg.DB, webhookDispatcher)
@@ -76,6 +76,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	}
 
 	r.Route(cfg.RoutePrefix, func(r chi.Router) {
+		r.Use(esc.TicketAccessMiddleware)
 		// Inertia protocol middleware scopes to the UI routes below, but chi
 		// requires every middleware to be registered before any route is added
 		// to a mux — so it must be declared here, ahead of the always-mounted

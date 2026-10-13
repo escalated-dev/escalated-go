@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/ticketaccess"
+
 	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/store"
@@ -104,13 +106,13 @@ func (rs *RetentionService) purgeWith(ctx context.Context, settingKey, countQuer
 	}
 
 	var count int
-	if err := rs.db.QueryRowContext(ctx, sqldialect.Rebind(rs.db, countQuery), cutoff).Scan(&count); err != nil {
+	if err := ticketaccess.QueryRowContext(ctx, rs.db, sqldialect.Rebind(rs.db, countQuery), cutoff).Scan(&count); err != nil {
 		return 0, err
 	}
 	if count == 0 || dryRun {
 		return count, nil
 	}
-	if _, err := rs.db.ExecContext(ctx, sqldialect.Rebind(rs.db, deleteQuery), cutoff); err != nil {
+	if _, err := ticketaccess.ExecContext(ctx, rs.db, sqldialect.Rebind(rs.db, deleteQuery), cutoff); err != nil {
 		return 0, err
 	}
 	return count, nil
@@ -123,8 +125,7 @@ func (rs *RetentionService) closedTicketCandidates(ctx context.Context, now time
 	}
 
 	var count int
-	if err := rs.db.QueryRowContext(ctx,
-		sqldialect.Rebind(rs.db, "SELECT COUNT(1) FROM escalated_tickets WHERE status = ? AND closed_at IS NOT NULL AND closed_at < ?"),
+	if err := ticketaccess.QueryRowContext(ctx, rs.db, sqldialect.Rebind(rs.db, "SELECT COUNT(1) FROM escalated_tickets WHERE status = ? AND closed_at IS NOT NULL AND closed_at < ?"),
 		models.StatusClosed, cutoff).Scan(&count); err != nil {
 		return 0, err
 	}

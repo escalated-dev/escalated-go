@@ -511,3 +511,7 @@ Follow-up PR will add the Store interfaces for newsletters (postgres + sqlite) a
 ## License
 
 MIT - Copyright (c) Escalated.dev. See [LICENSE](LICENSE).
+
+## Configurable ticket access and routing
+
+See [ticket access and routing](docs/ticket-access-and-routing.md) for opt-in department/account visibility, account resolver hooks, rule conditions and targeted SLA policies. All restrictions default off.

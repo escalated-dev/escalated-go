@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/ticketaccess"
+
 	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/services"
@@ -38,9 +40,7 @@ func NewAutomationHandler(db *sql.DB, runner *services.AutomationRunner) *Automa
 
 // List handles GET /admin/automations.
 func (h *AutomationHandler) List(w http.ResponseWriter, r *http.Request) {
-	rows, err := h.DB.QueryContext(
-		r.Context(),
-		sqldialect.Rebind(h.DB, `SELECT id, name, description, conditions, actions, active, position, last_run_at, created_at, updated_at
+	rows, err := ticketaccess.QueryContext(r.Context(), h.DB, sqldialect.Rebind(h.DB, `SELECT id, name, description, conditions, actions, active, position, last_run_at, created_at, updated_at
 		   FROM escalated_automations
 		  ORDER BY position ASC, id ASC`),
 	)
@@ -96,7 +96,7 @@ func (h *AutomationHandler) Create(w http.ResponseWriter, r *http.Request) {
 		position = *in.Position
 	}
 
-	res, err := sqldialect.ExecInsertContext(r.Context(), h.DB, `INSERT INTO escalated_automations (name, description, conditions, actions, active, position, created_at, updated_at)
+	res, err := ticketaccess.ExecInsertContext(r.Context(), h.DB, `INSERT INTO escalated_automations (name, description, conditions, actions, active, position, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		in.Name, in.Description, conditions, actions, active, position, time.Now(), time.Now(),
 	)
@@ -169,7 +169,7 @@ func (h *AutomationHandler) Update(w http.ResponseWriter, r *http.Request) {
 	args = append(args, id)
 
 	q := "UPDATE escalated_automations SET " + joinSets(sets) + " WHERE id = ?"
-	if _, err := h.DB.ExecContext(r.Context(), sqldialect.Rebind(h.DB, q), args...); err != nil {
+	if _, err := ticketaccess.ExecContext(r.Context(), h.DB, sqldialect.Rebind(h.DB, q), args...); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -184,9 +184,7 @@ func (h *AutomationHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.DB.ExecContext(
-		r.Context(),
-		sqldialect.Rebind(h.DB, `DELETE FROM escalated_automations WHERE id = ?`),
+	if _, err := ticketaccess.ExecContext(r.Context(), h.DB, sqldialect.Rebind(h.DB, `DELETE FROM escalated_automations WHERE id = ?`),
 		id,
 	); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

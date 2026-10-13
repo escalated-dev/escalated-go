@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/escalated-dev/escalated-go/ticketaccess"
+
 	"github.com/go-chi/chi/v5"
 
 	"github.com/escalated-dev/escalated-go/internal/sqldialect"
@@ -39,9 +41,7 @@ func NewMacroHandler(db *sql.DB, svc *services.MacroService) *MacroHandler {
 
 // AdminList handles GET /admin/macros — list all macros for admin.
 func (h *MacroHandler) AdminList(w http.ResponseWriter, r *http.Request) {
-	rows, err := h.DB.QueryContext(
-		r.Context(),
-		sqldialect.Rebind(h.DB, `SELECT id, name, description, actions, is_shared, created_by, created_at, updated_at
+	rows, err := ticketaccess.QueryContext(r.Context(), h.DB, sqldialect.Rebind(h.DB, `SELECT id, name, description, actions, is_shared, created_by, created_at, updated_at
 		   FROM escalated_macros
 		  ORDER BY name ASC`),
 	)
@@ -198,7 +198,7 @@ func (h *MacroHandler) AgentApply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.Service.Apply(macro, ticketID, currentAgentID(r)); err != nil {
+	if err := h.Service.ApplyContext(r.Context(), macro, ticketID, currentAgentID(r)); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

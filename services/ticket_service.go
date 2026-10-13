@@ -91,6 +91,9 @@ func (ts *TicketService) Create(ctx context.Context, in CreateTicketInput) (*mod
 		}
 	}
 
+	if access := store.AccessFor(ts.store); access != nil && access.Options.TargetedSLAs {
+		t.CreatedAt = time.Now()
+	}
 	// Apply SLA policy
 	if err := ts.applySLA(ctx, t); err != nil {
 		// SLA errors are non-fatal — log and continue
@@ -135,6 +138,9 @@ func (ts *TicketService) Get(ctx context.Context, id int64) (*models.Ticket, err
 
 // Assign assigns a ticket to an agent and records the activity.
 func (ts *TicketService) Assign(ctx context.Context, ticketID int64, agentID models.UserID, causerID *models.UserID) error {
+	if access := store.AccessFor(ts.store); access != nil && !access.CanViewUser(ctx, agentID, ticketID, true) {
+		return fmt.Errorf("agent cannot access ticket")
+	}
 	t, err := ts.store.GetTicket(ctx, ticketID)
 	if err != nil {
 		return err
@@ -326,11 +332,12 @@ func (ts *TicketService) SplitTicket(ctx context.Context, in SplitTicketInput) (
 	}
 
 	newTicket := &models.Ticket{
-		Subject:       subject,
-		Description:   reply.Body,
-		Status:        models.StatusOpen,
-		Priority:      original.Priority,
-		TicketType:    original.TicketType,
+		Subject:     subject,
+		Description: reply.Body,
+		Status:      models.StatusOpen,
+		Priority:    original.Priority,
+		TicketType:  original.TicketType,
+		AccountType: original.AccountType, AccountID: original.AccountID,
 		RequesterType: original.RequesterType,
 		RequesterID:   original.RequesterID,
 		GuestName:     original.GuestName,
@@ -429,28 +436,47 @@ func statusLifecycleEvent(oldStatus, newStatus int) string {
 func (ts *TicketService) applySLA(ctx context.Context, t *models.Ticket) error {
 	// Try department default SLA, then global default
 	var policy *models.SLAPolicy
-	if t.DepartmentID != nil {
+	targeted := false
+	if access := store.AccessFor(ts.store); access != nil {
+		targeted = access.Options.TargetedSLAs
+	}
+	if targeted {
+		policies, err := ts.store.ListSLAPolicies(ctx, true)
+		if err != nil {
+			return err
+		}
+		policy = selectTargetedPolicy(policies, t)
+	}
+	if !targeted && t.DepartmentID != nil {
 		dept, err := ts.store.GetDepartment(ctx, *t.DepartmentID)
 		if err == nil && dept != nil && dept.DefaultSLAPolicyID != nil {
 			policy, _ = ts.store.GetSLAPolicy(ctx, *dept.DefaultSLAPolicyID)
 		}
 	}
-	if policy == nil {
+	if policy == nil && !targeted {
 		policy, _ = ts.store.GetDefaultSLAPolicy(ctx)
 	}
-	if policy == nil {
+	if policy == nil || (!targeted && (policy.DepartmentID != nil || policy.TicketType != nil)) {
 		return nil
 	}
 
 	t.SLAPolicyID = &policy.ID
 	priority := models.PriorityName[t.Priority]
+	base := time.Now()
+	if targeted {
+		if !t.CreatedAt.IsZero() {
+			base = t.CreatedAt
+		}
+		t.SLAFirstResponseDueAt = nil
+		t.SLAResolutionDueAt = nil
+	}
 
 	if hours, ok := policy.FirstResponseHoursFor(priority); ok {
-		due := time.Now().Add(time.Duration(hours * float64(time.Hour)))
+		due := base.Add(time.Duration(hours * float64(time.Hour)))
 		t.SLAFirstResponseDueAt = &due
 	}
 	if hours, ok := policy.ResolutionHoursFor(priority); ok {
-		due := time.Now().Add(time.Duration(hours * float64(time.Hour)))
+		due := base.Add(time.Duration(hours * float64(time.Hour)))
 		t.SLAResolutionDueAt = &due
 	}
 

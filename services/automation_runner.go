@@ -2,12 +2,15 @@
 package services
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
 	"time"
+
+	"github.com/escalated-dev/escalated-go/ticketaccess"
 
 	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
@@ -23,17 +26,22 @@ import (
 // Schedule by calling Run() from a host-app cron / scheduler — every
 // 5 minutes is the portfolio convention.
 type AutomationRunner struct {
+	Access *ticketaccess.Access
 	DB     *sql.DB
 	Logger *log.Logger
 }
 
 // NewAutomationRunner constructs a runner with the given DB and a logger
 // (a default logger is used if nil).
-func NewAutomationRunner(db *sql.DB, logger *log.Logger) *AutomationRunner {
+func NewAutomationRunner(db *sql.DB, logger *log.Logger, access ...*ticketaccess.Access) *AutomationRunner {
 	if logger == nil {
 		logger = log.Default()
 	}
-	return &AutomationRunner{DB: db, Logger: logger}
+	var policy *ticketaccess.Access
+	if len(access) > 0 {
+		policy = access[0]
+	}
+	return &AutomationRunner{DB: db, Logger: logger, Access: policy}
 }
 
 // Run evaluates all active automations and applies actions to matching
@@ -43,7 +51,7 @@ func NewAutomationRunner(db *sql.DB, logger *log.Logger) *AutomationRunner {
 // single bad rule does not abort the rest.
 func (r *AutomationRunner) Run() (int, error) {
 	rows, err := r.DB.Query(
-		sqldialect.Rebind(r.DB, `SELECT id, name, description, conditions, actions, active, position, last_run_at
+		r.query(`SELECT id, name, description, conditions, actions, active, position, last_run_at
 		   FROM escalated_automations
 		  WHERE active = TRUE
 		  ORDER BY position ASC, id ASC`),
@@ -96,7 +104,7 @@ func (r *AutomationRunner) runOne(automation models.Automation) (int, error) {
 	}
 
 	if _, err := r.DB.Exec(
-		sqldialect.Rebind(r.DB, `UPDATE escalated_automations SET last_run_at = ?, updated_at = ? WHERE id = ?`),
+		r.query(`UPDATE escalated_automations SET last_run_at = ?, updated_at = ? WHERE id = ?`),
 		time.Now(), time.Now(), automation.ID,
 	); err != nil {
 		return 0, fmt.Errorf("update last_run_at: %w", err)
@@ -120,6 +128,16 @@ func (r *AutomationRunner) findMatchingTickets(a models.Automation) ([]models.Ti
 
 	for _, c := range conds {
 		switch c.Field {
+		case "account":
+			clause, bindings := accountClause(c.Value, c.Operator)
+			clauses = append(clauses, clause)
+			args = append(args, bindings...)
+		case "department_id":
+			clauses = append(clauses, "department_id = ?")
+			args = append(args, toInt(c.Value))
+		case "ticket_type":
+			clauses = append(clauses, "ticket_type = ?")
+			args = append(args, toString(c.Value))
 		case "hours_since_created":
 			threshold := hoursAgo(toInt(c.Value))
 			clauses = append(clauses, fmt.Sprintf("created_at %s ?", flipOperator(c.Operator)))
@@ -159,7 +177,7 @@ func (r *AutomationRunner) findMatchingTickets(a models.Automation) ([]models.Ti
 		strings.Join(clauses, " AND "),
 	)
 
-	rows, err := r.DB.Query(sqldialect.Rebind(r.DB, q), args...)
+	rows, err := r.DB.Query(r.query(q), args...)
 	if err != nil {
 		return nil, fmt.Errorf("query tickets: %w", err)
 	}
@@ -212,19 +230,22 @@ func (r *AutomationRunner) runAction(a models.Automation, t models.Ticket, actio
 	switch action.Type {
 	case "change_status":
 		_, err := r.DB.Exec(
-			sqldialect.Rebind(r.DB, `UPDATE escalated_tickets SET status = ?, updated_at = ? WHERE id = ?`),
+			r.query(`UPDATE escalated_tickets SET status = ?, updated_at = ? WHERE id = ?`),
 			toInt(action.Value), time.Now(), t.ID,
 		)
 		return err
 	case "change_priority":
 		_, err := r.DB.Exec(
-			sqldialect.Rebind(r.DB, `UPDATE escalated_tickets SET priority = ?, updated_at = ? WHERE id = ?`),
+			r.query(`UPDATE escalated_tickets SET priority = ?, updated_at = ? WHERE id = ?`),
 			toInt(action.Value), time.Now(), t.ID,
 		)
 		return err
 	case "assign":
+		if r.Access != nil && !r.Access.CanViewUser(context.Background(), models.UserID(toString(action.Value)), t.ID, true) {
+			return fmt.Errorf("agent cannot access ticket")
+		}
 		_, err := r.DB.Exec(
-			sqldialect.Rebind(r.DB, `UPDATE escalated_tickets SET assigned_to = ?, updated_at = ? WHERE id = ?`),
+			r.query(`UPDATE escalated_tickets SET assigned_to = ?, updated_at = ? WHERE id = ?`),
 			models.UserID(toString(action.Value)), time.Now(), t.ID,
 		)
 		return err
@@ -232,7 +253,7 @@ func (r *AutomationRunner) runAction(a models.Automation, t models.Ticket, actio
 		// Find tag id by name; ignore unknown.
 		var tagID int64
 		err := r.DB.QueryRow(
-			sqldialect.Rebind(r.DB, `SELECT id FROM escalated_tags WHERE name = ?`),
+			r.query(`SELECT id FROM escalated_tags WHERE name = ?`),
 			toString(action.Value),
 		).Scan(&tagID)
 		if err == sql.ErrNoRows {
@@ -243,7 +264,7 @@ func (r *AutomationRunner) runAction(a models.Automation, t models.Ticket, actio
 		}
 		// Idempotent insert into the join table.
 		_, err = r.DB.Exec(
-			sqldialect.Rebind(r.DB, `INSERT INTO escalated_ticket_tags (ticket_id, tag_id) VALUES (?, ?) ON CONFLICT DO NOTHING`),
+			r.query(`INSERT INTO escalated_ticket_tags (ticket_id, tag_id) VALUES (?, ?) ON CONFLICT DO NOTHING`),
 			t.ID, tagID,
 		)
 		return err
@@ -251,13 +272,14 @@ func (r *AutomationRunner) runAction(a models.Automation, t models.Ticket, actio
 		// Written the way the workflow runner writes its notes: internal, and
 		// system-authored, since no agent wrote it.
 		_, err := r.DB.Exec(
-			sqldialect.Rebind(r.DB, `INSERT INTO escalated_replies (ticket_id, body, is_internal, is_system, created_at, updated_at)
+			r.query(`INSERT INTO escalated_replies (ticket_id, body, is_internal, is_system, created_at, updated_at)
 			 VALUES (?, ?, TRUE, TRUE, ?, ?)`),
 			t.ID, toString(action.Value), time.Now(), time.Now(),
 		)
 		return err
 	case "add_follower":
-		return models.AddFollower(r.DB, t.ID, models.UserID(toString(action.Value)))
+		_, err := r.DB.Exec(r.query("INSERT INTO escalated_ticket_followers (ticket_id,user_id) VALUES (?,?) ON CONFLICT DO NOTHING"), t.ID, models.UserID(toString(action.Value)))
+		return err
 	}
 	// Unknown action type — skip silently.
 	return nil
@@ -307,4 +329,11 @@ func toString(v interface{}) string {
 		return s
 	}
 	return fmt.Sprintf("%v", v)
+}
+
+func (r *AutomationRunner) query(query string) string {
+	if r.Access != nil {
+		query = strings.ReplaceAll(query, "escalated_", r.Access.Prefix)
+	}
+	return sqldialect.Rebind(r.DB, query)
 }

@@ -19,6 +19,9 @@ type ChatSessionService struct {
 
 // NewChatSessionService creates a new ChatSessionService.
 func NewChatSessionService(s store.Store, routing *ChatRoutingService, b *Broadcaster) *ChatSessionService {
+	if b != nil {
+		b.ConfigureTicketAccess(store.AccessFor(s))
+	}
 	return &ChatSessionService{
 		store:       s,
 		routing:     routing,
@@ -93,7 +96,7 @@ func (cs *ChatSessionService) StartSession(ctx context.Context, in StartSessionI
 	}
 
 	// Attempt auto-routing
-	if agentID, err := cs.routing.FindAvailableAgent(ctx, t.DepartmentID); err == nil && agentID != nil {
+	if agentID, err := cs.routing.FindAvailableAgentForTicket(ctx, t); err == nil && agentID != nil {
 		_ = cs.AssignAgent(ctx, session, *agentID)
 	}
 
@@ -112,6 +115,10 @@ func (cs *ChatSessionService) StartSession(ctx context.Context, in StartSessionI
 
 // AssignAgent assigns an agent to a waiting chat session.
 func (cs *ChatSessionService) AssignAgent(ctx context.Context, session *models.ChatSession, agentID models.UserID) error {
+	if access := store.AccessFor(cs.store); access != nil && !access.CanViewUser(ctx, agentID, session.TicketID, true) {
+		return fmt.Errorf("agent cannot access ticket")
+	}
+
 	now := time.Now()
 	session.AgentID = &agentID
 	session.Status = models.ChatStatusActive

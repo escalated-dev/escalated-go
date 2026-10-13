@@ -78,6 +78,12 @@ func (h *APIHandler) ListTickets(w http.ResponseWriter, r *http.Request) {
 			f.Offset = i
 		}
 	}
+	if value := r.URL.Query().Get("account_type"); value != "" {
+		f.AccountType = &value
+	}
+	if value := r.URL.Query().Get("account_id"); value != "" {
+		f.AccountID = &value
+	}
 	f.SortBy = r.URL.Query().Get("sort_by")
 	f.SortOrder = r.URL.Query().Get("sort_order")
 
@@ -345,6 +351,11 @@ func (h *APIHandler) CreateReply(w http.ResponseWriter, r *http.Request) {
 	id, err := idFromPath(r)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid ticket id"})
+		return
+	}
+
+	if ticket, err := h.store.GetTicket(r.Context(), id); err != nil || ticket == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "ticket not found"})
 		return
 	}
 

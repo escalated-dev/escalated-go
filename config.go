@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"net/http"
 
+	"github.com/escalated-dev/escalated-go/ticketaccess"
+
 	"github.com/escalated-dev/escalated-go/actions"
 	"github.com/escalated-dev/escalated-go/handlers"
 	"github.com/escalated-dev/escalated-go/middleware"
@@ -56,6 +58,11 @@ type NewsletterConfig struct {
 
 // Config holds the configuration for the Escalated support ticket system.
 type Config struct {
+	Visibility               string
+	Accounts                 ticketaccess.AccountConfig
+	TargetedSLAs             bool
+	TicketAccessUserResolver func(context.Context, models.UserID) (*ticketaccess.User, error)
+
 	// RoutePrefix is the URL prefix for all Escalated routes (e.g., "/support").
 	// Defaults to "/escalated".
 	RoutePrefix string
@@ -151,6 +158,7 @@ type Config struct {
 // DefaultConfig returns a Config with sensible defaults.
 func DefaultConfig() Config {
 	return Config{
+		Visibility:  "all",
 		RoutePrefix: "/escalated",
 		UIEnabled:   true,
 		TablePrefix: "escalated_",

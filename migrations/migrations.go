@@ -38,7 +38,7 @@ func Migrate(db *sql.DB, prefix string) error {
 			return fmt.Errorf("migration error: %w\nSQL: %s", err, stmt)
 		}
 	}
-	return nil
+	return upgradeTicketAccess(db, prefix, true)
 }
 
 // postgresUpgradeStatements bring an existing PostgreSQL schema forward where a
@@ -856,7 +856,7 @@ func MigrateSQLite(db *sql.DB, prefix string) error {
 			return fmt.Errorf("migration error: %w\nSQL: %s", err, stmt)
 		}
 	}
-	return nil
+	return upgradeTicketAccess(db, prefix, false)
 }
 
 func sqliteMigrationStatements(p string) []string {

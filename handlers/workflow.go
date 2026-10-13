@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/ticketaccess"
+
 	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/services"
@@ -33,9 +35,7 @@ func NewWorkflowHandler(db *sql.DB) *WorkflowHandler {
 
 // List handles GET /admin/workflows.
 func (h *WorkflowHandler) List(w http.ResponseWriter, r *http.Request) {
-	rows, err := h.DB.QueryContext(
-		r.Context(),
-		sqldialect.Rebind(h.DB, `SELECT id, name, description, trigger_event, conditions, actions, position, is_active, stop_on_match, created_at, updated_at
+	rows, err := ticketaccess.QueryContext(r.Context(), h.DB, sqldialect.Rebind(h.DB, `SELECT id, name, description, trigger_event, conditions, actions, position, is_active, stop_on_match, created_at, updated_at
 		   FROM escalated_workflows
 		  ORDER BY position ASC, id ASC`),
 	)
@@ -104,7 +104,7 @@ func (h *WorkflowHandler) Create(w http.ResponseWriter, r *http.Request) {
 		position = *in.Position
 	}
 
-	res, err := sqldialect.ExecInsertContext(r.Context(), h.DB, `INSERT INTO escalated_workflows
+	res, err := ticketaccess.ExecInsertContext(r.Context(), h.DB, `INSERT INTO escalated_workflows
 			(name, description, trigger_event, conditions, actions, position, is_active, stop_on_match, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		in.Name, in.Description, in.TriggerEvent,
@@ -188,7 +188,7 @@ func (h *WorkflowHandler) Update(w http.ResponseWriter, r *http.Request) {
 	args = append(args, id)
 
 	q := "UPDATE escalated_workflows SET " + joinSets(sets) + " WHERE id = ?"
-	if _, err := h.DB.ExecContext(r.Context(), sqldialect.Rebind(h.DB, q), args...); err != nil {
+	if _, err := ticketaccess.ExecContext(r.Context(), h.DB, sqldialect.Rebind(h.DB, q), args...); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -203,15 +203,11 @@ func (h *WorkflowHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.DB.ExecContext(
-		r.Context(), sqldialect.Rebind(h.DB, `DELETE FROM escalated_workflow_logs WHERE workflow_id = ?`), id,
-	); err != nil {
+	if _, err := ticketaccess.ExecContext(r.Context(), h.DB, sqldialect.Rebind(h.DB, `DELETE FROM escalated_workflow_logs WHERE workflow_id = ?`), id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if _, err := h.DB.ExecContext(
-		r.Context(), sqldialect.Rebind(h.DB, `DELETE FROM escalated_workflows WHERE id = ?`), id,
-	); err != nil {
+	if _, err := ticketaccess.ExecContext(r.Context(), h.DB, sqldialect.Rebind(h.DB, `DELETE FROM escalated_workflows WHERE id = ?`), id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -241,9 +237,7 @@ func (h *WorkflowHandler) Logs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := h.DB.QueryContext(
-		r.Context(),
-		sqldialect.Rebind(h.DB, `SELECT id, workflow_id, ticket_id, trigger_event, status, actions_executed, error_message, created_at
+	rows, err := ticketaccess.QueryContext(r.Context(), h.DB, sqldialect.Rebind(h.DB, `SELECT id, workflow_id, ticket_id, trigger_event, status, actions_executed, error_message, created_at
 		   FROM escalated_workflow_logs
 		  WHERE workflow_id = ?
 		  ORDER BY created_at DESC, id DESC

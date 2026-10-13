@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/ticketaccess"
+
 	"github.com/escalated-dev/escalated-go/models"
 )
 
@@ -16,7 +18,7 @@ import (
 func (s *PostgresStore) CreateChatSession(ctx context.Context, cs *models.ChatSession) error {
 	q := fmt.Sprintf(`INSERT INTO %s (ticket_id, status, agent_id, visitor_user_agent, visitor_ip, visitor_page_url, agent_joined_at, last_activity_at, ended_at, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`, s.t("chat_sessions"))
 	cs.CreatedAt = time.Now()
-	return s.db.QueryRowContext(ctx, q,
+	return ticketaccess.QueryRowContext(ctx, s.db, q,
 		cs.TicketID, cs.Status, cs.AgentID, cs.VisitorUserAgent, cs.VisitorIP, cs.VisitorPageURL,
 		cs.AgentJoinedAt, cs.LastActivityAt, cs.EndedAt, cs.CreatedAt,
 	).Scan(&cs.ID)
@@ -25,7 +27,7 @@ func (s *PostgresStore) CreateChatSession(ctx context.Context, cs *models.ChatSe
 func (s *PostgresStore) GetChatSession(ctx context.Context, id int64) (*models.ChatSession, error) {
 	q := fmt.Sprintf(`SELECT id, ticket_id, status, agent_id, visitor_user_agent, visitor_ip, visitor_page_url, agent_joined_at, last_activity_at, ended_at, created_at FROM %s WHERE id = $1`, s.t("chat_sessions"))
 	cs := &models.ChatSession{}
-	err := s.db.QueryRowContext(ctx, q, id).Scan(
+	err := ticketaccess.QueryRowContext(ctx, s.db, q, id).Scan(
 		&cs.ID, &cs.TicketID, &cs.Status, &cs.AgentID, &cs.VisitorUserAgent, &cs.VisitorIP, &cs.VisitorPageURL,
 		&cs.AgentJoinedAt, &cs.LastActivityAt, &cs.EndedAt, &cs.CreatedAt,
 	)
@@ -38,7 +40,7 @@ func (s *PostgresStore) GetChatSession(ctx context.Context, id int64) (*models.C
 func (s *PostgresStore) GetChatSessionByTicket(ctx context.Context, ticketID int64) (*models.ChatSession, error) {
 	q := fmt.Sprintf(`SELECT id, ticket_id, status, agent_id, visitor_user_agent, visitor_ip, visitor_page_url, agent_joined_at, last_activity_at, ended_at, created_at FROM %s WHERE ticket_id = $1 ORDER BY created_at DESC LIMIT 1`, s.t("chat_sessions"))
 	cs := &models.ChatSession{}
-	err := s.db.QueryRowContext(ctx, q, ticketID).Scan(
+	err := ticketaccess.QueryRowContext(ctx, s.db, q, ticketID).Scan(
 		&cs.ID, &cs.TicketID, &cs.Status, &cs.AgentID, &cs.VisitorUserAgent, &cs.VisitorIP, &cs.VisitorPageURL,
 		&cs.AgentJoinedAt, &cs.LastActivityAt, &cs.EndedAt, &cs.CreatedAt,
 	)
@@ -50,7 +52,7 @@ func (s *PostgresStore) GetChatSessionByTicket(ctx context.Context, ticketID int
 
 func (s *PostgresStore) UpdateChatSession(ctx context.Context, cs *models.ChatSession) error {
 	q := fmt.Sprintf(`UPDATE %s SET status=$1, agent_id=$2, agent_joined_at=$3, last_activity_at=$4, ended_at=$5 WHERE id=$6`, s.t("chat_sessions"))
-	_, err := s.db.ExecContext(ctx, q, cs.Status, cs.AgentID, cs.AgentJoinedAt, cs.LastActivityAt, cs.EndedAt, cs.ID)
+	_, err := ticketaccess.ExecContext(ctx, s.db, q, cs.Status, cs.AgentID, cs.AgentJoinedAt, cs.LastActivityAt, cs.EndedAt, cs.ID)
 	return err
 }
 
@@ -80,7 +82,7 @@ func (s *PostgresStore) ListChatSessions(ctx context.Context, f models.ChatSessi
 	}
 	q += " ORDER BY created_at ASC"
 
-	rows, err := s.db.QueryContext(ctx, q, args...)
+	rows, err := ticketaccess.QueryContext(ctx, s.db, q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -102,12 +104,12 @@ func (s *PostgresStore) ListChatSessions(ctx context.Context, f models.ChatSessi
 func (s *PostgresStore) CreateChatMessage(ctx context.Context, m *models.ChatMessage) error {
 	q := fmt.Sprintf(`INSERT INTO %s (chat_session_id, sender_type, sender_id, body, created_at) VALUES ($1,$2,$3,$4,$5) RETURNING id`, s.t("chat_messages"))
 	m.CreatedAt = time.Now()
-	return s.db.QueryRowContext(ctx, q, m.ChatSessionID, m.SenderType, m.SenderID, m.Body, m.CreatedAt).Scan(&m.ID)
+	return ticketaccess.QueryRowContext(ctx, s.db, q, m.ChatSessionID, m.SenderType, m.SenderID, m.Body, m.CreatedAt).Scan(&m.ID)
 }
 
 func (s *PostgresStore) ListChatMessages(ctx context.Context, chatSessionID int64) ([]models.ChatMessage, error) {
 	q := fmt.Sprintf(`SELECT id, chat_session_id, sender_type, sender_id, body, created_at FROM %s WHERE chat_session_id = $1 ORDER BY created_at ASC`, s.t("chat_messages"))
-	rows, err := s.db.QueryContext(ctx, q, chatSessionID)
+	rows, err := ticketaccess.QueryContext(ctx, s.db, q, chatSessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -129,13 +131,13 @@ func (s *PostgresStore) ListChatMessages(ctx context.Context, chatSessionID int6
 func (s *PostgresStore) CountTicketsByRequester(ctx context.Context, requesterType string, requesterID models.UserID) (int, error) {
 	q := fmt.Sprintf(`SELECT COUNT(*) FROM %s WHERE requester_type = $1 AND requester_id = $2`, s.t("tickets"))
 	var count int
-	err := s.db.QueryRowContext(ctx, q, requesterType, requesterID).Scan(&count)
+	err := ticketaccess.QueryRowContext(ctx, s.db, q, requesterType, requesterID).Scan(&count)
 	return count, err
 }
 
 func (s *PostgresStore) ListRelatedTickets(ctx context.Context, ticketID int64) ([]models.RelatedTicket, error) {
 	q := fmt.Sprintf(`SELECT id, reference, subject, status FROM %s WHERE (merged_into_id = $1 OR split_from_id = $2 OR id = (SELECT merged_into_id FROM %s WHERE id = $3) OR id = (SELECT split_from_id FROM %s WHERE id = $4)) AND id != $5`, s.t("tickets"), s.t("tickets"), s.t("tickets"))
-	rows, err := s.db.QueryContext(ctx, q, ticketID, ticketID, ticketID, ticketID, ticketID)
+	rows, err := ticketaccess.QueryContext(ctx, s.db, q, ticketID, ticketID, ticketID, ticketID, ticketID)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +159,7 @@ func (s *PostgresStore) ListRelatedTickets(ctx context.Context, ticketID int64) 
 func (s *PostgresStore) CreateChatRoutingRule(ctx context.Context, r *models.ChatRoutingRule) error {
 	q := fmt.Sprintf(`INSERT INTO %s (name, strategy, department_id, agent_ids, priority, max_concurrent_chats, is_active, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`, s.t("chat_routing_rules"))
 	r.CreatedAt = time.Now()
-	return s.db.QueryRowContext(ctx, q,
+	return ticketaccess.QueryRowContext(ctx, s.db, q,
 		r.Name, r.Strategy, r.DepartmentID, pqUserIDArray(r.AgentIDs), r.Priority, r.MaxConcurrentChats, r.IsActive, r.CreatedAt,
 	).Scan(&r.ID)
 }
@@ -165,7 +167,7 @@ func (s *PostgresStore) CreateChatRoutingRule(ctx context.Context, r *models.Cha
 func (s *PostgresStore) GetChatRoutingRule(ctx context.Context, id int64) (*models.ChatRoutingRule, error) {
 	q := fmt.Sprintf(`SELECT id, name, strategy, department_id, priority, max_concurrent_chats, is_active, created_at FROM %s WHERE id = $1`, s.t("chat_routing_rules"))
 	r := &models.ChatRoutingRule{}
-	err := s.db.QueryRowContext(ctx, q, id).Scan(
+	err := ticketaccess.QueryRowContext(ctx, s.db, q, id).Scan(
 		&r.ID, &r.Name, &r.Strategy, &r.DepartmentID, &r.Priority, &r.MaxConcurrentChats, &r.IsActive, &r.CreatedAt,
 	)
 	if err == sql.ErrNoRows {
@@ -176,7 +178,7 @@ func (s *PostgresStore) GetChatRoutingRule(ctx context.Context, id int64) (*mode
 
 func (s *PostgresStore) ListActiveChatRoutingRules(ctx context.Context, departmentID *int64) ([]*models.ChatRoutingRule, error) {
 	q := fmt.Sprintf(`SELECT id, name, strategy, department_id, priority, max_concurrent_chats, is_active, created_at FROM %s WHERE is_active = true ORDER BY priority DESC`, s.t("chat_routing_rules"))
-	rows, err := s.db.QueryContext(ctx, q)
+	rows, err := ticketaccess.QueryContext(ctx, s.db, q)
 	if err != nil {
 		return nil, err
 	}
@@ -195,20 +197,20 @@ func (s *PostgresStore) ListActiveChatRoutingRules(ctx context.Context, departme
 
 func (s *PostgresStore) UpdateChatRoutingRule(ctx context.Context, r *models.ChatRoutingRule) error {
 	q := fmt.Sprintf(`UPDATE %s SET name=$1, strategy=$2, department_id=$3, priority=$4, max_concurrent_chats=$5, is_active=$6 WHERE id=$7`, s.t("chat_routing_rules"))
-	_, err := s.db.ExecContext(ctx, q, r.Name, r.Strategy, r.DepartmentID, r.Priority, r.MaxConcurrentChats, r.IsActive, r.ID)
+	_, err := ticketaccess.ExecContext(ctx, s.db, q, r.Name, r.Strategy, r.DepartmentID, r.Priority, r.MaxConcurrentChats, r.IsActive, r.ID)
 	return err
 }
 
 func (s *PostgresStore) DeleteChatRoutingRule(ctx context.Context, id int64) error {
 	q := fmt.Sprintf(`DELETE FROM %s WHERE id = $1`, s.t("chat_routing_rules"))
-	_, err := s.db.ExecContext(ctx, q, id)
+	_, err := ticketaccess.ExecContext(ctx, s.db, q, id)
 	return err
 }
 
 func (s *PostgresStore) CountActiveChatsForAgent(ctx context.Context, agentID models.UserID) (int, error) {
 	q := fmt.Sprintf(`SELECT COUNT(*) FROM %s WHERE agent_id = $1 AND status = $2`, s.t("chat_sessions"))
 	var count int
-	err := s.db.QueryRowContext(ctx, q, agentID, models.ChatStatusActive).Scan(&count)
+	err := ticketaccess.QueryRowContext(ctx, s.db, q, agentID, models.ChatStatusActive).Scan(&count)
 	return count, err
 }
 

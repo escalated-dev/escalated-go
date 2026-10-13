@@ -1,11 +1,15 @@
 package services
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
+
+	"github.com/escalated-dev/escalated-go/ticketaccess"
 
 	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
@@ -45,24 +49,29 @@ func macroToString(v interface{}) string {
 // time-based). See escalated-developer-context/domain-model/
 // workflows-automations-macros.md.
 type MacroService struct {
+	Access *ticketaccess.Access
 	DB     *sql.DB
 	Logger *log.Logger
 }
 
 // NewMacroService constructs a service with the given DB and a logger
 // (a default logger is used if nil).
-func NewMacroService(db *sql.DB, logger *log.Logger) *MacroService {
+func NewMacroService(db *sql.DB, logger *log.Logger, access ...*ticketaccess.Access) *MacroService {
 	if logger == nil {
 		logger = log.Default()
 	}
-	return &MacroService{DB: db, Logger: logger}
+	var policy *ticketaccess.Access
+	if len(access) > 0 {
+		policy = access[0]
+	}
+	return &MacroService{DB: db, Logger: logger, Access: policy}
 }
 
 // ListForAgent returns macros visible to the given agent: shared macros
 // plus macros they created themselves.
 func (s *MacroService) ListForAgent(agentID models.UserID) ([]models.Macro, error) {
 	rows, err := s.DB.Query(
-		sqldialect.Rebind(s.DB, `SELECT id, name, description, actions, is_shared, created_by, created_at, updated_at
+		s.query(`SELECT id, name, description, actions, is_shared, created_by, created_at, updated_at
 		   FROM escalated_macros
 		  WHERE is_shared = TRUE OR created_by = ?
 		  ORDER BY name ASC`),
@@ -97,7 +106,7 @@ func (s *MacroService) FindByID(id int64) (*models.Macro, error) {
 	var m models.Macro
 	var createdBy sql.NullString
 	err := s.DB.QueryRow(
-		sqldialect.Rebind(s.DB, `SELECT id, name, description, actions, is_shared, created_by, created_at, updated_at
+		s.query(`SELECT id, name, description, actions, is_shared, created_by, created_at, updated_at
 		   FROM escalated_macros
 		  WHERE id = ?`),
 		id,
@@ -138,7 +147,7 @@ func (s *MacroService) Create(m *models.Macro) error {
 // Update saves changes to the given macro.
 func (s *MacroService) Update(m *models.Macro) error {
 	_, err := s.DB.Exec(
-		sqldialect.Rebind(s.DB, `UPDATE escalated_macros
+		s.query(`UPDATE escalated_macros
 		    SET name = ?, description = ?, actions = ?, is_shared = ?, updated_at = ?
 		  WHERE id = ?`),
 		m.Name, m.Description, m.Actions, m.IsShared, time.Now(), m.ID,
@@ -148,7 +157,7 @@ func (s *MacroService) Update(m *models.Macro) error {
 
 // Delete removes the macro with the given id.
 func (s *MacroService) Delete(id int64) error {
-	_, err := s.DB.Exec(sqldialect.Rebind(s.DB, `DELETE FROM escalated_macros WHERE id = ?`), id)
+	_, err := s.DB.Exec(s.query(`DELETE FROM escalated_macros WHERE id = ?`), id)
 	return err
 }
 
@@ -156,6 +165,14 @@ func (s *MacroService) Delete(id int64) error {
 // authored by the given agent. Per-action failures are logged and do
 // not abort the rest of the bundle.
 func (s *MacroService) Apply(macro *models.Macro, ticketID int64, agentID models.UserID) error {
+	return s.ApplyContext(context.Background(), macro, ticketID, agentID)
+}
+func (s *MacroService) ApplyContext(ctx context.Context, macro *models.Macro, ticketID int64, agentID models.UserID) error {
+	var found int
+	if err := ticketaccess.QueryRowContext(ctx, s.DB, s.query("SELECT 1 FROM escalated_tickets WHERE id=?"), ticketID).Scan(&found); err != nil {
+		return err
+	}
+
 	var actions []models.MacroAction
 	if len(macro.Actions) > 0 {
 		if err := json.Unmarshal(macro.Actions, &actions); err != nil {
@@ -164,7 +181,7 @@ func (s *MacroService) Apply(macro *models.Macro, ticketID int64, agentID models
 	}
 
 	for _, action := range actions {
-		if err := s.runAction(action, ticketID, agentID); err != nil {
+		if err := s.runActionContext(ctx, action, ticketID, agentID); err != nil {
 			s.Logger.Printf("macro #%d action %s on ticket #%d (agent %s) failed: %v",
 				macro.ID, action.Type, ticketID, agentID, err)
 		}
@@ -173,29 +190,35 @@ func (s *MacroService) Apply(macro *models.Macro, ticketID int64, agentID models
 }
 
 func (s *MacroService) runAction(action models.MacroAction, ticketID int64, agentID models.UserID) error {
+	return s.runActionContext(context.Background(), action, ticketID, agentID)
+}
+func (s *MacroService) runActionContext(ctx context.Context, action models.MacroAction, ticketID int64, agentID models.UserID) error {
 	switch action.Type {
 	case "change_status", "set_status":
-		_, err := s.DB.Exec(
-			sqldialect.Rebind(s.DB, `UPDATE escalated_tickets SET status = ?, updated_at = ? WHERE id = ?`),
+		_, err := ticketaccess.ExecContext(ctx, s.DB,
+			s.query(`UPDATE escalated_tickets SET status = ?, updated_at = ? WHERE id = ?`),
 			macroToInt(action.Value), time.Now(), ticketID,
 		)
 		return err
 	case "change_priority", "set_priority":
-		_, err := s.DB.Exec(
-			sqldialect.Rebind(s.DB, `UPDATE escalated_tickets SET priority = ?, updated_at = ? WHERE id = ?`),
+		_, err := ticketaccess.ExecContext(ctx, s.DB,
+			s.query(`UPDATE escalated_tickets SET priority = ?, updated_at = ? WHERE id = ?`),
 			macroToInt(action.Value), time.Now(), ticketID,
 		)
 		return err
 	case "assign":
-		_, err := s.DB.Exec(
-			sqldialect.Rebind(s.DB, `UPDATE escalated_tickets SET assigned_to = ?, updated_at = ? WHERE id = ?`),
+		if s.Access != nil && !s.Access.CanViewUser(ctx, models.UserID(macroToString(action.Value)), ticketID, true) {
+			return fmt.Errorf("agent cannot access ticket")
+		}
+		_, err := ticketaccess.ExecContext(ctx, s.DB,
+			s.query(`UPDATE escalated_tickets SET assigned_to = ?, updated_at = ? WHERE id = ?`),
 			models.UserID(macroToString(action.Value)), time.Now(), ticketID,
 		)
 		return err
 	case "add_tag":
 		var tagID int64
-		err := s.DB.QueryRow(
-			sqldialect.Rebind(s.DB, `SELECT id FROM escalated_tags WHERE name = ?`),
+		err := ticketaccess.QueryRowContext(ctx, s.DB,
+			s.query(`SELECT id FROM escalated_tags WHERE name = ?`),
 			macroToString(action.Value),
 		).Scan(&tagID)
 		if err == sql.ErrNoRows {
@@ -204,21 +227,21 @@ func (s *MacroService) runAction(action models.MacroAction, ticketID int64, agen
 		if err != nil {
 			return err
 		}
-		_, err = s.DB.Exec(
-			sqldialect.Rebind(s.DB, `INSERT INTO escalated_ticket_tags (ticket_id, tag_id) VALUES (?, ?) ON CONFLICT DO NOTHING`),
+		_, err = ticketaccess.ExecContext(ctx, s.DB,
+			s.query(`INSERT INTO escalated_ticket_tags (ticket_id, tag_id) VALUES (?, ?) ON CONFLICT DO NOTHING`),
 			ticketID, tagID,
 		)
 		return err
 	case "add_reply":
-		_, err := s.DB.Exec(
-			sqldialect.Rebind(s.DB, `INSERT INTO escalated_replies (ticket_id, author_id, body, is_internal, created_at, updated_at)
+		_, err := ticketaccess.ExecContext(ctx, s.DB,
+			s.query(`INSERT INTO escalated_replies (ticket_id, author_id, body, is_internal, created_at, updated_at)
 			 VALUES (?, ?, ?, FALSE, ?, ?)`),
 			ticketID, agentID, macroToString(action.Value), time.Now(), time.Now(),
 		)
 		return err
 	case "add_note":
-		_, err := s.DB.Exec(
-			sqldialect.Rebind(s.DB, `INSERT INTO escalated_replies (ticket_id, author_id, body, is_internal, created_at, updated_at)
+		_, err := ticketaccess.ExecContext(ctx, s.DB,
+			s.query(`INSERT INTO escalated_replies (ticket_id, author_id, body, is_internal, created_at, updated_at)
 			 VALUES (?, ?, ?, TRUE, ?, ?)`),
 			ticketID, agentID, macroToString(action.Value), time.Now(), time.Now(),
 		)
@@ -226,8 +249,8 @@ func (s *MacroService) runAction(action models.MacroAction, ticketID int64, agen
 	case "insert_canned_reply":
 		// Frontend resolves the canned response template before POSTing;
 		// stored value is the resolved text body.
-		_, err := s.DB.Exec(
-			sqldialect.Rebind(s.DB, `INSERT INTO escalated_replies (ticket_id, author_id, body, is_internal, created_at, updated_at)
+		_, err := ticketaccess.ExecContext(ctx, s.DB,
+			s.query(`INSERT INTO escalated_replies (ticket_id, author_id, body, is_internal, created_at, updated_at)
 			 VALUES (?, ?, ?, FALSE, ?, ?)`),
 			ticketID, agentID, macroToString(action.Value), time.Now(), time.Now(),
 		)
@@ -235,4 +258,11 @@ func (s *MacroService) runAction(action models.MacroAction, ticketID int64, agen
 	}
 	// Unknown action type — skip silently for forward-compat.
 	return nil
+}
+
+func (s *MacroService) query(query string) string {
+	if s.Access != nil {
+		query = strings.ReplaceAll(query, "escalated_", s.Access.Prefix)
+	}
+	return sqldialect.Rebind(s.DB, query)
 }

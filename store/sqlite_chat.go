@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/ticketaccess"
+
 	"github.com/escalated-dev/escalated-go/models"
 )
 
@@ -15,7 +17,7 @@ import (
 func (s *SQLiteStore) CreateChatSession(ctx context.Context, cs *models.ChatSession) error {
 	q := fmt.Sprintf(`INSERT INTO %s (ticket_id, status, agent_id, visitor_user_agent, visitor_ip, visitor_page_url, agent_joined_at, last_activity_at, ended_at, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)`, s.t("chat_sessions"))
 	cs.CreatedAt = time.Now()
-	res, err := s.db.ExecContext(ctx, q,
+	res, err := ticketaccess.ExecContext(ctx, s.db, q,
 		cs.TicketID, cs.Status, cs.AgentID, cs.VisitorUserAgent, cs.VisitorIP, cs.VisitorPageURL,
 		cs.AgentJoinedAt, cs.LastActivityAt, cs.EndedAt, cs.CreatedAt,
 	)
@@ -33,7 +35,7 @@ func (s *SQLiteStore) CreateChatSession(ctx context.Context, cs *models.ChatSess
 func (s *SQLiteStore) GetChatSession(ctx context.Context, id int64) (*models.ChatSession, error) {
 	q := fmt.Sprintf(`SELECT id, ticket_id, status, agent_id, visitor_user_agent, visitor_ip, visitor_page_url, agent_joined_at, last_activity_at, ended_at, created_at FROM %s WHERE id = ?`, s.t("chat_sessions"))
 	cs := &models.ChatSession{}
-	err := s.db.QueryRowContext(ctx, q, id).Scan(
+	err := ticketaccess.QueryRowContext(ctx, s.db, q, id).Scan(
 		&cs.ID, &cs.TicketID, &cs.Status, &cs.AgentID, &cs.VisitorUserAgent, &cs.VisitorIP, &cs.VisitorPageURL,
 		&cs.AgentJoinedAt, &cs.LastActivityAt, &cs.EndedAt, &cs.CreatedAt,
 	)
@@ -46,7 +48,7 @@ func (s *SQLiteStore) GetChatSession(ctx context.Context, id int64) (*models.Cha
 func (s *SQLiteStore) GetChatSessionByTicket(ctx context.Context, ticketID int64) (*models.ChatSession, error) {
 	q := fmt.Sprintf(`SELECT id, ticket_id, status, agent_id, visitor_user_agent, visitor_ip, visitor_page_url, agent_joined_at, last_activity_at, ended_at, created_at FROM %s WHERE ticket_id = ? ORDER BY created_at DESC LIMIT 1`, s.t("chat_sessions"))
 	cs := &models.ChatSession{}
-	err := s.db.QueryRowContext(ctx, q, ticketID).Scan(
+	err := ticketaccess.QueryRowContext(ctx, s.db, q, ticketID).Scan(
 		&cs.ID, &cs.TicketID, &cs.Status, &cs.AgentID, &cs.VisitorUserAgent, &cs.VisitorIP, &cs.VisitorPageURL,
 		&cs.AgentJoinedAt, &cs.LastActivityAt, &cs.EndedAt, &cs.CreatedAt,
 	)
@@ -58,7 +60,7 @@ func (s *SQLiteStore) GetChatSessionByTicket(ctx context.Context, ticketID int64
 
 func (s *SQLiteStore) UpdateChatSession(ctx context.Context, cs *models.ChatSession) error {
 	q := fmt.Sprintf(`UPDATE %s SET status=?, agent_id=?, agent_joined_at=?, last_activity_at=?, ended_at=? WHERE id=?`, s.t("chat_sessions"))
-	_, err := s.db.ExecContext(ctx, q, cs.Status, cs.AgentID, cs.AgentJoinedAt, cs.LastActivityAt, cs.EndedAt, cs.ID)
+	_, err := ticketaccess.ExecContext(ctx, s.db, q, cs.Status, cs.AgentID, cs.AgentJoinedAt, cs.LastActivityAt, cs.EndedAt, cs.ID)
 	return err
 }
 
@@ -85,7 +87,7 @@ func (s *SQLiteStore) ListChatSessions(ctx context.Context, f models.ChatSession
 	}
 	q += " ORDER BY created_at ASC"
 
-	rows, err := s.db.QueryContext(ctx, q, args...)
+	rows, err := ticketaccess.QueryContext(ctx, s.db, q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +109,7 @@ func (s *SQLiteStore) ListChatSessions(ctx context.Context, f models.ChatSession
 func (s *SQLiteStore) CreateChatMessage(ctx context.Context, m *models.ChatMessage) error {
 	q := fmt.Sprintf(`INSERT INTO %s (chat_session_id, sender_type, sender_id, body, created_at) VALUES (?,?,?,?,?)`, s.t("chat_messages"))
 	m.CreatedAt = time.Now()
-	res, err := s.db.ExecContext(ctx, q, m.ChatSessionID, m.SenderType, m.SenderID, m.Body, m.CreatedAt)
+	res, err := ticketaccess.ExecContext(ctx, s.db, q, m.ChatSessionID, m.SenderType, m.SenderID, m.Body, m.CreatedAt)
 	if err != nil {
 		return err
 	}
@@ -121,7 +123,7 @@ func (s *SQLiteStore) CreateChatMessage(ctx context.Context, m *models.ChatMessa
 
 func (s *SQLiteStore) ListChatMessages(ctx context.Context, chatSessionID int64) ([]models.ChatMessage, error) {
 	q := fmt.Sprintf(`SELECT id, chat_session_id, sender_type, sender_id, body, created_at FROM %s WHERE chat_session_id = ? ORDER BY created_at ASC`, s.t("chat_messages"))
-	rows, err := s.db.QueryContext(ctx, q, chatSessionID)
+	rows, err := ticketaccess.QueryContext(ctx, s.db, q, chatSessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -143,13 +145,13 @@ func (s *SQLiteStore) ListChatMessages(ctx context.Context, chatSessionID int64)
 func (s *SQLiteStore) CountTicketsByRequester(ctx context.Context, requesterType string, requesterID models.UserID) (int, error) {
 	q := fmt.Sprintf(`SELECT COUNT(*) FROM %s WHERE requester_type = ? AND requester_id = ?`, s.t("tickets"))
 	var count int
-	err := s.db.QueryRowContext(ctx, q, requesterType, requesterID).Scan(&count)
+	err := ticketaccess.QueryRowContext(ctx, s.db, q, requesterType, requesterID).Scan(&count)
 	return count, err
 }
 
 func (s *SQLiteStore) ListRelatedTickets(ctx context.Context, ticketID int64) ([]models.RelatedTicket, error) {
 	q := fmt.Sprintf(`SELECT id, reference, subject, status FROM %s WHERE (merged_into_id = ? OR split_from_id = ? OR id = (SELECT merged_into_id FROM %s WHERE id = ?) OR id = (SELECT split_from_id FROM %s WHERE id = ?)) AND id != ?`, s.t("tickets"), s.t("tickets"), s.t("tickets"))
-	rows, err := s.db.QueryContext(ctx, q, ticketID, ticketID, ticketID, ticketID, ticketID)
+	rows, err := ticketaccess.QueryContext(ctx, s.db, q, ticketID, ticketID, ticketID, ticketID, ticketID)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +173,7 @@ func (s *SQLiteStore) ListRelatedTickets(ctx context.Context, ticketID int64) ([
 func (s *SQLiteStore) CreateChatRoutingRule(ctx context.Context, r *models.ChatRoutingRule) error {
 	q := fmt.Sprintf(`INSERT INTO %s (name, strategy, department_id, priority, max_concurrent_chats, is_active, created_at) VALUES (?,?,?,?,?,?,?)`, s.t("chat_routing_rules"))
 	r.CreatedAt = time.Now()
-	res, err := s.db.ExecContext(ctx, q,
+	res, err := ticketaccess.ExecContext(ctx, s.db, q,
 		r.Name, r.Strategy, r.DepartmentID, r.Priority, r.MaxConcurrentChats, r.IsActive, r.CreatedAt,
 	)
 	if err != nil {
@@ -188,7 +190,7 @@ func (s *SQLiteStore) CreateChatRoutingRule(ctx context.Context, r *models.ChatR
 func (s *SQLiteStore) GetChatRoutingRule(ctx context.Context, id int64) (*models.ChatRoutingRule, error) {
 	q := fmt.Sprintf(`SELECT id, name, strategy, department_id, priority, max_concurrent_chats, is_active, created_at FROM %s WHERE id = ?`, s.t("chat_routing_rules"))
 	r := &models.ChatRoutingRule{}
-	err := s.db.QueryRowContext(ctx, q, id).Scan(
+	err := ticketaccess.QueryRowContext(ctx, s.db, q, id).Scan(
 		&r.ID, &r.Name, &r.Strategy, &r.DepartmentID, &r.Priority, &r.MaxConcurrentChats, &r.IsActive, &r.CreatedAt,
 	)
 	if err == sql.ErrNoRows {
@@ -199,7 +201,7 @@ func (s *SQLiteStore) GetChatRoutingRule(ctx context.Context, id int64) (*models
 
 func (s *SQLiteStore) ListActiveChatRoutingRules(ctx context.Context, _ *int64) ([]*models.ChatRoutingRule, error) {
 	q := fmt.Sprintf(`SELECT id, name, strategy, department_id, priority, max_concurrent_chats, is_active, created_at FROM %s WHERE is_active = 1 ORDER BY priority DESC`, s.t("chat_routing_rules"))
-	rows, err := s.db.QueryContext(ctx, q)
+	rows, err := ticketaccess.QueryContext(ctx, s.db, q)
 	if err != nil {
 		return nil, err
 	}
@@ -218,19 +220,19 @@ func (s *SQLiteStore) ListActiveChatRoutingRules(ctx context.Context, _ *int64) 
 
 func (s *SQLiteStore) UpdateChatRoutingRule(ctx context.Context, r *models.ChatRoutingRule) error {
 	q := fmt.Sprintf(`UPDATE %s SET name=?, strategy=?, department_id=?, priority=?, max_concurrent_chats=?, is_active=? WHERE id=?`, s.t("chat_routing_rules"))
-	_, err := s.db.ExecContext(ctx, q, r.Name, r.Strategy, r.DepartmentID, r.Priority, r.MaxConcurrentChats, r.IsActive, r.ID)
+	_, err := ticketaccess.ExecContext(ctx, s.db, q, r.Name, r.Strategy, r.DepartmentID, r.Priority, r.MaxConcurrentChats, r.IsActive, r.ID)
 	return err
 }
 
 func (s *SQLiteStore) DeleteChatRoutingRule(ctx context.Context, id int64) error {
 	q := fmt.Sprintf(`DELETE FROM %s WHERE id = ?`, s.t("chat_routing_rules"))
-	_, err := s.db.ExecContext(ctx, q, id)
+	_, err := ticketaccess.ExecContext(ctx, s.db, q, id)
 	return err
 }
 
 func (s *SQLiteStore) CountActiveChatsForAgent(ctx context.Context, agentID models.UserID) (int, error) {
 	q := fmt.Sprintf(`SELECT COUNT(*) FROM %s WHERE agent_id = ? AND status = ?`, s.t("chat_sessions"))
 	var count int
-	err := s.db.QueryRowContext(ctx, q, agentID, models.ChatStatusActive).Scan(&count)
+	err := ticketaccess.QueryRowContext(ctx, s.db, q, agentID, models.ChatStatusActive).Scan(&count)
 	return count, err
 }

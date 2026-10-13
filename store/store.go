@@ -6,6 +6,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/ticketaccess"
+
 	"github.com/escalated-dev/escalated-go/models"
 )
 
@@ -114,4 +116,12 @@ type Store interface {
 	// callers can chain a default value without checking a boolean.
 	GetSetting(ctx context.Context, key string) (string, error)
 	SetSetting(ctx context.Context, key, value string) error
+}
+
+// AccessFor returns hooks installed on a built-in store; custom stores can expose the same method.
+func AccessFor(s Store) *ticketaccess.Access {
+	if configured, ok := s.(interface{ TicketAccess() *ticketaccess.Access }); ok {
+		return configured.TicketAccess()
+	}
+	return nil
 }

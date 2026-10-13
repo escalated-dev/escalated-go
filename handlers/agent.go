@@ -70,6 +70,12 @@ func (h *AgentHandler) Dashboard(w http.ResponseWriter, r *http.Request) {
 func (h *AgentHandler) ListTickets(w http.ResponseWriter, r *http.Request) {
 	f := models.TicketFilters{Limit: 50}
 	f.Search = r.URL.Query().Get("search")
+	if value := r.URL.Query().Get("account_type"); value != "" {
+		f.AccountType = &value
+	}
+	if value := r.URL.Query().Get("account_id"); value != "" {
+		f.AccountID = &value
+	}
 	f.SortBy = r.URL.Query().Get("sort_by")
 	f.SortOrder = r.URL.Query().Get("sort_order")
 
