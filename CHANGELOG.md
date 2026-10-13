@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Opt-in department/account ticket visibility across both routers, built-in SQL stores, direct handlers, reports, bulk operations, widget and related records.
+- Nullable indexed ticket account identity with host requester/subject resolvers, account/type rule conditions and targeted department/type SLAs that preserve routing clocks.
+- Assignment and recipient checks, buffered live-event reauthorization, additive migrations and SQLite/PostgreSQL regressions. See [configuration and upgrade notes](docs/ticket-access-and-routing.md).
+
 ## [0.2.0] - 2026-10-08
 
 ### Upgrading

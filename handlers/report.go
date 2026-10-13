@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/ticketaccess"
+
 	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/services"
@@ -434,7 +436,7 @@ func (h *ReportHandler) ticketsIn(ctx context.Context, start, end time.Time, end
 		  WHERE created_at >= ? AND created_at %s ?
 		  ORDER BY created_at DESC`, h.t("tickets"), op)
 
-	rows, err := h.DB.QueryContext(ctx, sqldialect.Rebind(h.DB, q), start, end)
+	rows, err := ticketaccess.QueryContext(ctx, h.DB, sqldialect.Rebind(h.DB, q), start, end)
 	if err != nil {
 		return nil, err
 	}
@@ -458,7 +460,7 @@ func (h *ReportHandler) ticketsIn(ctx context.Context, start, end time.Time, end
 // countTickets returns the number of tickets created within [start, end].
 func (h *ReportHandler) countTickets(ctx context.Context, start, end time.Time) (int, error) {
 	var n int
-	err := h.DB.QueryRowContext(ctx, sqldialect.Rebind(h.DB, fmt.Sprintf(
+	err := ticketaccess.QueryRowContext(ctx, h.DB, sqldialect.Rebind(h.DB, fmt.Sprintf(
 		`SELECT COUNT(1) FROM %s WHERE created_at >= ? AND created_at <= ?`, h.t("tickets"))),
 		start, end).Scan(&n)
 	return n, err
@@ -466,7 +468,7 @@ func (h *ReportHandler) countTickets(ctx context.Context, start, end time.Time) 
 
 // ratingsIn loads CSAT ratings created within [start, end].
 func (h *ReportHandler) ratingsIn(ctx context.Context, start, end time.Time) ([]reportRating, error) {
-	rows, err := h.DB.QueryContext(ctx, sqldialect.Rebind(h.DB, fmt.Sprintf(
+	rows, err := ticketaccess.QueryContext(ctx, h.DB, sqldialect.Rebind(h.DB, fmt.Sprintf(
 		`SELECT ticket_id, rating FROM %s WHERE created_at >= ? AND created_at <= ?`, h.t("satisfaction_ratings"))),
 		start, end)
 	if err != nil {

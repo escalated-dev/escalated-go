@@ -25,8 +25,9 @@ type EscalationRule struct {
 
 // EscalationCondition is the parsed form of a single Conditions entry.
 type EscalationCondition struct {
-	Field string      `json:"field"`
-	Value interface{} `json:"value,omitempty"`
+	Operator string      `json:"operator,omitempty"`
+	Field    string      `json:"field"`
+	Value    interface{} `json:"value,omitempty"`
 }
 
 // EscalationAction is the parsed form of a single Actions entry.

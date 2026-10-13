@@ -8,11 +8,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/ticketaccess"
+
 	"github.com/escalated-dev/escalated-go/models"
 )
 
 // PostgresStore implements Store using a PostgreSQL database.
 type PostgresStore struct {
+	access *ticketaccess.Access
 	db     *sql.DB
 	prefix string
 }
@@ -31,22 +34,34 @@ func (s *PostgresStore) t(name string) string {
 // CreateTicket inserts t. A reference it generates is retried when already
 // taken; see insertTicket.
 func (s *PostgresStore) CreateTicket(ctx context.Context, t *models.Ticket) error {
+	if s.access != nil && t.AccountType == nil && t.AccountID == nil && t.RequesterType != nil && t.RequesterID != nil {
+		account, err := s.access.ResolveAccount(ctx, ticketaccess.Reference{Kind: "requester", Type: *t.RequesterType, ID: string(*t.RequesterID)})
+		if err != nil {
+			return err
+		}
+		if account != nil {
+			t.AccountType = &account.Type
+			t.AccountID = &account.ID
+		}
+	}
 	now := time.Now()
-	t.CreatedAt = now
+	if s.access == nil || !s.access.Options.TargetedSLAs || t.CreatedAt.IsZero() {
+		t.CreatedAt = now
+	}
 	t.UpdatedAt = now
 
 	q := fmt.Sprintf(`INSERT INTO %s
-		(reference, subject, description, status, priority, ticket_type,
+		(reference, subject, description, status, priority, ticket_type, account_type, account_id,
 		 requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		 assigned_to, department_id, sla_policy_id, merged_into_id,
 		 sla_first_response_due_at, sla_resolution_due_at, sla_breached,
 		 first_response_at, resolved_at, closed_at, metadata, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
 		RETURNING id`, s.t("tickets"))
 
 	return insertTicket(t, s.prefix, func() error {
-		return s.db.QueryRowContext(ctx, q,
-			t.Reference, t.Subject, t.Description, t.Status, t.Priority, t.TicketType,
+		return ticketaccess.QueryRowContext(ctx, s.db, q,
+			t.Reference, t.Subject, t.Description, t.Status, t.Priority, t.TicketType, t.AccountType, t.AccountID,
 			t.RequesterType, t.RequesterID, t.GuestName, t.GuestEmail, t.GuestToken, t.ContactID,
 			t.AssignedTo, t.DepartmentID, t.SLAPolicyID, t.MergedIntoID,
 			t.SLAFirstResponseDueAt, t.SLAResolutionDueAt, t.SLABreached,
@@ -56,7 +71,7 @@ func (s *PostgresStore) CreateTicket(ctx context.Context, t *models.Ticket) erro
 }
 
 func (s *PostgresStore) GetTicket(ctx context.Context, id int64) (*models.Ticket, error) {
-	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type,
+	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type, account_type, account_id,
 		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
@@ -64,8 +79,8 @@ func (s *PostgresStore) GetTicket(ctx context.Context, id int64) (*models.Ticket
 		FROM %s WHERE id = $1`, s.t("tickets"))
 
 	t := &models.Ticket{}
-	err := s.db.QueryRowContext(ctx, q, id).Scan(
-		&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType,
+	err := ticketaccess.QueryRowContext(ctx, s.db, q, id).Scan(
+		&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType, &t.AccountType, &t.AccountID,
 		&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken, &t.ContactID,
 		&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
 		&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
@@ -78,7 +93,7 @@ func (s *PostgresStore) GetTicket(ctx context.Context, id int64) (*models.Ticket
 }
 
 func (s *PostgresStore) GetTicketByReference(ctx context.Context, ref string) (*models.Ticket, error) {
-	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type,
+	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type, account_type, account_id,
 		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
@@ -86,8 +101,8 @@ func (s *PostgresStore) GetTicketByReference(ctx context.Context, ref string) (*
 		FROM %s WHERE reference = $1`, s.t("tickets"))
 
 	t := &models.Ticket{}
-	err := s.db.QueryRowContext(ctx, q, ref).Scan(
-		&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType,
+	err := ticketaccess.QueryRowContext(ctx, s.db, q, ref).Scan(
+		&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType, &t.AccountType, &t.AccountID,
 		&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken, &t.ContactID,
 		&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
 		&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
@@ -100,7 +115,7 @@ func (s *PostgresStore) GetTicketByReference(ctx context.Context, ref string) (*
 }
 
 func (s *PostgresStore) GetTicketByGuestToken(ctx context.Context, token string) (*models.Ticket, error) {
-	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type,
+	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type, account_type, account_id,
 		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
@@ -109,8 +124,8 @@ func (s *PostgresStore) GetTicketByGuestToken(ctx context.Context, token string)
 
 	t := &models.Ticket{}
 	var metadata []byte
-	err := s.db.QueryRowContext(ctx, q, token).Scan(
-		&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType,
+	err := ticketaccess.QueryRowContext(ctx, s.db, q, token).Scan(
+		&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType, &t.AccountType, &t.AccountID,
 		&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken, &t.ContactID,
 		&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
 		&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
@@ -126,16 +141,25 @@ func (s *PostgresStore) GetTicketByGuestToken(ctx context.Context, token string)
 }
 
 func (s *PostgresStore) UpdateTicket(ctx context.Context, t *models.Ticket) error {
+	if ticketaccess.Current(ctx) != nil {
+		current, err := s.GetTicket(ctx, t.ID)
+		if err != nil {
+			return err
+		}
+		if current == nil {
+			return sql.ErrNoRows
+		}
+	}
 	t.UpdatedAt = time.Now()
 	q := fmt.Sprintf(`UPDATE %s SET
-		subject=$1, description=$2, status=$3, priority=$4, ticket_type=$5,
-		assigned_to=$6, department_id=$7, sla_policy_id=$8, merged_into_id=$9,
-		sla_first_response_due_at=$10, sla_resolution_due_at=$11, sla_breached=$12,
-		first_response_at=$13, resolved_at=$14, closed_at=$15, metadata=$16, updated_at=$17
-		WHERE id=$18`, s.t("tickets"))
+		subject=$1, description=$2, status=$3, priority=$4, ticket_type=$5, account_type=$6, account_id=$7,
+		assigned_to=$8, department_id=$9, sla_policy_id=$10, merged_into_id=$11,
+		sla_first_response_due_at=$12, sla_resolution_due_at=$13, sla_breached=$14,
+		first_response_at=$15, resolved_at=$16, closed_at=$17, metadata=$18, updated_at=$19
+		WHERE id=$20`, s.t("tickets"))
 
-	_, err := s.db.ExecContext(ctx, q,
-		t.Subject, t.Description, t.Status, t.Priority, t.TicketType,
+	_, err := ticketaccess.ExecContext(ctx, s.db, q,
+		t.Subject, t.Description, t.Status, t.Priority, t.TicketType, t.AccountType, t.AccountID,
 		t.AssignedTo, t.DepartmentID, t.SLAPolicyID, t.MergedIntoID,
 		t.SLAFirstResponseDueAt, t.SLAResolutionDueAt, t.SLABreached,
 		t.FirstResponseAt, t.ResolvedAt, t.ClosedAt, t.Metadata, t.UpdatedAt,
@@ -153,6 +177,16 @@ func (s *PostgresStore) ListTickets(ctx context.Context, f models.TicketFilters)
 		where = append(where, fmt.Sprintf(clause, argN))
 		args = append(args, val)
 		argN++
+	}
+
+	if f.AccountType != nil || f.AccountID != nil {
+		if f.AccountType == nil || f.AccountID == nil || *f.AccountType == "" || *f.AccountID == "" {
+			where = append(where, "1=0")
+		} else {
+			where = append(where, fmt.Sprintf("account_type = $%d AND account_id = $%d", len(args)+1, len(args)+2))
+			args = append(args, *f.AccountType, *f.AccountID)
+			argN += 2
+		}
 	}
 
 	if f.Status != nil {
@@ -195,13 +229,14 @@ func (s *PostgresStore) ListTickets(ctx context.Context, f models.TicketFilters)
 	// Count
 	countQ := fmt.Sprintf("SELECT COUNT(*) FROM %s%s", s.t("tickets"), whereStr)
 	var total int
-	if err := s.db.QueryRowContext(ctx, countQ, args...).Scan(&total); err != nil {
+	if err := ticketaccess.QueryRowContext(ctx, s.db, countQ, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
 	// Sort
 	sortBy := "created_at"
-	if f.SortBy != "" {
+	switch f.SortBy {
+	case "id", "reference", "subject", "status", "priority", "ticket_type", "created_at", "updated_at":
 		sortBy = f.SortBy
 	}
 	sortOrder := "DESC"
@@ -214,7 +249,7 @@ func (s *PostgresStore) ListTickets(ctx context.Context, f models.TicketFilters)
 		limit = f.Limit
 	}
 
-	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type,
+	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type, account_type, account_id,
 		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
@@ -222,7 +257,7 @@ func (s *PostgresStore) ListTickets(ctx context.Context, f models.TicketFilters)
 		FROM %s%s ORDER BY %s %s LIMIT %d OFFSET %d`,
 		s.t("tickets"), whereStr, sortBy, sortOrder, limit, f.Offset)
 
-	rows, err := s.db.QueryContext(ctx, q, args...)
+	rows, err := ticketaccess.QueryContext(ctx, s.db, q, args...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -232,7 +267,7 @@ func (s *PostgresStore) ListTickets(ctx context.Context, f models.TicketFilters)
 	for rows.Next() {
 		t := &models.Ticket{}
 		if err := rows.Scan(
-			&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType,
+			&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType, &t.AccountType, &t.AccountID,
 			&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken, &t.ContactID,
 			&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
 			&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
@@ -247,7 +282,7 @@ func (s *PostgresStore) ListTickets(ctx context.Context, f models.TicketFilters)
 
 func (s *PostgresStore) DeleteTicket(ctx context.Context, id int64) error {
 	q := fmt.Sprintf("DELETE FROM %s WHERE id = $1", s.t("tickets"))
-	_, err := s.db.ExecContext(ctx, q, id)
+	_, err := ticketaccess.ExecContext(ctx, s.db, q, id)
 	return err
 }
 
@@ -262,7 +297,7 @@ func (s *PostgresStore) CreateReply(ctx context.Context, r *models.Reply) error 
 		(ticket_id, body, author_type, author_id, is_internal, is_system, is_pinned, created_at, updated_at)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`, s.t("replies"))
 
-	err := s.db.QueryRowContext(ctx, q,
+	err := ticketaccess.QueryRowContext(ctx, s.db, q,
 		r.TicketID, r.Body, r.AuthorType, r.AuthorID,
 		r.IsInternal, r.IsSystem, r.IsPinned, r.CreatedAt, r.UpdatedAt,
 	).Scan(&r.ID)
@@ -272,7 +307,7 @@ func (s *PostgresStore) CreateReply(ctx context.Context, r *models.Reply) error 
 
 	// Touch the parent ticket's updated_at
 	uq := fmt.Sprintf("UPDATE %s SET updated_at = $1 WHERE id = $2", s.t("tickets"))
-	_, _ = s.db.ExecContext(ctx, uq, now, r.TicketID)
+	_, _ = ticketaccess.ExecContext(ctx, s.db, uq, now, r.TicketID)
 	return nil
 }
 
@@ -282,7 +317,7 @@ func (s *PostgresStore) GetReply(ctx context.Context, id int64) (*models.Reply, 
 		FROM %s WHERE id = $1`, s.t("replies"))
 
 	r := &models.Reply{}
-	err := s.db.QueryRowContext(ctx, q, id).Scan(
+	err := ticketaccess.QueryRowContext(ctx, s.db, q, id).Scan(
 		&r.ID, &r.TicketID, &r.Body, &r.AuthorType, &r.AuthorID,
 		&r.IsInternal, &r.IsSystem, &r.IsPinned, &r.CreatedAt, &r.UpdatedAt,
 	)
@@ -326,7 +361,7 @@ func (s *PostgresStore) ListReplies(ctx context.Context, f models.ReplyFilters) 
 		FROM %s WHERE %s ORDER BY created_at %s`,
 		s.t("replies"), strings.Join(where, " AND "), order)
 
-	rows, err := s.db.QueryContext(ctx, q, args...)
+	rows, err := ticketaccess.QueryContext(ctx, s.db, q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -350,13 +385,13 @@ func (s *PostgresStore) UpdateReply(ctx context.Context, r *models.Reply) error 
 	r.UpdatedAt = time.Now()
 	q := fmt.Sprintf(`UPDATE %s SET body=$1, is_internal=$2, is_pinned=$3, updated_at=$4 WHERE id=$5`,
 		s.t("replies"))
-	_, err := s.db.ExecContext(ctx, q, r.Body, r.IsInternal, r.IsPinned, r.UpdatedAt, r.ID)
+	_, err := ticketaccess.ExecContext(ctx, s.db, q, r.Body, r.IsInternal, r.IsPinned, r.UpdatedAt, r.ID)
 	return err
 }
 
 func (s *PostgresStore) DeleteReply(ctx context.Context, id int64) error {
 	q := fmt.Sprintf("DELETE FROM %s WHERE id = $1", s.t("replies"))
-	_, err := s.db.ExecContext(ctx, q, id)
+	_, err := ticketaccess.ExecContext(ctx, s.db, q, id)
 	return err
 }
 
@@ -370,7 +405,7 @@ func (s *PostgresStore) CreateDepartment(ctx context.Context, d *models.Departme
 	q := fmt.Sprintf(`INSERT INTO %s (name, slug, description, email, is_active, default_sla_policy_id, created_at, updated_at)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`, s.t("departments"))
 
-	return s.db.QueryRowContext(ctx, q,
+	return ticketaccess.QueryRowContext(ctx, s.db, q,
 		d.Name, d.Slug, d.Description, d.Email, d.IsActive, d.DefaultSLAPolicyID, d.CreatedAt, d.UpdatedAt,
 	).Scan(&d.ID)
 }
@@ -380,7 +415,7 @@ func (s *PostgresStore) GetDepartment(ctx context.Context, id int64) (*models.De
 		FROM %s WHERE id = $1`, s.t("departments"))
 
 	d := &models.Department{}
-	err := s.db.QueryRowContext(ctx, q, id).Scan(
+	err := ticketaccess.QueryRowContext(ctx, s.db, q, id).Scan(
 		&d.ID, &d.Name, &d.Slug, &d.Description, &d.Email, &d.IsActive, &d.DefaultSLAPolicyID, &d.CreatedAt, &d.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
@@ -397,7 +432,7 @@ func (s *PostgresStore) ListDepartments(ctx context.Context, activeOnly bool) ([
 	}
 	q += " ORDER BY name"
 
-	rows, err := s.db.QueryContext(ctx, q)
+	rows, err := ticketaccess.QueryContext(ctx, s.db, q)
 	if err != nil {
 		return nil, err
 	}
@@ -420,7 +455,7 @@ func (s *PostgresStore) UpdateDepartment(ctx context.Context, d *models.Departme
 	d.UpdatedAt = time.Now()
 	q := fmt.Sprintf(`UPDATE %s SET name=$1, slug=$2, description=$3, email=$4, is_active=$5,
 		default_sla_policy_id=$6, updated_at=$7 WHERE id=$8`, s.t("departments"))
-	_, err := s.db.ExecContext(ctx, q,
+	_, err := ticketaccess.ExecContext(ctx, s.db, q,
 		d.Name, d.Slug, d.Description, d.Email, d.IsActive, d.DefaultSLAPolicyID, d.UpdatedAt, d.ID,
 	)
 	return err
@@ -428,7 +463,7 @@ func (s *PostgresStore) UpdateDepartment(ctx context.Context, d *models.Departme
 
 func (s *PostgresStore) DeleteDepartment(ctx context.Context, id int64) error {
 	q := fmt.Sprintf("DELETE FROM %s WHERE id = $1", s.t("departments"))
-	_, err := s.db.ExecContext(ctx, q, id)
+	_, err := ticketaccess.ExecContext(ctx, s.db, q, id)
 	return err
 }
 
@@ -442,7 +477,7 @@ func (s *PostgresStore) CreateTag(ctx context.Context, t *models.Tag) error {
 	q := fmt.Sprintf(`INSERT INTO %s (name, slug, color, description, created_at, updated_at)
 		VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`, s.t("tags"))
 
-	return s.db.QueryRowContext(ctx, q,
+	return ticketaccess.QueryRowContext(ctx, s.db, q,
 		t.Name, t.Slug, t.Color, t.Description, t.CreatedAt, t.UpdatedAt,
 	).Scan(&t.ID)
 }
@@ -452,7 +487,7 @@ func (s *PostgresStore) GetTag(ctx context.Context, id int64) (*models.Tag, erro
 		FROM %s WHERE id = $1`, s.t("tags"))
 
 	t := &models.Tag{}
-	err := s.db.QueryRowContext(ctx, q, id).Scan(
+	err := ticketaccess.QueryRowContext(ctx, s.db, q, id).Scan(
 		&t.ID, &t.Name, &t.Slug, &t.Color, &t.Description, &t.CreatedAt, &t.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
@@ -465,7 +500,7 @@ func (s *PostgresStore) ListTags(ctx context.Context) ([]*models.Tag, error) {
 	q := fmt.Sprintf(`SELECT id, name, slug, color, description, created_at, updated_at
 		FROM %s ORDER BY name`, s.t("tags"))
 
-	rows, err := s.db.QueryContext(ctx, q)
+	rows, err := ticketaccess.QueryContext(ctx, s.db, q)
 	if err != nil {
 		return nil, err
 	}
@@ -488,30 +523,30 @@ func (s *PostgresStore) UpdateTag(ctx context.Context, t *models.Tag) error {
 	t.UpdatedAt = time.Now()
 	q := fmt.Sprintf(`UPDATE %s SET name=$1, slug=$2, color=$3, description=$4, updated_at=$5 WHERE id=$6`,
 		s.t("tags"))
-	_, err := s.db.ExecContext(ctx, q, t.Name, t.Slug, t.Color, t.Description, t.UpdatedAt, t.ID)
+	_, err := ticketaccess.ExecContext(ctx, s.db, q, t.Name, t.Slug, t.Color, t.Description, t.UpdatedAt, t.ID)
 	return err
 }
 
 func (s *PostgresStore) DeleteTag(ctx context.Context, id int64) error {
 	// Remove join table entries first
 	jq := fmt.Sprintf("DELETE FROM %s WHERE tag_id = $1", s.t("ticket_tags"))
-	_, _ = s.db.ExecContext(ctx, jq, id)
+	_, _ = ticketaccess.ExecContext(ctx, s.db, jq, id)
 
 	q := fmt.Sprintf("DELETE FROM %s WHERE id = $1", s.t("tags"))
-	_, err := s.db.ExecContext(ctx, q, id)
+	_, err := ticketaccess.ExecContext(ctx, s.db, q, id)
 	return err
 }
 
 func (s *PostgresStore) AddTagToTicket(ctx context.Context, ticketID, tagID int64) error {
 	q := fmt.Sprintf(`INSERT INTO %s (ticket_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
 		s.t("ticket_tags"))
-	_, err := s.db.ExecContext(ctx, q, ticketID, tagID)
+	_, err := ticketaccess.ExecContext(ctx, s.db, q, ticketID, tagID)
 	return err
 }
 
 func (s *PostgresStore) RemoveTagFromTicket(ctx context.Context, ticketID, tagID int64) error {
 	q := fmt.Sprintf("DELETE FROM %s WHERE ticket_id = $1 AND tag_id = $2", s.t("ticket_tags"))
-	_, err := s.db.ExecContext(ctx, q, ticketID, tagID)
+	_, err := ticketaccess.ExecContext(ctx, s.db, q, ticketID, tagID)
 	return err
 }
 
@@ -520,7 +555,7 @@ func (s *PostgresStore) GetTicketTags(ctx context.Context, ticketID int64) ([]*m
 		FROM %s t INNER JOIN %s tt ON t.id = tt.tag_id
 		WHERE tt.ticket_id = $1 ORDER BY t.name`, s.t("tags"), s.t("ticket_tags"))
 
-	rows, err := s.db.QueryContext(ctx, q, ticketID)
+	rows, err := ticketaccess.QueryContext(ctx, s.db, q, ticketID)
 	if err != nil {
 		return nil, err
 	}
@@ -547,24 +582,24 @@ func (s *PostgresStore) CreateSLAPolicy(ctx context.Context, p *models.SLAPolicy
 	p.UpdatedAt = now
 
 	q := fmt.Sprintf(`INSERT INTO %s
-		(name, description, first_response_hours, resolution_hours, is_active, is_default, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`, s.t("sla_policies"))
+		(name, description, first_response_hours, resolution_hours, is_active, is_default, created_at, updated_at, department_id, ticket_type)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`, s.t("sla_policies"))
 
-	return s.db.QueryRowContext(ctx, q,
+	return ticketaccess.QueryRowContext(ctx, s.db, q,
 		p.Name, p.Description, p.FirstResponseHours, p.ResolutionHours,
-		p.IsActive, p.IsDefault, p.CreatedAt, p.UpdatedAt,
+		p.IsActive, p.IsDefault, p.CreatedAt, p.UpdatedAt, p.DepartmentID, p.TicketType,
 	).Scan(&p.ID)
 }
 
 func (s *PostgresStore) GetSLAPolicy(ctx context.Context, id int64) (*models.SLAPolicy, error) {
 	q := fmt.Sprintf(`SELECT id, name, description, first_response_hours, resolution_hours,
-		is_active, is_default, created_at, updated_at
+		is_active, is_default, created_at, updated_at, department_id, ticket_type
 		FROM %s WHERE id = $1`, s.t("sla_policies"))
 
 	p := &models.SLAPolicy{}
-	err := s.db.QueryRowContext(ctx, q, id).Scan(
+	err := ticketaccess.QueryRowContext(ctx, s.db, q, id).Scan(
 		&p.ID, &p.Name, &p.Description, &p.FirstResponseHours, &p.ResolutionHours,
-		&p.IsActive, &p.IsDefault, &p.CreatedAt, &p.UpdatedAt,
+		&p.IsActive, &p.IsDefault, &p.CreatedAt, &p.UpdatedAt, &p.DepartmentID, &p.TicketType,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -574,13 +609,13 @@ func (s *PostgresStore) GetSLAPolicy(ctx context.Context, id int64) (*models.SLA
 
 func (s *PostgresStore) GetDefaultSLAPolicy(ctx context.Context) (*models.SLAPolicy, error) {
 	q := fmt.Sprintf(`SELECT id, name, description, first_response_hours, resolution_hours,
-		is_active, is_default, created_at, updated_at
-		FROM %s WHERE is_default = TRUE AND is_active = TRUE LIMIT 1`, s.t("sla_policies"))
+		is_active, is_default, created_at, updated_at, department_id, ticket_type
+		FROM %s WHERE is_default = TRUE AND is_active = TRUE AND department_id IS NULL AND ticket_type IS NULL ORDER BY id LIMIT 1`, s.t("sla_policies"))
 
 	p := &models.SLAPolicy{}
-	err := s.db.QueryRowContext(ctx, q).Scan(
+	err := ticketaccess.QueryRowContext(ctx, s.db, q).Scan(
 		&p.ID, &p.Name, &p.Description, &p.FirstResponseHours, &p.ResolutionHours,
-		&p.IsActive, &p.IsDefault, &p.CreatedAt, &p.UpdatedAt,
+		&p.IsActive, &p.IsDefault, &p.CreatedAt, &p.UpdatedAt, &p.DepartmentID, &p.TicketType,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -590,14 +625,14 @@ func (s *PostgresStore) GetDefaultSLAPolicy(ctx context.Context) (*models.SLAPol
 
 func (s *PostgresStore) ListSLAPolicies(ctx context.Context, activeOnly bool) ([]*models.SLAPolicy, error) {
 	q := fmt.Sprintf(`SELECT id, name, description, first_response_hours, resolution_hours,
-		is_active, is_default, created_at, updated_at
+		is_active, is_default, created_at, updated_at, department_id, ticket_type
 		FROM %s`, s.t("sla_policies"))
 	if activeOnly {
 		q += " WHERE is_active = TRUE"
 	}
 	q += " ORDER BY name"
 
-	rows, err := s.db.QueryContext(ctx, q)
+	rows, err := ticketaccess.QueryContext(ctx, s.db, q)
 	if err != nil {
 		return nil, err
 	}
@@ -608,7 +643,7 @@ func (s *PostgresStore) ListSLAPolicies(ctx context.Context, activeOnly bool) ([
 		p := &models.SLAPolicy{}
 		if err := rows.Scan(
 			&p.ID, &p.Name, &p.Description, &p.FirstResponseHours, &p.ResolutionHours,
-			&p.IsActive, &p.IsDefault, &p.CreatedAt, &p.UpdatedAt,
+			&p.IsActive, &p.IsDefault, &p.CreatedAt, &p.UpdatedAt, &p.DepartmentID, &p.TicketType,
 		); err != nil {
 			return nil, err
 		}
@@ -620,18 +655,18 @@ func (s *PostgresStore) ListSLAPolicies(ctx context.Context, activeOnly bool) ([
 func (s *PostgresStore) UpdateSLAPolicy(ctx context.Context, p *models.SLAPolicy) error {
 	p.UpdatedAt = time.Now()
 	q := fmt.Sprintf(`UPDATE %s SET name=$1, description=$2, first_response_hours=$3,
-		resolution_hours=$4, is_active=$5, is_default=$6, updated_at=$7 WHERE id=$8`,
+		resolution_hours=$4, is_active=$5, is_default=$6, updated_at=$7, department_id=$8, ticket_type=$9 WHERE id=$10`,
 		s.t("sla_policies"))
-	_, err := s.db.ExecContext(ctx, q,
+	_, err := ticketaccess.ExecContext(ctx, s.db, q,
 		p.Name, p.Description, p.FirstResponseHours, p.ResolutionHours,
-		p.IsActive, p.IsDefault, p.UpdatedAt, p.ID,
+		p.IsActive, p.IsDefault, p.UpdatedAt, p.DepartmentID, p.TicketType, p.ID,
 	)
 	return err
 }
 
 func (s *PostgresStore) DeleteSLAPolicy(ctx context.Context, id int64) error {
 	q := fmt.Sprintf("DELETE FROM %s WHERE id = $1", s.t("sla_policies"))
-	_, err := s.db.ExecContext(ctx, q, id)
+	_, err := ticketaccess.ExecContext(ctx, s.db, q, id)
 	return err
 }
 
@@ -642,7 +677,7 @@ func (s *PostgresStore) CreateActivity(ctx context.Context, a *models.Activity) 
 	q := fmt.Sprintf(`INSERT INTO %s (ticket_id, action, causer_type, causer_id, details, created_at)
 		VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`, s.t("ticket_activities"))
 
-	return s.db.QueryRowContext(ctx, q,
+	return ticketaccess.QueryRowContext(ctx, s.db, q,
 		a.TicketID, a.Action, a.CauserType, a.CauserID, a.Details, a.CreatedAt,
 	).Scan(&a.ID)
 }
@@ -655,7 +690,7 @@ func (s *PostgresStore) ListActivities(ctx context.Context, ticketID int64, limi
 		FROM %s WHERE ticket_id = $1 ORDER BY created_at DESC LIMIT %d`,
 		s.t("ticket_activities"), limit)
 
-	rows, err := s.db.QueryContext(ctx, q, ticketID)
+	rows, err := ticketaccess.QueryContext(ctx, s.db, q, ticketID)
 	if err != nil {
 		return nil, err
 	}
@@ -677,7 +712,7 @@ func (s *PostgresStore) ListActivities(ctx context.Context, ticketID int64, limi
 // --- Snooze ---
 
 func (s *PostgresStore) ListSnoozedDueBefore(ctx context.Context, before time.Time) ([]*models.Ticket, error) {
-	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type,
+	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type, account_type, account_id,
 		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
 		snoozed_until, snoozed_by, status_before_snooze,
@@ -686,7 +721,7 @@ func (s *PostgresStore) ListSnoozedDueBefore(ctx context.Context, before time.Ti
 		FROM %s WHERE status = $1 AND snoozed_until IS NOT NULL AND snoozed_until <= $2`,
 		s.t("tickets"))
 
-	rows, err := s.db.QueryContext(ctx, q, models.StatusSnoozed, before)
+	rows, err := ticketaccess.QueryContext(ctx, s.db, q, models.StatusSnoozed, before)
 	if err != nil {
 		return nil, err
 	}
@@ -696,7 +731,7 @@ func (s *PostgresStore) ListSnoozedDueBefore(ctx context.Context, before time.Ti
 	for rows.Next() {
 		t := &models.Ticket{}
 		if err := rows.Scan(
-			&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType,
+			&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType, &t.AccountType, &t.AccountID,
 			&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken, &t.ContactID,
 			&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
 			&t.SnoozedUntil, &t.SnoozedBy, &t.StatusBeforeSnooze,
@@ -718,7 +753,7 @@ func (s *PostgresStore) CreateSavedView(ctx context.Context, sv *models.SavedVie
 	now := time.Now()
 	sv.CreatedAt = now
 	sv.UpdatedAt = now
-	return s.db.QueryRowContext(ctx, q,
+	return ticketaccess.QueryRowContext(ctx, s.db, q,
 		sv.Name, sv.Filters, sv.UserID, sv.IsShared, sv.Position, sv.Icon, sv.Color, sv.CreatedAt, sv.UpdatedAt,
 	).Scan(&sv.ID)
 }
@@ -727,7 +762,7 @@ func (s *PostgresStore) GetSavedView(ctx context.Context, id int64) (*models.Sav
 	q := fmt.Sprintf(`SELECT id, name, filters, user_id, is_shared, position, icon, color, created_at, updated_at
 		FROM %s WHERE id = $1`, s.t("saved_views"))
 	sv := &models.SavedView{}
-	err := s.db.QueryRowContext(ctx, q, id).Scan(
+	err := ticketaccess.QueryRowContext(ctx, s.db, q, id).Scan(
 		&sv.ID, &sv.Name, &sv.Filters, &sv.UserID, &sv.IsShared, &sv.Position, &sv.Icon, &sv.Color, &sv.CreatedAt, &sv.UpdatedAt,
 	)
 	if err != nil {
@@ -748,7 +783,7 @@ func (s *PostgresStore) ListSavedViews(ctx context.Context, userID models.UserID
 			FROM %s WHERE user_id = $1 ORDER BY position ASC, id ASC`, s.t("saved_views"))
 		args = []any{userID}
 	}
-	rows, err := s.db.QueryContext(ctx, q, args...)
+	rows, err := ticketaccess.QueryContext(ctx, s.db, q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -767,20 +802,20 @@ func (s *PostgresStore) ListSavedViews(ctx context.Context, userID models.UserID
 func (s *PostgresStore) UpdateSavedView(ctx context.Context, sv *models.SavedView) error {
 	sv.UpdatedAt = time.Now()
 	q := fmt.Sprintf(`UPDATE %s SET name=$1, filters=$2, is_shared=$3, position=$4, icon=$5, color=$6, updated_at=$7 WHERE id=$8`, s.t("saved_views"))
-	_, err := s.db.ExecContext(ctx, q, sv.Name, sv.Filters, sv.IsShared, sv.Position, sv.Icon, sv.Color, sv.UpdatedAt, sv.ID)
+	_, err := ticketaccess.ExecContext(ctx, s.db, q, sv.Name, sv.Filters, sv.IsShared, sv.Position, sv.Icon, sv.Color, sv.UpdatedAt, sv.ID)
 	return err
 }
 
 func (s *PostgresStore) DeleteSavedView(ctx context.Context, id int64) error {
 	q := fmt.Sprintf(`DELETE FROM %s WHERE id = $1`, s.t("saved_views"))
-	_, err := s.db.ExecContext(ctx, q, id)
+	_, err := ticketaccess.ExecContext(ctx, s.db, q, id)
 	return err
 }
 
 func (s *PostgresStore) ReorderSavedViews(ctx context.Context, userID models.UserID, ids []int64) error {
 	for i, id := range ids {
 		q := fmt.Sprintf(`UPDATE %s SET position = $1 WHERE id = $2 AND user_id = $3`, s.t("saved_views"))
-		if _, err := s.db.ExecContext(ctx, q, i, id, userID); err != nil {
+		if _, err := ticketaccess.ExecContext(ctx, s.db, q, i, id, userID); err != nil {
 			return err
 		}
 	}
@@ -797,7 +832,7 @@ func (s *PostgresStore) CreateAttachment(ctx context.Context, a *models.Attachme
 		(ticket_id, reply_id, original_filename, mime_type, size, storage_path, created_at)
 		VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`, s.t("attachments"))
 
-	return s.db.QueryRowContext(ctx, q,
+	return ticketaccess.QueryRowContext(ctx, s.db, q,
 		a.TicketID, a.ReplyID, a.OriginalFilename, a.MimeType, a.Size, a.StoragePath, a.CreatedAt,
 	).Scan(&a.ID)
 }
@@ -807,7 +842,7 @@ func (s *PostgresStore) GetAttachmentByID(ctx context.Context, id int64) (*model
 		FROM %s WHERE id = $1`, s.t("attachments"))
 
 	a := &models.Attachment{}
-	err := s.db.QueryRowContext(ctx, q, id).Scan(
+	err := ticketaccess.QueryRowContext(ctx, s.db, q, id).Scan(
 		&a.ID, &a.TicketID, &a.ReplyID, &a.OriginalFilename, &a.MimeType, &a.Size, &a.StoragePath, &a.CreatedAt,
 	)
 	if err == sql.ErrNoRows {
@@ -820,7 +855,7 @@ func (s *PostgresStore) GetAttachmentsByTicketID(ctx context.Context, ticketID i
 	q := fmt.Sprintf(`SELECT id, ticket_id, reply_id, original_filename, mime_type, size, storage_path, created_at
 		FROM %s WHERE ticket_id = $1 ORDER BY created_at ASC`, s.t("attachments"))
 
-	rows, err := s.db.QueryContext(ctx, q, ticketID)
+	rows, err := ticketaccess.QueryContext(ctx, s.db, q, ticketID)
 	if err != nil {
 		return nil, err
 	}
@@ -843,7 +878,7 @@ func (s *PostgresStore) GetAttachmentsByReplyID(ctx context.Context, replyID int
 	q := fmt.Sprintf(`SELECT id, ticket_id, reply_id, original_filename, mime_type, size, storage_path, created_at
 		FROM %s WHERE reply_id = $1 ORDER BY created_at ASC`, s.t("attachments"))
 
-	rows, err := s.db.QueryContext(ctx, q, replyID)
+	rows, err := ticketaccess.QueryContext(ctx, s.db, q, replyID)
 	if err != nil {
 		return nil, err
 	}
@@ -870,7 +905,7 @@ func (s *PostgresStore) GetContactByEmail(ctx context.Context, normalizedEmail s
 
 	c := &models.Contact{}
 	var metadataRaw sql.NullString
-	err := s.db.QueryRowContext(ctx, q, normalizedEmail).Scan(
+	err := ticketaccess.QueryRowContext(ctx, s.db, q, normalizedEmail).Scan(
 		&c.ID, &c.Email, &c.Name, &c.UserID, &metadataRaw, &c.CreatedAt, &c.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
@@ -898,12 +933,12 @@ func (s *PostgresStore) CreateContact(ctx context.Context, c *models.Contact) er
 	}
 	q := fmt.Sprintf(`INSERT INTO %s (email, name, user_id, metadata, created_at, updated_at)
 		VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`, s.t("contacts"))
-	return s.db.QueryRowContext(ctx, q, c.Email, c.Name, c.UserID, metadata, c.CreatedAt, c.UpdatedAt).Scan(&c.ID)
+	return ticketaccess.QueryRowContext(ctx, s.db, q, c.Email, c.Name, c.UserID, metadata, c.CreatedAt, c.UpdatedAt).Scan(&c.ID)
 }
 
 func (s *PostgresStore) UpdateContactName(ctx context.Context, id int64, name string) error {
 	q := fmt.Sprintf(`UPDATE %s SET name = $1, updated_at = $2 WHERE id = $3`, s.t("contacts"))
-	_, err := s.db.ExecContext(ctx, q, name, time.Now(), id)
+	_, err := ticketaccess.ExecContext(ctx, s.db, q, name, time.Now(), id)
 	return err
 }
 
@@ -913,7 +948,7 @@ func (s *PostgresStore) UpdateContactName(ctx context.Context, id int64, name st
 func (s *PostgresStore) GetSetting(ctx context.Context, key string) (string, error) {
 	q := fmt.Sprintf("SELECT value FROM %s WHERE key = $1", s.t("settings"))
 	var value sql.NullString
-	err := s.db.QueryRowContext(ctx, q, key).Scan(&value)
+	err := ticketaccess.QueryRowContext(ctx, s.db, q, key).Scan(&value)
 	if err == sql.ErrNoRows {
 		return "", nil
 	}
@@ -947,7 +982,7 @@ const ticketSubjectLinkCols = `id, ticket_id, subject_type, subject_id, role, po
 func (s *PostgresStore) ListTicketSubjectLinks(ctx context.Context, ticketID int64) ([]*models.TicketSubjectLink, error) {
 	q := fmt.Sprintf(`SELECT %s FROM %s WHERE ticket_id = $1 ORDER BY position, id`,
 		ticketSubjectLinkCols, s.t("ticket_subjects"))
-	rows, err := s.db.QueryContext(ctx, q, ticketID)
+	rows, err := ticketaccess.QueryContext(ctx, s.db, q, ticketID)
 	if err != nil {
 		return nil, err
 	}
@@ -969,7 +1004,7 @@ func (s *PostgresStore) ListTicketSubjectLinks(ctx context.Context, ticketID int
 
 func (s *PostgresStore) GetTicketSubjectLink(ctx context.Context, id int64) (*models.TicketSubjectLink, error) {
 	q := fmt.Sprintf(`SELECT %s FROM %s WHERE id = $1`, ticketSubjectLinkCols, s.t("ticket_subjects"))
-	row := s.db.QueryRowContext(ctx, q, id)
+	row := ticketaccess.QueryRowContext(ctx, s.db, q, id)
 	return scanTicketSubjectLink(row)
 }
 
@@ -987,7 +1022,7 @@ func (s *PostgresStore) UpsertTicketSubjectLink(ctx context.Context, link *model
 		DO UPDATE SET role = EXCLUDED.role, position = EXCLUDED.position, updated_at = EXCLUDED.updated_at
 		RETURNING %s`, s.t("ticket_subjects"), ticketSubjectLinkCols)
 
-	return s.db.QueryRowContext(ctx, q,
+	return ticketaccess.QueryRowContext(ctx, s.db, q,
 		link.TicketID, link.SubjectType, link.SubjectID, link.Role, link.Position,
 		link.CreatedAt, link.UpdatedAt,
 	).Scan(
@@ -998,20 +1033,20 @@ func (s *PostgresStore) UpsertTicketSubjectLink(ctx context.Context, link *model
 
 func (s *PostgresStore) DeleteTicketSubjectLink(ctx context.Context, id int64) error {
 	q := fmt.Sprintf(`DELETE FROM %s WHERE id = $1`, s.t("ticket_subjects"))
-	_, err := s.db.ExecContext(ctx, q, id)
+	_, err := ticketaccess.ExecContext(ctx, s.db, q, id)
 	return err
 }
 
 func (s *PostgresStore) DeleteTicketSubjectLinksByTicket(ctx context.Context, ticketID int64) error {
 	q := fmt.Sprintf(`DELETE FROM %s WHERE ticket_id = $1`, s.t("ticket_subjects"))
-	_, err := s.db.ExecContext(ctx, q, ticketID)
+	_, err := ticketaccess.ExecContext(ctx, s.db, q, ticketID)
 	return err
 }
 
 func (s *PostgresStore) MaxTicketSubjectPosition(ctx context.Context, ticketID int64) (int, error) {
 	q := fmt.Sprintf(`SELECT COALESCE(MAX(position), -1) FROM %s WHERE ticket_id = $1`, s.t("ticket_subjects"))
 	var max int
-	err := s.db.QueryRowContext(ctx, q, ticketID).Scan(&max)
+	err := ticketaccess.QueryRowContext(ctx, s.db, q, ticketID).Scan(&max)
 	return max, err
 }
 
@@ -1022,6 +1057,9 @@ func (s *PostgresStore) SetSetting(ctx context.Context, key, value string) error
 		VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 		ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP`,
 		s.t("settings"))
-	_, err := s.db.ExecContext(ctx, q, key, value)
+	_, err := ticketaccess.ExecContext(ctx, s.db, q, key, value)
 	return err
 }
+
+func (s *PostgresStore) ConfigureTicketAccess(access *ticketaccess.Access) { s.access = access }
+func (s *PostgresStore) TicketAccess() *ticketaccess.Access                { return s.access }

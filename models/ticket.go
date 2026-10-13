@@ -57,13 +57,15 @@ var TicketTypes = []string{"question", "problem", "incident", "task"}
 
 // Ticket represents a support ticket.
 type Ticket struct {
-	ID          int64  `json:"id"`
-	Reference   string `json:"reference"`
-	Subject     string `json:"subject"`
-	Description string `json:"description"`
-	Status      int    `json:"status"`
-	Priority    int    `json:"priority"`
-	TicketType  string `json:"ticket_type"`
+	AccountType *string `json:"account_type,omitempty"`
+	AccountID   *string `json:"account_id,omitempty"`
+	ID          int64   `json:"id"`
+	Reference   string  `json:"reference"`
+	Subject     string  `json:"subject"`
+	Description string  `json:"description"`
+	Status      int     `json:"status"`
+	Priority    int     `json:"priority"`
+	TicketType  string  `json:"ticket_type"`
 
 	// Requester (polymorphic in Rails — here we use type+id strings)
 	RequesterType *string `json:"requester_type,omitempty"`
@@ -352,6 +354,8 @@ func GenerateGuestToken() (string, error) {
 
 // TicketFilters holds query parameters for listing tickets.
 type TicketFilters struct {
+	AccountType  *string
+	AccountID    *string
 	Status       *int    `json:"status,omitempty"`
 	Priority     *int    `json:"priority,omitempty"`
 	TicketType   *string `json:"ticket_type,omitempty"`

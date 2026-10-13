@@ -1,12 +1,15 @@
 package services
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
 	"time"
+
+	"github.com/escalated-dev/escalated-go/ticketaccess"
 
 	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
@@ -20,17 +23,22 @@ import (
 // event-driven WorkflowEngine. Schedule by calling EvaluateRules() from a
 // host-app cron — every 5 minutes is the portfolio convention.
 type EscalationService struct {
+	Access *ticketaccess.Access
 	DB     *sql.DB
 	Logger *log.Logger
 }
 
 // NewEscalationService constructs a service with the given DB and a logger
 // (a default logger is used if nil).
-func NewEscalationService(db *sql.DB, logger *log.Logger) *EscalationService {
+func NewEscalationService(db *sql.DB, logger *log.Logger, access ...*ticketaccess.Access) *EscalationService {
 	if logger == nil {
 		logger = log.Default()
 	}
-	return &EscalationService{DB: db, Logger: logger}
+	var policy *ticketaccess.Access
+	if len(access) > 0 {
+		policy = access[0]
+	}
+	return &EscalationService{DB: db, Logger: logger, Access: policy}
 }
 
 // EvaluateRules evaluates all active escalation rules and applies their
@@ -39,7 +47,7 @@ func NewEscalationService(db *sql.DB, logger *log.Logger) *EscalationService {
 // does not abort the rest.
 func (s *EscalationService) EvaluateRules() (int, error) {
 	rows, err := s.DB.Query(
-		sqldialect.Rebind(s.DB, `SELECT id, name, conditions, actions
+		s.query(`SELECT id, name, conditions, actions
 		   FROM escalated_escalation_rules
 		  WHERE is_active = TRUE
 		  ORDER BY sort_order ASC, id ASC`),
@@ -101,7 +109,7 @@ func (s *EscalationService) findMatchingTicketIDs(rule models.EscalationRule) ([
 		strings.Join(clauses, " AND "),
 	)
 
-	rows, err := s.DB.Query(sqldialect.Rebind(s.DB, q), args...)
+	rows, err := s.DB.Query(s.query(q), args...)
 	if err != nil {
 		return nil, fmt.Errorf("query tickets: %w", err)
 	}
@@ -129,6 +137,13 @@ func escalationClauses(conds []models.EscalationCondition) ([]string, []interfac
 
 	for _, c := range conds {
 		switch c.Field {
+		case "account":
+			clause, bindings := accountClause(c.Value, c.Operator)
+			clauses = append(clauses, clause)
+			args = append(args, bindings...)
+		case "ticket_type":
+			clauses = append(clauses, "ticket_type = ?")
+			args = append(args, toString(c.Value))
 		case "status":
 			clauses = append(clauses, "status = ?")
 			args = append(args, toInt(c.Value))
@@ -181,29 +196,39 @@ func (s *EscalationService) runAction(action models.EscalationAction, ticketID i
 	switch action.Type {
 	case "escalate":
 		_, err := s.DB.Exec(
-			sqldialect.Rebind(s.DB, `UPDATE escalated_tickets SET status = ?, updated_at = ? WHERE id = ?`),
+			s.query(`UPDATE escalated_tickets SET status = ?, updated_at = ? WHERE id = ?`),
 			models.StatusEscalated, time.Now(), ticketID,
 		)
 		return err
 	case "change_priority":
 		_, err := s.DB.Exec(
-			sqldialect.Rebind(s.DB, `UPDATE escalated_tickets SET priority = ?, updated_at = ? WHERE id = ?`),
+			s.query(`UPDATE escalated_tickets SET priority = ?, updated_at = ? WHERE id = ?`),
 			toInt(action.Value), time.Now(), ticketID,
 		)
 		return err
 	case "assign_to":
+		if s.Access != nil && !s.Access.CanViewUser(context.Background(), models.UserID(toString(action.Value)), ticketID, true) {
+			return fmt.Errorf("agent cannot access ticket")
+		}
 		_, err := s.DB.Exec(
-			sqldialect.Rebind(s.DB, `UPDATE escalated_tickets SET assigned_to = ?, updated_at = ? WHERE id = ?`),
+			s.query(`UPDATE escalated_tickets SET assigned_to = ?, updated_at = ? WHERE id = ?`),
 			models.UserID(toString(action.Value)), time.Now(), ticketID,
 		)
 		return err
 	case "change_department":
 		_, err := s.DB.Exec(
-			sqldialect.Rebind(s.DB, `UPDATE escalated_tickets SET department_id = ?, updated_at = ? WHERE id = ?`),
+			s.query(`UPDATE escalated_tickets SET department_id = ?, updated_at = ? WHERE id = ?`),
 			toInt(action.Value), time.Now(), ticketID,
 		)
 		return err
 	}
 	// Unknown action type — skip silently.
 	return nil
+}
+
+func (s *EscalationService) query(query string) string {
+	if s.Access != nil {
+		query = strings.ReplaceAll(query, "escalated_", s.Access.Prefix)
+	}
+	return sqldialect.Rebind(s.DB, query)
 }

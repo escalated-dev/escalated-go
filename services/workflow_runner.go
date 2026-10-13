@@ -1,12 +1,15 @@
 package services
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
 	"time"
+
+	"github.com/escalated-dev/escalated-go/ticketaccess"
 
 	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
@@ -32,17 +35,22 @@ import (
 // Semantics mirror the NestJS WorkflowRunnerService and the Laravel
 // WorkflowEngine::processEvent reference.
 type WorkflowRunner struct {
+	Access *ticketaccess.Access
 	DB     *sql.DB
 	Logger *log.Logger
 }
 
 // NewWorkflowRunner constructs a runner with the given DB and a logger (a
 // default logger is used when nil).
-func NewWorkflowRunner(db *sql.DB, logger *log.Logger) *WorkflowRunner {
+func NewWorkflowRunner(db *sql.DB, logger *log.Logger, access ...*ticketaccess.Access) *WorkflowRunner {
 	if logger == nil {
 		logger = log.Default()
 	}
-	return &WorkflowRunner{DB: db, Logger: logger}
+	var policy *ticketaccess.Access
+	if len(access) > 0 {
+		policy = access[0]
+	}
+	return &WorkflowRunner{DB: db, Logger: logger, Access: policy}
 }
 
 // RunForEvent evaluates and runs every active workflow subscribed to event
@@ -80,7 +88,7 @@ func (r *WorkflowRunner) RunForEvent(event string, t *models.Ticket) {
 // the reference engines order them (position ASC, then id ASC).
 func (r *WorkflowRunner) activeForEvent(event string) ([]models.Workflow, error) {
 	rows, err := r.DB.Query(
-		sqldialect.Rebind(r.DB, `SELECT id, name, description, trigger_event, conditions, actions, position, is_active, stop_on_match
+		r.query(`SELECT id, name, description, trigger_event, conditions, actions, position, is_active, stop_on_match
 		   FROM escalated_workflows
 		  WHERE is_active = TRUE AND trigger_event = ?
 		  ORDER BY position ASC, id ASC`),
@@ -169,7 +177,7 @@ func (r *WorkflowRunner) scheduleDelayed(wf models.Workflow, t *models.Ticket, r
 	}
 	now := time.Now()
 	_, err = r.DB.Exec(
-		sqldialect.Rebind(r.DB, `INSERT INTO escalated_delayed_actions (workflow_id, ticket_id, action_data, execute_at, executed, created_at)
+		r.query(`INSERT INTO escalated_delayed_actions (workflow_id, ticket_id, action_data, execute_at, executed, created_at)
 		 VALUES (?, ?, ?, ?, FALSE, ?)`),
 		wf.ID, t.ID, data, now.Add(time.Duration(toInt(delay.Value))*time.Minute), now,
 	)
@@ -183,35 +191,38 @@ func (r *WorkflowRunner) runAction(wf models.Workflow, t *models.Ticket, td Tick
 	switch a.Type {
 	case "change_status":
 		_, err := r.DB.Exec(
-			sqldialect.Rebind(r.DB, `UPDATE escalated_tickets SET status = ?, updated_at = ? WHERE id = ?`),
+			r.query(`UPDATE escalated_tickets SET status = ?, updated_at = ? WHERE id = ?`),
 			toInt(a.Value), time.Now(), t.ID,
 		)
 		return err
 	case "change_priority":
 		_, err := r.DB.Exec(
-			sqldialect.Rebind(r.DB, `UPDATE escalated_tickets SET priority = ?, updated_at = ? WHERE id = ?`),
+			r.query(`UPDATE escalated_tickets SET priority = ?, updated_at = ? WHERE id = ?`),
 			toInt(a.Value), time.Now(), t.ID,
 		)
 		return err
 	case "assign_agent":
+		if r.Access != nil && !r.Access.CanViewUser(context.Background(), models.UserID(a.Value), t.ID, true) {
+			return fmt.Errorf("agent cannot access ticket")
+		}
 		v := strings.TrimSpace(a.Value)
 		if v == "" || v == "0" {
 			return nil
 		}
 		_, err := r.DB.Exec(
-			sqldialect.Rebind(r.DB, `UPDATE escalated_tickets SET assigned_to = ?, updated_at = ? WHERE id = ?`),
+			r.query(`UPDATE escalated_tickets SET assigned_to = ?, updated_at = ? WHERE id = ?`),
 			models.UserID(v), time.Now(), t.ID,
 		)
 		return err
 	case "set_department":
 		_, err := r.DB.Exec(
-			sqldialect.Rebind(r.DB, `UPDATE escalated_tickets SET department_id = ?, updated_at = ? WHERE id = ?`),
+			r.query(`UPDATE escalated_tickets SET department_id = ?, updated_at = ? WHERE id = ?`),
 			toInt(a.Value), time.Now(), t.ID,
 		)
 		return err
 	case "set_type":
 		_, err := r.DB.Exec(
-			sqldialect.Rebind(r.DB, `UPDATE escalated_tickets SET ticket_type = ?, updated_at = ? WHERE id = ?`),
+			r.query(`UPDATE escalated_tickets SET ticket_type = ?, updated_at = ? WHERE id = ?`),
 			a.Value, time.Now(), t.ID,
 		)
 		return err
@@ -221,7 +232,7 @@ func (r *WorkflowRunner) runAction(wf models.Workflow, t *models.Ticket, td Tick
 		return r.tagAction(t.ID, a.Value, false)
 	case "add_note", "add_internal_note":
 		_, err := r.DB.Exec(
-			sqldialect.Rebind(r.DB, `INSERT INTO escalated_replies (ticket_id, body, is_internal, is_system, created_at, updated_at)
+			r.query(`INSERT INTO escalated_replies (ticket_id, body, is_internal, is_system, created_at, updated_at)
 			 VALUES (?, ?, TRUE, TRUE, ?, ?)`),
 			t.ID, InterpolateVariables(a.Value, td), time.Now(), time.Now(),
 		)
@@ -231,7 +242,8 @@ func (r *WorkflowRunner) runAction(wf models.Workflow, t *models.Ticket, td Tick
 		if v == "" || v == "0" {
 			return nil
 		}
-		return models.AddFollower(r.DB, t.ID, models.UserID(v))
+		_, err := r.DB.Exec(r.query("INSERT INTO escalated_ticket_followers (ticket_id,user_id) VALUES (?,?) ON CONFLICT DO NOTHING"), t.ID, models.UserID(v))
+		return err
 	case "send_notification":
 		// Escalated has no built-in notification fan-out; log for the host to
 		// deliver (mirrors the Laravel actionSendNotification stub).
@@ -252,7 +264,7 @@ func (r *WorkflowRunner) runAction(wf models.Workflow, t *models.Ticket, td Tick
 // tag names are a no-op, mirroring the AutomationRunner.
 func (r *WorkflowRunner) tagAction(ticketID int64, name string, add bool) error {
 	var tagID int64
-	err := r.DB.QueryRow(sqldialect.Rebind(r.DB, `SELECT id FROM escalated_tags WHERE name = ?`), name).Scan(&tagID)
+	err := r.DB.QueryRow(r.query(`SELECT id FROM escalated_tags WHERE name = ?`), name).Scan(&tagID)
 	if err == sql.ErrNoRows {
 		return nil
 	}
@@ -261,13 +273,13 @@ func (r *WorkflowRunner) tagAction(ticketID int64, name string, add bool) error 
 	}
 	if add {
 		_, err = r.DB.Exec(
-			sqldialect.Rebind(r.DB, `INSERT INTO escalated_ticket_tags (ticket_id, tag_id) VALUES (?, ?) ON CONFLICT DO NOTHING`),
+			r.query(`INSERT INTO escalated_ticket_tags (ticket_id, tag_id) VALUES (?, ?) ON CONFLICT DO NOTHING`),
 			ticketID, tagID,
 		)
 		return err
 	}
 	_, err = r.DB.Exec(
-		sqldialect.Rebind(r.DB, `DELETE FROM escalated_ticket_tags WHERE ticket_id = ? AND tag_id = ?`),
+		r.query(`DELETE FROM escalated_ticket_tags WHERE ticket_id = ? AND tag_id = ?`),
 		ticketID, tagID,
 	)
 	return err
@@ -286,7 +298,7 @@ func (r *WorkflowRunner) writeLog(workflowID, ticketID int64, event, status stri
 		errVal = errMsg
 	}
 	if _, err := r.DB.Exec(
-		sqldialect.Rebind(r.DB, `INSERT INTO escalated_workflow_logs (workflow_id, ticket_id, trigger_event, status, actions_executed, error_message, created_at)
+		r.query(`INSERT INTO escalated_workflow_logs (workflow_id, ticket_id, trigger_event, status, actions_executed, error_message, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?)`),
 		workflowID, ticketID, event, status, actions, errVal, time.Now(),
 	); err != nil {
@@ -313,6 +325,12 @@ func ticketToData(t *models.Ticket) TicketData {
 		Description: t.Description,
 		Reference:   t.Reference,
 	}
+	if t.AccountType != nil {
+		td.AccountType = *t.AccountType
+	}
+	if t.AccountID != nil {
+		td.AccountID = *t.AccountID
+	}
 	if t.AssignedTo != nil {
 		td.AssignedTo = string(*t.AssignedTo)
 	}
@@ -331,7 +349,9 @@ func parseWorkflowConditions(raw models.JSONText) WorkflowConditionGroup {
 	if len(raw) == 0 {
 		return g
 	}
-	_ = json.Unmarshal(raw, &g)
+	if json.Unmarshal(raw, &g) != nil {
+		return WorkflowConditionGroup{All: []WorkflowCondition{{Field: "__invalid", Operator: "equals", Value: "__never"}}}
+	}
 	return g
 }
 
@@ -342,4 +362,11 @@ func parseWorkflowActions(raw models.JSONText) []WorkflowAction {
 	}
 	_ = json.Unmarshal(raw, &a)
 	return a
+}
+
+func (r *WorkflowRunner) query(query string) string {
+	if r.Access != nil {
+		query = strings.ReplaceAll(query, "escalated_", r.Access.Prefix)
+	}
+	return sqldialect.Rebind(r.DB, query)
 }

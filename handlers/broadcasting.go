@@ -71,6 +71,9 @@ func (h *BroadcastHandler) SSE(w http.ResponseWriter, r *http.Request) {
 		case <-sub.Done():
 			return
 		case evt := <-sub.Events:
+			if !h.broadcaster.CanDeliver(subscriberID, evt) {
+				continue
+			}
 			data, _ := json.Marshal(evt)
 			fmt.Fprintf(w, "event: %s\ndata: %s\n\n", evt.EventType, data)
 			flusher.Flush()

@@ -97,3 +97,29 @@ func (rs *ChatRoutingService) leastActive(ctx context.Context, agentIDs []models
 
 	return bestAgent, nil
 }
+
+// FindAvailableAgentForTicket filters candidates by full department/account access.
+func (rs *ChatRoutingService) FindAvailableAgentForTicket(ctx context.Context, ticket *models.Ticket) (*models.UserID, error) {
+	access := store.AccessFor(rs.store)
+	if !access.Restricted() {
+		return rs.FindAvailableAgent(ctx, ticket.DepartmentID)
+	}
+	rules, err := rs.store.ListActiveChatRoutingRules(ctx, ticket.DepartmentID)
+	if err != nil {
+		return nil, err
+	}
+	for _, rule := range rules {
+		copy := *rule
+		copy.AgentIDs = nil
+		for _, id := range rule.AgentIDs {
+			if access.CanViewUser(ctx, id, ticket.ID, true) {
+				copy.AgentIDs = append(copy.AgentIDs, id)
+			}
+		}
+		id, err := rs.evaluateRule(ctx, &copy)
+		if err == nil && id != nil {
+			return id, nil
+		}
+	}
+	return nil, nil
+}

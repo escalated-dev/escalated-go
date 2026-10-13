@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/ticketaccess"
+
 	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
 )
@@ -34,8 +36,7 @@ func (h *SideConversationHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := h.DB.QueryContext(r.Context(),
-		sqldialect.Rebind(h.DB, `SELECT id, ticket_id, subject, channel, status, created_by, created_at, updated_at
+	rows, err := ticketaccess.QueryContext(r.Context(), h.DB, sqldialect.Rebind(h.DB, `SELECT id, ticket_id, subject, channel, status, created_by, created_at, updated_at
 		   FROM escalated_side_conversations WHERE ticket_id = ? ORDER BY id DESC`), id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -87,8 +88,7 @@ func (h *SideConversationHandler) repliesByConversation(ctx context.Context, ids
 		args[i] = id
 	}
 
-	rows, err := h.DB.QueryContext(ctx,
-		sqldialect.Rebind(h.DB, fmt.Sprintf(`SELECT id, side_conversation_id, body, author_id, created_at, updated_at
+	rows, err := ticketaccess.QueryContext(ctx, h.DB, sqldialect.Rebind(h.DB, fmt.Sprintf(`SELECT id, side_conversation_id, body, author_id, created_at, updated_at
 		   FROM escalated_side_conversation_replies WHERE side_conversation_id IN (%s) ORDER BY id ASC`, placeholders)),
 		args...)
 	if err != nil {
@@ -135,7 +135,7 @@ func (h *SideConversationHandler) Create(w http.ResponseWriter, r *http.Request)
 	}
 
 	now := time.Now()
-	res, err := sqldialect.ExecInsertContext(r.Context(), h.DB, `INSERT INTO escalated_side_conversations (ticket_id, subject, channel, status, created_at, updated_at)
+	res, err := ticketaccess.ExecInsertContext(r.Context(), h.DB, `INSERT INTO escalated_side_conversations (ticket_id, subject, channel, status, created_at, updated_at)
 		 VALUES (?, ?, ?, 'open', ?, ?)`,
 		id, in.Subject, in.Channel, now, now)
 	if err != nil {
@@ -144,8 +144,7 @@ func (h *SideConversationHandler) Create(w http.ResponseWriter, r *http.Request)
 	}
 	scID, _ := res.LastInsertId()
 
-	if _, err := h.DB.ExecContext(r.Context(),
-		sqldialect.Rebind(h.DB, `INSERT INTO escalated_side_conversation_replies (side_conversation_id, body, created_at, updated_at)
+	if _, err := ticketaccess.ExecContext(r.Context(), h.DB, sqldialect.Rebind(h.DB, `INSERT INTO escalated_side_conversation_replies (side_conversation_id, body, created_at, updated_at)
 		 VALUES (?, ?, ?, ?)`),
 		scID, in.Body, now, now); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -172,8 +171,7 @@ func (h *SideConversationHandler) Reply(w http.ResponseWriter, r *http.Request) 
 	}
 
 	now := time.Now()
-	if _, err := h.DB.ExecContext(r.Context(),
-		sqldialect.Rebind(h.DB, `INSERT INTO escalated_side_conversation_replies (side_conversation_id, body, created_at, updated_at)
+	if _, err := ticketaccess.ExecContext(r.Context(), h.DB, sqldialect.Rebind(h.DB, `INSERT INTO escalated_side_conversation_replies (side_conversation_id, body, created_at, updated_at)
 		 VALUES (?, ?, ?, ?)`),
 		scID, in.Body, now, now); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -191,8 +189,7 @@ func (h *SideConversationHandler) Close(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if _, err := h.DB.ExecContext(r.Context(),
-		sqldialect.Rebind(h.DB, `UPDATE escalated_side_conversations SET status = 'closed', updated_at = ? WHERE id = ?`),
+	if _, err := ticketaccess.ExecContext(r.Context(), h.DB, sqldialect.Rebind(h.DB, `UPDATE escalated_side_conversations SET status = 'closed', updated_at = ? WHERE id = ?`),
 		time.Now(), scID); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

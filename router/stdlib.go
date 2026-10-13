@@ -12,6 +12,11 @@ import (
 // MountStdlib mounts all Escalated routes on a standard library ServeMux.
 // Requires Go 1.22+ for method-based routing patterns.
 func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
+	inner := http.NewServeMux()
+	mountStdlib(inner, esc)
+	mux.Handle(esc.Config.RoutePrefix+"/", esc.TicketAccessMiddleware(inner))
+}
+func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	cfg := esc.Config
 	s := esc.Store
 	rend := esc.Renderer
@@ -28,7 +33,7 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	// Event-driven Workflows: the runner fires active workflows on the ticket
 	// lifecycle (created/replied/status-changed/assigned) off the request path,
 	// mirroring the webhook dispatcher. The admin CRUD handler manages the rows.
-	ticketSvc.Workflows = services.NewWorkflowRunner(cfg.DB, nil)
+	ticketSvc.Workflows = services.NewWorkflowRunner(cfg.DB, nil, esc.Access)
 
 	apiH := handlers.NewAPIHandler(s, ticketSvc, rend, cfg.UserIDFunc)
 	apiH.Subjects = subjectSvc
@@ -40,8 +45,8 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	attachH.AgentCheck = cfg.AgentCheck
 	attachH.AdminCheck = cfg.AdminCheck
 	attachH.UserID = cfg.UserIDFunc
-	autoH := handlers.NewAutomationHandler(cfg.DB, services.NewAutomationRunner(cfg.DB, nil))
-	escH := handlers.NewEscalationHandler(cfg.DB, services.NewEscalationService(cfg.DB, nil))
+	autoH := handlers.NewAutomationHandler(cfg.DB, services.NewAutomationRunner(cfg.DB, nil, esc.Access))
+	escH := handlers.NewEscalationHandler(cfg.DB, services.NewEscalationService(cfg.DB, nil, esc.Access))
 	satH := handlers.NewSatisfactionHandler(cfg.DB)
 	capH := handlers.NewCapacityHandler(cfg.DB)
 	linkH := handlers.NewTicketLinkHandler(cfg.DB)
@@ -52,7 +57,7 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	guestLimit := middleware.NewGuestRateLimiter(cfg.GuestRateLimit)
 	kbH := handlers.NewKBHandler(cfg.DB)
 	retentionH := handlers.NewRetentionHandler(services.NewRetentionService(cfg.DB, s))
-	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil))
+	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil, esc.Access))
 	cannedH := handlers.NewCannedResponseHandler(cfg.DB, services.NewCannedResponseService(cfg.DB, nil))
 	articleH := handlers.NewArticleHandler(cfg.DB, services.NewArticleService(cfg.DB, nil))
 	webhookH := handlers.NewWebhookHandler(cfg.DB, webhookDispatcher)

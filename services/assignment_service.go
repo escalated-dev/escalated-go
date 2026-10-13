@@ -49,6 +49,9 @@ func (as *AssignmentService) Unassign(ctx context.Context, ticketID int64, cause
 
 // Reassign changes a ticket's assignee.
 func (as *AssignmentService) Reassign(ctx context.Context, ticketID int64, newAgentID models.UserID, causerID *models.UserID) error {
+	if access := store.AccessFor(as.store); access != nil && !access.CanViewUser(ctx, newAgentID, ticketID, true) {
+		return fmt.Errorf("agent cannot access ticket")
+	}
 	t, err := as.store.GetTicket(ctx, ticketID)
 	if err != nil {
 		return err

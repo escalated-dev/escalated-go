@@ -79,15 +79,33 @@ func (ss *SLAService) ApplyPolicy(ctx context.Context, ticketID, policyID int64)
 
 	t.SLAPolicyID = &policy.ID
 	priority := models.PriorityName[t.Priority]
+	base := time.Now()
+	if access := store.AccessFor(ss.store); access != nil && access.Options.TargetedSLAs {
+		base = t.CreatedAt
+		t.SLAFirstResponseDueAt = nil
+		t.SLAResolutionDueAt = nil
+	}
 
 	if hours, ok := policy.FirstResponseHoursFor(priority); ok {
-		due := time.Now().Add(time.Duration(hours * float64(time.Hour)))
+		due := base.Add(time.Duration(hours * float64(time.Hour)))
 		t.SLAFirstResponseDueAt = &due
 	}
 	if hours, ok := policy.ResolutionHoursFor(priority); ok {
-		due := time.Now().Add(time.Duration(hours * float64(time.Hour)))
+		due := base.Add(time.Duration(hours * float64(time.Hour)))
 		t.SLAResolutionDueAt = &due
 	}
 
 	return ss.store.UpdateTicket(ctx, t)
+}
+
+// ApplyDefaultPolicy explicitly reselects a policy, retaining the creation clock in targeted mode.
+func (ss *SLAService) ApplyDefaultPolicy(ctx context.Context, ticketID int64) error {
+	ticket, err := ss.store.GetTicket(ctx, ticketID)
+	if err != nil || ticket == nil {
+		return err
+	}
+	if err := NewTicketService(ss.store).applySLA(ctx, ticket); err != nil {
+		return err
+	}
+	return ss.store.UpdateTicket(ctx, ticket)
 }

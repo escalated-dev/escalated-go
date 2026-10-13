@@ -97,6 +97,11 @@ func (ss *TicketSubjectService) AttachSubject(
 	if err := ss.store.UpsertTicketSubjectLink(ctx, link); err != nil {
 		return nil, err
 	}
+	if access := store.AccessFor(ss.store); access != nil {
+		if err := access.FillSubjectAccount(ctx, ticketID, subjectType, subjectID); err != nil {
+			return nil, err
+		}
+	}
 	return link, nil
 }
 

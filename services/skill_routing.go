@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/escalated-dev/escalated-go/ticketaccess"
+
 	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
 )
@@ -15,14 +17,19 @@ import (
 // cover every skill required by explicit tag/department routing rules.
 // See escalated-developer-context/decisions/2026-05-13-skills-routing-explicit-mapping.md.
 type SkillRoutingService struct {
+	Access *ticketaccess.Access
 	db     *sql.DB
 	prefix string
 }
 
 // NewSkillRoutingService constructs a routing service. tablePrefix is
 // typically "escalated_" so queries hit escalated_skills, etc.
-func NewSkillRoutingService(db *sql.DB, tablePrefix string) *SkillRoutingService {
-	return &SkillRoutingService{db: db, prefix: tablePrefix}
+func NewSkillRoutingService(db *sql.DB, tablePrefix string, access ...*ticketaccess.Access) *SkillRoutingService {
+	var policy *ticketaccess.Access
+	if len(access) > 0 {
+		policy = access[0]
+	}
+	return &SkillRoutingService{db: db, prefix: tablePrefix, Access: policy}
 }
 
 func (s *SkillRoutingService) t(name string) string {
@@ -69,6 +76,9 @@ func (s *SkillRoutingService) FindMatchingAgents(ctx context.Context, ticket *mo
 	}
 	out := make([]scored, 0, len(candidates))
 	for uid, sumProf := range candidates {
+		if s.Access != nil && !s.Access.CanViewUser(ctx, uid, ticket.ID, true) {
+			continue
+		}
 		out = append(out, scored{
 			id:        uid,
 			sumProf:   sumProf,
@@ -100,9 +110,7 @@ func (s *SkillRoutingService) tagIDsForTicket(ctx context.Context, ticket *model
 		}
 		return out, nil
 	}
-	rows, err := s.db.QueryContext(
-		ctx,
-		sqldialect.Rebind(s.db, fmt.Sprintf(`SELECT tag_id FROM %s WHERE ticket_id = ? ORDER BY tag_id`, s.t("ticket_tags"))),
+	rows, err := ticketaccess.QueryContext(ctx, s.db, sqldialect.Rebind(s.db, fmt.Sprintf(`SELECT tag_id FROM %s WHERE ticket_id = ? ORDER BY tag_id`, s.t("ticket_tags"))),
 		ticket.ID,
 	)
 	if err != nil {
@@ -137,7 +145,7 @@ func (s *SkillRoutingService) requiredSkillIDs(ctx context.Context, ticket *mode
 			`SELECT DISTINCT skill_id FROM %s WHERE tag_id IN (%s)`,
 			s.t("skill_routing_tags"), ph,
 		)
-		rows, err := s.db.QueryContext(ctx, sqldialect.Rebind(s.db, q), args...)
+		rows, err := ticketaccess.QueryContext(ctx, s.db, sqldialect.Rebind(s.db, q), args...)
 		if err != nil {
 			return nil, err
 		}
@@ -153,9 +161,7 @@ func (s *SkillRoutingService) requiredSkillIDs(ctx context.Context, ticket *mode
 	}
 
 	if ticket.DepartmentID != nil {
-		rows, err := s.db.QueryContext(
-			ctx,
-			sqldialect.Rebind(s.db, fmt.Sprintf(`SELECT DISTINCT skill_id FROM %s WHERE department_id = ?`, s.t("skill_routing_departments"))),
+		rows, err := ticketaccess.QueryContext(ctx, s.db, sqldialect.Rebind(s.db, fmt.Sprintf(`SELECT DISTINCT skill_id FROM %s WHERE department_id = ?`, s.t("skill_routing_departments"))),
 			*ticket.DepartmentID,
 		)
 		if err != nil {
@@ -198,7 +204,7 @@ func (s *SkillRoutingService) candidatesWithAllSkills(ctx context.Context, requi
 		s.t("agent_skills"), ph,
 	)
 
-	rows, err := s.db.QueryContext(ctx, sqldialect.Rebind(s.db, q), args...)
+	rows, err := ticketaccess.QueryContext(ctx, s.db, sqldialect.Rebind(s.db, q), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -236,7 +242,7 @@ func (s *SkillRoutingService) openTicketLoads(ctx context.Context, userIDs []mod
 		s.t("tickets"), ph,
 	)
 
-	rows, err := s.db.QueryContext(ctx, sqldialect.Rebind(s.db, q), args...)
+	rows, err := ticketaccess.QueryContext(ctx, s.db, sqldialect.Rebind(s.db, q), args...)
 	if err != nil {
 		return nil, err
 	}

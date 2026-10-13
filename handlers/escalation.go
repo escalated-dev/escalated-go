@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/ticketaccess"
+
 	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/services"
@@ -29,9 +31,7 @@ func NewEscalationHandler(db *sql.DB, service *services.EscalationService) *Esca
 
 // List handles GET /admin/escalation-rules.
 func (h *EscalationHandler) List(w http.ResponseWriter, r *http.Request) {
-	rows, err := h.DB.QueryContext(
-		r.Context(),
-		sqldialect.Rebind(h.DB, `SELECT id, name, description, trigger_type, conditions, actions, sort_order, is_active, created_at, updated_at
+	rows, err := ticketaccess.QueryContext(r.Context(), h.DB, sqldialect.Rebind(h.DB, `SELECT id, name, description, trigger_type, conditions, actions, sort_order, is_active, created_at, updated_at
 		   FROM escalated_escalation_rules
 		  ORDER BY sort_order ASC, id ASC`),
 	)
@@ -85,7 +85,7 @@ func (h *EscalationHandler) Create(w http.ResponseWriter, r *http.Request) {
 		isActive = *in.IsActive
 	}
 
-	res, err := sqldialect.ExecInsertContext(r.Context(), h.DB, `INSERT INTO escalated_escalation_rules (name, description, trigger_type, conditions, actions, sort_order, is_active, created_at, updated_at)
+	res, err := ticketaccess.ExecInsertContext(r.Context(), h.DB, `INSERT INTO escalated_escalation_rules (name, description, trigger_type, conditions, actions, sort_order, is_active, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		in.Name, in.Description, in.TriggerType, conditions, actions, order, isActive, time.Now(), time.Now(),
 	)
@@ -162,7 +162,7 @@ func (h *EscalationHandler) Update(w http.ResponseWriter, r *http.Request) {
 	args = append(args, id)
 
 	q := "UPDATE escalated_escalation_rules SET " + joinSets(sets) + " WHERE id = ?"
-	if _, err := h.DB.ExecContext(r.Context(), sqldialect.Rebind(h.DB, q), args...); err != nil {
+	if _, err := ticketaccess.ExecContext(r.Context(), h.DB, sqldialect.Rebind(h.DB, q), args...); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -177,9 +177,7 @@ func (h *EscalationHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.DB.ExecContext(
-		r.Context(),
-		sqldialect.Rebind(h.DB, `DELETE FROM escalated_escalation_rules WHERE id = ?`),
+	if _, err := ticketaccess.ExecContext(r.Context(), h.DB, sqldialect.Rebind(h.DB, `DELETE FROM escalated_escalation_rules WHERE id = ?`),
 		id,
 	); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/ticketaccess"
+
 	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
 )
@@ -42,8 +44,7 @@ func (h *TicketLinkHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := h.DB.QueryContext(r.Context(),
-		sqldialect.Rebind(h.DB, `SELECT id, parent_ticket_id, child_ticket_id, link_type
+	rows, err := ticketaccess.QueryContext(r.Context(), h.DB, sqldialect.Rebind(h.DB, `SELECT id, parent_ticket_id, child_ticket_id, link_type
 		   FROM escalated_ticket_links
 		  WHERE parent_ticket_id = ? OR child_ticket_id = ?
 		  ORDER BY id`), id, id)
@@ -104,8 +105,7 @@ func (h *TicketLinkHandler) ticketSummaries(ctx context.Context, ids []int64) (m
 		args[i] = id
 	}
 
-	rows, err := h.DB.QueryContext(ctx,
-		sqldialect.Rebind(h.DB, fmt.Sprintf(`SELECT id, reference, subject, status FROM escalated_tickets WHERE id IN (%s)`, placeholders)),
+	rows, err := ticketaccess.QueryContext(ctx, h.DB, sqldialect.Rebind(h.DB, fmt.Sprintf(`SELECT id, reference, subject, status FROM escalated_tickets WHERE id IN (%s)`, placeholders)),
 		args...)
 	if err != nil {
 		return nil, err
@@ -146,8 +146,7 @@ func (h *TicketLinkHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var targetID int64
-	err = h.DB.QueryRowContext(r.Context(),
-		sqldialect.Rebind(h.DB, `SELECT id FROM escalated_tickets WHERE reference = ?`), in.TargetReference).Scan(&targetID)
+	err = ticketaccess.QueryRowContext(r.Context(), h.DB, sqldialect.Rebind(h.DB, `SELECT id FROM escalated_tickets WHERE reference = ?`), in.TargetReference).Scan(&targetID)
 	if err == sql.ErrNoRows {
 		http.Error(w, "target ticket not found", http.StatusUnprocessableEntity)
 		return
@@ -162,8 +161,7 @@ func (h *TicketLinkHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var existing int
-	if err := h.DB.QueryRowContext(r.Context(),
-		sqldialect.Rebind(h.DB, `SELECT COUNT(1) FROM escalated_ticket_links
+	if err := ticketaccess.QueryRowContext(r.Context(), h.DB, sqldialect.Rebind(h.DB, `SELECT COUNT(1) FROM escalated_ticket_links
 		  WHERE link_type = ?
 		    AND ((parent_ticket_id = ? AND child_ticket_id = ?)
 		      OR (parent_ticket_id = ? AND child_ticket_id = ?))`),
@@ -177,8 +175,7 @@ func (h *TicketLinkHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := time.Now()
-	if _, err := h.DB.ExecContext(r.Context(),
-		sqldialect.Rebind(h.DB, `INSERT INTO escalated_ticket_links (parent_ticket_id, child_ticket_id, link_type, created_at, updated_at)
+	if _, err := ticketaccess.ExecContext(r.Context(), h.DB, sqldialect.Rebind(h.DB, `INSERT INTO escalated_ticket_links (parent_ticket_id, child_ticket_id, link_type, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?)`),
 		id, targetID, in.LinkType, now, now); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -196,8 +193,7 @@ func (h *TicketLinkHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.DB.ExecContext(r.Context(),
-		sqldialect.Rebind(h.DB, `DELETE FROM escalated_ticket_links WHERE id = ?`), linkID); err != nil {
+	if _, err := ticketaccess.ExecContext(r.Context(), h.DB, sqldialect.Rebind(h.DB, `DELETE FROM escalated_ticket_links WHERE id = ?`), linkID); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
