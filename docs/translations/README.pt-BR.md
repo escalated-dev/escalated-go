@@ -48,6 +48,8 @@ Sistema de tickets de suporte incorporável para aplicações Go. Funciona com `
 go get github.com/escalated-dev/escalated-go
 ```
 
+Requer Go 1.26.9 ou posterior com as correções de segurança da biblioteca padrão.
+
 ## Quick Start with Chi
 
 ```go
@@ -63,6 +65,7 @@ import (
 
     escalated "github.com/escalated-dev/escalated-go"
     "github.com/escalated-dev/escalated-go/migrations"
+    "github.com/escalated-dev/escalated-go/models"
     "github.com/escalated-dev/escalated-go/router"
 )
 
@@ -82,16 +85,16 @@ func main() {
     cfg.DB = db
     cfg.RoutePrefix = "/support"
     cfg.AdminCheck = func(r *http.Request) bool {
-        // Your admin check logic
-        return r.Header.Get("X-Admin") == "true"
+        // Replace with an admin check using your verified session or JWT.
+        return false
     }
     cfg.AgentCheck = func(r *http.Request) bool {
-        // Your agent check logic
-        return r.Header.Get("X-Agent") == "true"
+        // Replace with an agent check using your verified session or JWT.
+        return false
     }
-    cfg.UserIDFunc = func(r *http.Request) int64 {
-        // Extract user ID from session/JWT/etc.
-        return 0
+    cfg.UserIDFunc = func(r *http.Request) models.UserID {
+        // Return the user ID from your host app's verified session or JWT.
+        return models.UserID("")
     }
 
     esc, err := escalated.New(cfg)
@@ -104,7 +107,7 @@ func main() {
     router.MountChi(r, esc)
 
     log.Println("Listening on :8080")
-    http.ListenAndServe(":8080", r)
+    log.Fatal(http.ListenAndServe(":8080", r))
 }
 ```
 
@@ -118,7 +121,7 @@ import (
     "log"
     "net/http"
 
-    _ "github.com/mattn/go-sqlite3"
+    _ "modernc.org/sqlite"
 
     escalated "github.com/escalated-dev/escalated-go"
     "github.com/escalated-dev/escalated-go/migrations"
@@ -126,7 +129,7 @@ import (
 )
 
 func main() {
-    db, err := sql.Open("sqlite3", "escalated.db")
+    db, err := sql.Open("sqlite", "escalated.db")
     if err != nil {
         log.Fatal(err)
     }
@@ -146,12 +149,12 @@ func main() {
         log.Fatal(err)
     }
 
-    // Mount on stdlib mux (Go 1.22+)
+    // Mount on the standard-library mux
     mux := http.NewServeMux()
     router.MountStdlib(mux, esc)
 
     log.Println("Listening on :8080")
-    http.ListenAndServe(":8080", mux)
+    log.Fatal(http.ListenAndServe(":8080", mux))
 }
 ```
 
@@ -164,7 +167,7 @@ func main() {
 | `TablePrefix` | `string` | `escalated_` | Prefixo do nome da tabela do banco de dados |
 | `AdminCheck` | `func(*http.Request) bool` | `false` | Retorna true para usuários administradores |
 | `AgentCheck` | `func(*http.Request) bool` | `false` | Retorna true para usuários agentes |
-| `UserIDFunc` | `func(*http.Request) int64` | `0` | Extrai o ID do usuário atual da requisição |
+| `UserIDFunc` | `func(*http.Request) models.UserID` | `""` | Extrai o ID do usuário atual da requisição |
 | `DB` | `*sql.DB` | required | Conexão com o banco de dados |
 
 ## Rotas da API

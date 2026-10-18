@@ -52,7 +52,14 @@ Embeddable support ticket system for Go applications. Works with standard `net/h
 go get github.com/escalated-dev/escalated-go
 ```
 
+Requires Go 1.26.9 or later, as declared in [go.mod](go.mod). The examples use
+the PostgreSQL and pure-Go SQLite drivers already included by this module.
+
 ## Quick Start with Chi
+
+Replace the authentication callbacks below with checks against your host app's
+verified session or JWT. Until then they deny access; request headers alone must
+not grant an admin or agent role.
 
 ```go
 package main
@@ -67,6 +74,7 @@ import (
 
     escalated "github.com/escalated-dev/escalated-go"
     "github.com/escalated-dev/escalated-go/migrations"
+    "github.com/escalated-dev/escalated-go/models"
     "github.com/escalated-dev/escalated-go/router"
 )
 
@@ -86,16 +94,15 @@ func main() {
     cfg.DB = db
     cfg.RoutePrefix = "/support"
     cfg.AdminCheck = func(r *http.Request) bool {
-        // Your admin check logic
-        return r.Header.Get("X-Admin") == "true"
+        // Replace with an admin check using your verified session or JWT.
+        return false
     }
     cfg.AgentCheck = func(r *http.Request) bool {
-        // Your agent check logic
-        return r.Header.Get("X-Agent") == "true"
+        // Replace with an agent check using your verified session or JWT.
+        return false
     }
     cfg.UserIDFunc = func(r *http.Request) models.UserID {
-        // Extract user ID from session/JWT/etc. models.UserID is a string-
-        // backed type, so it works for integer and UUID/string user keys alike.
+        // Return the user ID from your host app's verified session or JWT.
         return models.UserID("")
     }
 
@@ -109,7 +116,7 @@ func main() {
     router.MountChi(r, esc)
 
     log.Println("Listening on :8080")
-    http.ListenAndServe(":8080", r)
+    log.Fatal(http.ListenAndServe(":8080", r))
 }
 ```
 
@@ -123,7 +130,7 @@ import (
     "log"
     "net/http"
 
-    _ "github.com/mattn/go-sqlite3"
+    _ "modernc.org/sqlite"
 
     escalated "github.com/escalated-dev/escalated-go"
     "github.com/escalated-dev/escalated-go/migrations"
@@ -131,7 +138,7 @@ import (
 )
 
 func main() {
-    db, err := sql.Open("sqlite3", "escalated.db")
+    db, err := sql.Open("sqlite", "escalated.db")
     if err != nil {
         log.Fatal(err)
     }
@@ -153,12 +160,12 @@ func main() {
         log.Fatal(err)
     }
 
-    // Mount on stdlib mux (Go 1.22+)
+    // Mount on the standard-library mux
     mux := http.NewServeMux()
     router.MountStdlib(mux, esc)
 
     log.Println("Listening on :8080")
-    http.ListenAndServe(":8080", mux)
+    log.Fatal(http.ListenAndServe(":8080", mux))
 }
 ```
 
@@ -337,6 +344,25 @@ behind a proxy every guest shares one limit unless a real-IP middleware that
 trusts only your proxies runs first, or `ClientIP` is set. If you mount
 `handlers.WidgetHandler.CreateTicket` yourself, wrap it with
 `middleware.NewGuestRateLimiter(cfg).Middleware(middleware.GuestTicketScope)`.
+
+For Chi behind a reverse proxy, register its client-IP middleware with your
+actual proxy CIDRs before `router.MountChi`, and configure `ClientIP` before
+constructing Escalated:
+
+```go
+import chimiddleware "github.com/go-chi/chi/v5/middleware"
+
+// Replace these loopback ranges with your own trusted proxy ranges.
+r.Use(chimiddleware.ClientIPFromXFF("127.0.0.1/32", "::1/128"))
+cfg.GuestRateLimit.ClientIP = func(r *http.Request) string {
+    return chimiddleware.GetClientIP(r.Context())
+}
+```
+
+Chi 5.4 requires explicit trusted CIDRs for `ClientIPFromXFF`. A direct client
+outside those ranges is counted by its connection address, even if it sends
+`X-Forwarded-For`. The default Escalated configuration also uses the connection
+address and does not read forwarded headers.
 
 ### Customer UI (when `UIEnabled: true`)
 
