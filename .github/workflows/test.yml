@@ -10,6 +10,22 @@ permissions:
   contents: read
 
 jobs:
+  security:
+    name: go vulnerability scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+
+      - name: Verify module checksums
+        run: go mod verify
+
+      - name: Scan the complete module graph
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 -scan=module
+
   test:
     name: go test - sqlite
     runs-on: ubuntu-latest

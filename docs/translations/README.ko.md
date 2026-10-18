@@ -48,6 +48,8 @@ Go 애플리케이션을 위한 내장 가능한 지원 티켓 시스템. 표준
 go get github.com/escalated-dev/escalated-go
 ```
 
+표준 라이브러리 보안 수정이 포함된 Go 1.26.9 이상이 필요합니다.
+
 ## Quick Start with Chi
 
 ```go
@@ -63,6 +65,7 @@ import (
 
     escalated "github.com/escalated-dev/escalated-go"
     "github.com/escalated-dev/escalated-go/migrations"
+    "github.com/escalated-dev/escalated-go/models"
     "github.com/escalated-dev/escalated-go/router"
 )
 
@@ -82,16 +85,16 @@ func main() {
     cfg.DB = db
     cfg.RoutePrefix = "/support"
     cfg.AdminCheck = func(r *http.Request) bool {
-        // Your admin check logic
-        return r.Header.Get("X-Admin") == "true"
+        // Replace with an admin check using your verified session or JWT.
+        return false
     }
     cfg.AgentCheck = func(r *http.Request) bool {
-        // Your agent check logic
-        return r.Header.Get("X-Agent") == "true"
+        // Replace with an agent check using your verified session or JWT.
+        return false
     }
-    cfg.UserIDFunc = func(r *http.Request) int64 {
-        // Extract user ID from session/JWT/etc.
-        return 0
+    cfg.UserIDFunc = func(r *http.Request) models.UserID {
+        // Return the user ID from your host app's verified session or JWT.
+        return models.UserID("")
     }
 
     esc, err := escalated.New(cfg)
@@ -104,7 +107,7 @@ func main() {
     router.MountChi(r, esc)
 
     log.Println("Listening on :8080")
-    http.ListenAndServe(":8080", r)
+    log.Fatal(http.ListenAndServe(":8080", r))
 }
 ```
 
@@ -118,7 +121,7 @@ import (
     "log"
     "net/http"
 
-    _ "github.com/mattn/go-sqlite3"
+    _ "modernc.org/sqlite"
 
     escalated "github.com/escalated-dev/escalated-go"
     "github.com/escalated-dev/escalated-go/migrations"
@@ -126,7 +129,7 @@ import (
 )
 
 func main() {
-    db, err := sql.Open("sqlite3", "escalated.db")
+    db, err := sql.Open("sqlite", "escalated.db")
     if err != nil {
         log.Fatal(err)
     }
@@ -146,12 +149,12 @@ func main() {
         log.Fatal(err)
     }
 
-    // Mount on stdlib mux (Go 1.22+)
+    // Mount on the standard-library mux
     mux := http.NewServeMux()
     router.MountStdlib(mux, esc)
 
     log.Println("Listening on :8080")
-    http.ListenAndServe(":8080", mux)
+    log.Fatal(http.ListenAndServe(":8080", mux))
 }
 ```
 
@@ -164,7 +167,7 @@ func main() {
 | `TablePrefix` | `string` | `escalated_` | 데이터베이스 테이블 이름 접두사 |
 | `AdminCheck` | `func(*http.Request) bool` | `false` | 관리자 사용자일 때 true 반환 |
 | `AgentCheck` | `func(*http.Request) bool` | `false` | 에이전트 사용자일 때 true 반환 |
-| `UserIDFunc` | `func(*http.Request) int64` | `0` | 요청에서 현재 사용자 ID 추출 |
+| `UserIDFunc` | `func(*http.Request) models.UserID` | `""` | 요청에서 현재 사용자 ID 추출 |
 | `DB` | `*sql.DB` | required | 데이터베이스 연결 |
 
 ## API 경로

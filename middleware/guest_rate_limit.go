@@ -45,9 +45,10 @@ type GuestRateLimitStore interface {
 //
 // The client IP is the host part of r.RemoteAddr. Behind a load balancer or
 // reverse proxy that is the proxy's address, so every guest would share one
-// limit: either run a real-IP middleware that trusts only your proxies (for
-// example chi's middleware.RealIP behind a proxy you control) ahead of the
-// Escalated routes, or set ClientIP.
+// limit. Set ClientIP using a proxy-aware extractor that verifies your proxy's
+// trusted CIDR ranges. For Chi, register its ClientIPFromXFF middleware with
+// those ranges before mounting the routes, and return its GetClientIP value
+// from ClientIP. Do not use an unverified forwarded header as a rate-limit key.
 type GuestRateLimitConfig struct {
 	// Disabled turns the limit off. Set it only when the host already
 	// throttles these endpoints upstream.
