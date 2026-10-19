@@ -62,6 +62,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Nullable indexed ticket account identity with host requester/subject resolvers, account/type rule conditions and targeted department/type SLAs that preserve routing clocks.
 - Assignment and recipient checks, buffered live-event reauthorization, additive migrations and SQLite/PostgreSQL regressions. See [configuration and upgrade notes](docs/ticket-access-and-routing.md).
 
+### Fixed
+
+- **Live chat availability.** `GET /widget/chat/availability` always answered
+  `available: false`, so the shared widget never showed its Chat tab: the
+  SQLite and PostgreSQL stores never loaded a routing rule's `agent_ids` (and
+  SQLite never stored them). Both stores now save and load them (existing
+  PostgreSQL `{1,2}` values still read), and `ListActiveChatRoutingRules`
+  honours its department argument: a department's own rules first, then the
+  global ones. Chat is available when the `chat_enabled` setting is not false
+  and an agent on an applicable active rule is online and under the rule's
+  `max_concurrent_chats` (5 when unset). The endpoint takes `department_id`
+  (or `departmentId`). Hosts that track presence can set
+  `ChatAvailabilityService.AgentOnline`; without it every agent a rule names
+  counts as accepting chats. Chat routing now assigns those agents too, and no
+  longer picks an agent from another department's rule.
+
 ## [0.2.0] - 2026-10-08
 
 ### Upgrading

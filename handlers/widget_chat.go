@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/escalated-dev/escalated-go/models"
@@ -58,7 +59,17 @@ func (h *WidgetChatHandler) Availability(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	status, err := h.availability.GetStatus(r.Context())
+	// department_id scopes the check; departmentId is the older spelling.
+	var departmentID *int64
+	raw := r.URL.Query().Get("department_id")
+	if raw == "" {
+		raw = r.URL.Query().Get("departmentId")
+	}
+	if id, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64); err == nil && id > 0 {
+		departmentID = &id
+	}
+
+	status, err := h.availability.GetStatusForDepartment(r.Context(), departmentID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to check availability"})
 		return

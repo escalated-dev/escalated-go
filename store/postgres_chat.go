@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -160,25 +159,29 @@ func (s *PostgresStore) CreateChatRoutingRule(ctx context.Context, r *models.Cha
 	q := fmt.Sprintf(`INSERT INTO %s (name, strategy, department_id, agent_ids, priority, max_concurrent_chats, is_active, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`, s.t("chat_routing_rules"))
 	r.CreatedAt = time.Now()
 	return ticketaccess.QueryRowContext(ctx, s.db, q,
-		r.Name, r.Strategy, r.DepartmentID, pqUserIDArray(r.AgentIDs), r.Priority, r.MaxConcurrentChats, r.IsActive, r.CreatedAt,
+		r.Name, r.Strategy, r.DepartmentID, encodeChatRuleAgentIDs(r.AgentIDs), r.Priority, r.MaxConcurrentChats, r.IsActive, r.CreatedAt,
 	).Scan(&r.ID)
 }
 
 func (s *PostgresStore) GetChatRoutingRule(ctx context.Context, id int64) (*models.ChatRoutingRule, error) {
-	q := fmt.Sprintf(`SELECT id, name, strategy, department_id, priority, max_concurrent_chats, is_active, created_at FROM %s WHERE id = $1`, s.t("chat_routing_rules"))
-	r := &models.ChatRoutingRule{}
-	err := ticketaccess.QueryRowContext(ctx, s.db, q, id).Scan(
-		&r.ID, &r.Name, &r.Strategy, &r.DepartmentID, &r.Priority, &r.MaxConcurrentChats, &r.IsActive, &r.CreatedAt,
-	)
+	q := fmt.Sprintf(`SELECT %s FROM %s WHERE id = $1`, chatRuleColumns, s.t("chat_routing_rules"))
+	r, err := scanChatRule(ticketaccess.QueryRowContext(ctx, s.db, q, id))
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	return r, err
 }
 
+// ListActiveChatRoutingRules returns the active rules, highest priority first.
+// With a department it returns that department's rules followed by the global
+// (no-department) ones; with nil it returns every active rule.
 func (s *PostgresStore) ListActiveChatRoutingRules(ctx context.Context, departmentID *int64) ([]*models.ChatRoutingRule, error) {
-	q := fmt.Sprintf(`SELECT id, name, strategy, department_id, priority, max_concurrent_chats, is_active, created_at FROM %s WHERE is_active = true ORDER BY priority DESC`, s.t("chat_routing_rules"))
-	rows, err := ticketaccess.QueryContext(ctx, s.db, q)
+	where, args := `is_active = true`, []any{}
+	if departmentID != nil {
+		where, args = `is_active = true AND (department_id = $1 OR department_id IS NULL)`, []any{*departmentID}
+	}
+	q := fmt.Sprintf(`SELECT %s FROM %s WHERE %s %s`, chatRuleColumns, s.t("chat_routing_rules"), where, chatRuleOrder)
+	rows, err := ticketaccess.QueryContext(ctx, s.db, q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -186,8 +189,8 @@ func (s *PostgresStore) ListActiveChatRoutingRules(ctx context.Context, departme
 
 	var result []*models.ChatRoutingRule
 	for rows.Next() {
-		r := &models.ChatRoutingRule{}
-		if err := rows.Scan(&r.ID, &r.Name, &r.Strategy, &r.DepartmentID, &r.Priority, &r.MaxConcurrentChats, &r.IsActive, &r.CreatedAt); err != nil {
+		r, err := scanChatRule(rows)
+		if err != nil {
 			return nil, err
 		}
 		result = append(result, r)
@@ -196,8 +199,8 @@ func (s *PostgresStore) ListActiveChatRoutingRules(ctx context.Context, departme
 }
 
 func (s *PostgresStore) UpdateChatRoutingRule(ctx context.Context, r *models.ChatRoutingRule) error {
-	q := fmt.Sprintf(`UPDATE %s SET name=$1, strategy=$2, department_id=$3, priority=$4, max_concurrent_chats=$5, is_active=$6 WHERE id=$7`, s.t("chat_routing_rules"))
-	_, err := ticketaccess.ExecContext(ctx, s.db, q, r.Name, r.Strategy, r.DepartmentID, r.Priority, r.MaxConcurrentChats, r.IsActive, r.ID)
+	q := fmt.Sprintf(`UPDATE %s SET name=$1, strategy=$2, department_id=$3, agent_ids=$4, priority=$5, max_concurrent_chats=$6, is_active=$7 WHERE id=$8`, s.t("chat_routing_rules"))
+	_, err := ticketaccess.ExecContext(ctx, s.db, q, r.Name, r.Strategy, r.DepartmentID, encodeChatRuleAgentIDs(r.AgentIDs), r.Priority, r.MaxConcurrentChats, r.IsActive, r.ID)
 	return err
 }
 
@@ -212,21 +215,4 @@ func (s *PostgresStore) CountActiveChatsForAgent(ctx context.Context, agentID mo
 	var count int
 	err := ticketaccess.QueryRowContext(ctx, s.db, q, agentID, models.ChatStatusActive).Scan(&count)
 	return count, err
-}
-
-// pqUserIDArray is a helper for PostgreSQL host-user id arrays (simplified).
-func pqUserIDArray(ids []models.UserID) string {
-	if len(ids) == 0 {
-		return "{}"
-	}
-	parts := make([]string, len(ids))
-	for i, id := range ids {
-		s := string(id)
-		if _, err := strconv.ParseInt(s, 10, 64); err == nil {
-			parts[i] = s
-			continue
-		}
-		parts[i] = `"` + strings.ReplaceAll(s, `"`, `\"`) + `"`
-	}
-	return "{" + strings.Join(parts, ",") + "}"
 }

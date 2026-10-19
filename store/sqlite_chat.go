@@ -171,10 +171,10 @@ func (s *SQLiteStore) ListRelatedTickets(ctx context.Context, ticketID int64) ([
 // --- Chat Routing Rules ---
 
 func (s *SQLiteStore) CreateChatRoutingRule(ctx context.Context, r *models.ChatRoutingRule) error {
-	q := fmt.Sprintf(`INSERT INTO %s (name, strategy, department_id, priority, max_concurrent_chats, is_active, created_at) VALUES (?,?,?,?,?,?,?)`, s.t("chat_routing_rules"))
+	q := fmt.Sprintf(`INSERT INTO %s (name, strategy, department_id, agent_ids, priority, max_concurrent_chats, is_active, created_at) VALUES (?,?,?,?,?,?,?,?)`, s.t("chat_routing_rules"))
 	r.CreatedAt = time.Now()
 	res, err := ticketaccess.ExecContext(ctx, s.db, q,
-		r.Name, r.Strategy, r.DepartmentID, r.Priority, r.MaxConcurrentChats, r.IsActive, r.CreatedAt,
+		r.Name, r.Strategy, r.DepartmentID, encodeChatRuleAgentIDs(r.AgentIDs), r.Priority, r.MaxConcurrentChats, r.IsActive, r.CreatedAt,
 	)
 	if err != nil {
 		return err
@@ -188,20 +188,24 @@ func (s *SQLiteStore) CreateChatRoutingRule(ctx context.Context, r *models.ChatR
 }
 
 func (s *SQLiteStore) GetChatRoutingRule(ctx context.Context, id int64) (*models.ChatRoutingRule, error) {
-	q := fmt.Sprintf(`SELECT id, name, strategy, department_id, priority, max_concurrent_chats, is_active, created_at FROM %s WHERE id = ?`, s.t("chat_routing_rules"))
-	r := &models.ChatRoutingRule{}
-	err := ticketaccess.QueryRowContext(ctx, s.db, q, id).Scan(
-		&r.ID, &r.Name, &r.Strategy, &r.DepartmentID, &r.Priority, &r.MaxConcurrentChats, &r.IsActive, &r.CreatedAt,
-	)
+	q := fmt.Sprintf(`SELECT %s FROM %s WHERE id = ?`, chatRuleColumns, s.t("chat_routing_rules"))
+	r, err := scanChatRule(ticketaccess.QueryRowContext(ctx, s.db, q, id))
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	return r, err
 }
 
-func (s *SQLiteStore) ListActiveChatRoutingRules(ctx context.Context, _ *int64) ([]*models.ChatRoutingRule, error) {
-	q := fmt.Sprintf(`SELECT id, name, strategy, department_id, priority, max_concurrent_chats, is_active, created_at FROM %s WHERE is_active = 1 ORDER BY priority DESC`, s.t("chat_routing_rules"))
-	rows, err := ticketaccess.QueryContext(ctx, s.db, q)
+// ListActiveChatRoutingRules returns the active rules, highest priority first.
+// With a department it returns that department's rules followed by the global
+// (no-department) ones; with nil it returns every active rule.
+func (s *SQLiteStore) ListActiveChatRoutingRules(ctx context.Context, departmentID *int64) ([]*models.ChatRoutingRule, error) {
+	where, args := `is_active = 1`, []any{}
+	if departmentID != nil {
+		where, args = `is_active = 1 AND (department_id = ? OR department_id IS NULL)`, []any{*departmentID}
+	}
+	q := fmt.Sprintf(`SELECT %s FROM %s WHERE %s %s`, chatRuleColumns, s.t("chat_routing_rules"), where, chatRuleOrder)
+	rows, err := ticketaccess.QueryContext(ctx, s.db, q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -209,8 +213,8 @@ func (s *SQLiteStore) ListActiveChatRoutingRules(ctx context.Context, _ *int64) 
 
 	var result []*models.ChatRoutingRule
 	for rows.Next() {
-		r := &models.ChatRoutingRule{}
-		if err := rows.Scan(&r.ID, &r.Name, &r.Strategy, &r.DepartmentID, &r.Priority, &r.MaxConcurrentChats, &r.IsActive, &r.CreatedAt); err != nil {
+		r, err := scanChatRule(rows)
+		if err != nil {
 			return nil, err
 		}
 		result = append(result, r)
@@ -219,8 +223,8 @@ func (s *SQLiteStore) ListActiveChatRoutingRules(ctx context.Context, _ *int64) 
 }
 
 func (s *SQLiteStore) UpdateChatRoutingRule(ctx context.Context, r *models.ChatRoutingRule) error {
-	q := fmt.Sprintf(`UPDATE %s SET name=?, strategy=?, department_id=?, priority=?, max_concurrent_chats=?, is_active=? WHERE id=?`, s.t("chat_routing_rules"))
-	_, err := ticketaccess.ExecContext(ctx, s.db, q, r.Name, r.Strategy, r.DepartmentID, r.Priority, r.MaxConcurrentChats, r.IsActive, r.ID)
+	q := fmt.Sprintf(`UPDATE %s SET name=?, strategy=?, department_id=?, agent_ids=?, priority=?, max_concurrent_chats=?, is_active=? WHERE id=?`, s.t("chat_routing_rules"))
+	_, err := ticketaccess.ExecContext(ctx, s.db, q, r.Name, r.Strategy, r.DepartmentID, encodeChatRuleAgentIDs(r.AgentIDs), r.Priority, r.MaxConcurrentChats, r.IsActive, r.ID)
 	return err
 }
 
