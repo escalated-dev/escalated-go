@@ -74,6 +74,17 @@ type Config struct {
 	// EnableNewsletters controls route registration and dispatch. Defaults off.
 	EnableNewsletters bool
 
+	// EnableWidget mounts the embeddable support widget's public routes under
+	// {RoutePrefix}/widget: embed.js, plus config, articles, tickets and chat
+	// behind handlers.WidgetCORS. Defaults off, so hosts that wire the widget
+	// handlers themselves keep doing so. Widget.Enabled still switches the
+	// endpoints on and off once they are mounted. See
+	// docs/embedding-the-widget.md.
+	EnableWidget bool
+
+	// Widget configures the mounted widget routes (EnableWidget).
+	Widget handlers.WidgetConfig
+
 	// Newsletters contains runtime defaults for the optional newsletter system.
 	Newsletters NewsletterConfig
 
@@ -162,6 +173,7 @@ func DefaultConfig() Config {
 		RoutePrefix: "/escalated",
 		UIEnabled:   true,
 		TablePrefix: "escalated_",
+		Widget:      handlers.DefaultWidgetConfig(),
 		// Left empty on purpose: New detects it from Config.DB. A default of
 		// "postgres" here is what let a SQLite host reach the PostgreSQL store
 		// with no error at startup.

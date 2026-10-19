@@ -12,6 +12,8 @@ import (
 )
 
 // MountChi mounts all Escalated routes on a Chi router under the configured prefix.
+// With Config.EnableWidget it also mounts the support widget under
+// {RoutePrefix}/widget (see docs/embedding-the-widget.md).
 func MountChi(r chi.Router, esc *escalated.Escalated) {
 	cfg := esc.Config
 	s := esc.Store
@@ -73,6 +75,21 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	var newsletterH *handlers.NewsletterHandler
 	if cfg.EnableNewsletters {
 		newsletterH, _ = newNewsletterStack(esc)
+	}
+
+	// Support widget — only with EnableWidget. Mounted beside the main prefix
+	// router so WidgetCORS runs before the ticket-access middleware (an
+	// allowed cross-origin request is then scoped as a guest) and sees every
+	// OPTIONS preflight. embed.js stays outside WidgetCORS: it is public.
+	if cfg.EnableWidget {
+		stack := newWidgetStack(esc, ticketSvc)
+		r.Get(cfg.RoutePrefix+"/widget/embed.js", handlers.WidgetScript)
+		r.Route(cfg.RoutePrefix+"/widget", func(r chi.Router) {
+			r.Use(stack.wrap)
+			for _, route := range stack.routes {
+				r.MethodFunc(route.method, route.path, route.handler)
+			}
+		})
 	}
 
 	r.Route(cfg.RoutePrefix, func(r chi.Router) {

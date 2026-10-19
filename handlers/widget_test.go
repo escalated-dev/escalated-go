@@ -260,7 +260,7 @@ func TestWidgetHandler_Config(t *testing.T) {
 		{
 			name:       "widget disabled",
 			enabled:    false,
-			wantStatus: http.StatusServiceUnavailable,
+			wantStatus: http.StatusForbidden,
 		},
 	}
 

@@ -736,7 +736,47 @@ func engineAddonStatements(p string) []string {
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"articles"),
 
+		// Live chat: sessions, their routing rules and the chat_messages
+		// table the stores read and write (chat text itself is stored as
+		// ticket replies). The chat stores and services shipped without these
+		// tables, so starting a chat from the widget failed on every install.
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			ticket_id BIGINT NOT NULL,
+			status INTEGER NOT NULL DEFAULT 0,
+			agent_id %s,
+			visitor_user_agent TEXT,
+			visitor_ip VARCHAR(64),
+			visitor_page_url TEXT,
+			agent_joined_at TIMESTAMPTZ,
+			last_activity_at TIMESTAMPTZ,
+			ended_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"chat_sessions", userCol),
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			chat_session_id BIGINT NOT NULL,
+			sender_type VARCHAR(32) NOT NULL,
+			sender_id BIGINT,
+			body TEXT NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"chat_messages"),
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			name VARCHAR(255) NOT NULL,
+			strategy VARCHAR(32) NOT NULL DEFAULT 'round_robin',
+			department_id BIGINT,
+			agent_ids TEXT,
+			priority INTEGER NOT NULL DEFAULT 0,
+			max_concurrent_chats INTEGER NOT NULL DEFAULT 5,
+			is_active BOOLEAN NOT NULL DEFAULT TRUE,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"chat_routing_rules"),
+
 		// Indexes
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%schat_ticket ON %s (ticket_id)", p, p+"chat_sessions"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%schat_agent_status ON %s (agent_id, status)", p, p+"chat_sessions"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%schatmsg_session ON %s (chat_session_id)", p, p+"chat_messages"),
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%sesc_active ON %s (is_active)", p, p+"escalation_rules"),
 		fmt.Sprintf("CREATE UNIQUE INDEX IF NOT EXISTS idx_%ssat_ticket ON %s (ticket_id)", p, p+"satisfaction_ratings"),
 		fmt.Sprintf("CREATE UNIQUE INDEX IF NOT EXISTS idx_%scap_user_channel ON %s (user_id, channel)", p, p+"agent_capacity"),
