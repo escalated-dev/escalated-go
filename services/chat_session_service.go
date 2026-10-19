@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -291,4 +292,51 @@ func strPtr(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+// ErrChatAlreadyRated is returned by RateChat for a chat that has a rating.
+var ErrChatAlreadyRated = errors.New("this chat has already been rated")
+
+// Typing broadcasts a typing indicator on the chat's ticket channel. It
+// stores nothing; without a broadcaster it is a no-op.
+func (cs *ChatSessionService) Typing(_ context.Context, session *models.ChatSession, isAgent bool) {
+	if cs.broadcaster == nil {
+		return
+	}
+	_, _ = cs.broadcaster.Publish(TicketChannel(session.TicketID), "chat.typing", map[string]any{
+		"session_id": session.ID,
+		"is_agent":   isAgent,
+	})
+}
+
+// RateChat records the visitor's 1-5 rating (and optional comment) of an
+// ended chat on the chat ticket's metadata, under "chat_rating"
+// ({rating, comment, rated_at}). Ticket metadata is used because the stores
+// persist it; a chat is rated once.
+func (cs *ChatSessionService) RateChat(ctx context.Context, session *models.ChatSession, rating int, comment string) error {
+	t, err := cs.store.GetTicket(ctx, session.TicketID)
+	if err != nil {
+		return err
+	}
+	if t == nil {
+		return fmt.Errorf("chat ticket %d not found", session.TicketID)
+	}
+
+	meta := map[string]any{}
+	if len(t.Metadata) > 0 {
+		_ = json.Unmarshal(t.Metadata, &meta)
+	}
+	if _, rated := meta["chat_rating"]; rated {
+		return ErrChatAlreadyRated
+	}
+	entry := map[string]any{"rating": rating, "rated_at": time.Now().Format(time.RFC3339)}
+	if comment != "" {
+		entry["comment"] = comment
+	}
+	meta["chat_rating"] = entry
+	t.Metadata, err = json.Marshal(meta)
+	if err != nil {
+		return err
+	}
+	return cs.store.UpdateTicket(ctx, t)
 }

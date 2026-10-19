@@ -11,12 +11,28 @@ import (
 
 // MountStdlib mounts all Escalated routes on a standard library ServeMux.
 // Requires Go 1.22+ for method-based routing patterns.
+//
+// With Config.EnableWidget it also mounts the support widget under
+// {RoutePrefix}/widget: embed.js, and every other widget route behind
+// handlers.WidgetCORS (outside the ticket-access middleware).
 func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	inner := http.NewServeMux()
-	mountStdlib(inner, esc)
-	mux.Handle(esc.Config.RoutePrefix+"/", esc.TicketAccessMiddleware(inner))
+	ticketSvc := mountStdlib(inner, esc)
+	prefix := esc.Config.RoutePrefix
+	mux.Handle(prefix+"/", esc.TicketAccessMiddleware(inner))
+
+	if esc.Config.EnableWidget {
+		stack := newWidgetStack(esc, ticketSvc)
+		widget := http.NewServeMux()
+		for _, route := range stack.routes {
+			widget.HandleFunc(route.method+" "+prefix+"/widget"+route.path, route.handler)
+		}
+		mux.HandleFunc("GET "+prefix+"/widget/embed.js", handlers.WidgetScript)
+		mux.Handle(prefix+"/widget/", stack.wrap(widget))
+	}
 }
-func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
+
+func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketService {
 	cfg := esc.Config
 	s := esc.Store
 	rend := esc.Renderer
@@ -288,4 +304,5 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 			mux.Handle("DELETE "+prefix+"/admin/newsletters/{newsletter}", adminMW(http.HandlerFunc(newsletterH.CampaignDestroy)))
 		}
 	}
+	return ticketSvc
 }
