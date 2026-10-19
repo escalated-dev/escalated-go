@@ -39,6 +39,9 @@ type StartSessionInput struct {
 	VisitorIP    string
 	VisitorUA    string
 	DepartmentID *int64
+	// Metadata holds sanitised host parameters from the embedding page. They
+	// are stored on the chat ticket's metadata and added to its chat metadata.
+	Metadata map[string]any
 }
 
 // StartSession creates a new ticket with channel=chat, status=live,
@@ -57,10 +60,19 @@ func (cs *ChatSessionService) StartSession(ctx context.Context, in StartSessionI
 		subject = "Live Chat"
 	}
 
-	chatMeta, _ := json.Marshal(map[string]any{
-		"started_at": time.Now().Format(time.RFC3339),
-		"page_url":   in.PageURL,
-	})
+	chat := map[string]any{}
+	for k, v := range in.Metadata {
+		chat[k] = v
+	}
+	chat["started_at"] = time.Now().Format(time.RFC3339)
+	if in.PageURL != "" || chat["page_url"] == nil {
+		chat["page_url"] = in.PageURL
+	}
+	chatMeta, _ := json.Marshal(chat)
+	var ticketMeta models.JSONText
+	if len(in.Metadata) > 0 {
+		ticketMeta, _ = json.Marshal(in.Metadata)
+	}
 
 	t := &models.Ticket{
 		Subject:      subject,
@@ -74,6 +86,7 @@ func (cs *ChatSessionService) StartSession(ctx context.Context, in StartSessionI
 		GuestToken:   &guestToken,
 		DepartmentID: in.DepartmentID,
 		ChatMetadata: chatMeta,
+		Metadata:     ticketMeta,
 	}
 
 	if err := cs.store.CreateTicket(ctx, t); err != nil {

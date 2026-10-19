@@ -252,6 +252,8 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 
 		mux.Handle("GET "+prefix+"/admin/settings/public-tickets", adminMW(http.HandlerFunc(adminH.GetPublicTicketsSettings)))
 		mux.Handle("PUT "+prefix+"/admin/settings/public-tickets", adminMW(http.HandlerFunc(adminH.UpdatePublicTicketsSettings)))
+		mux.Handle("GET "+prefix+"/admin/settings/widget", adminMW(http.HandlerFunc(adminH.GetWidgetSettings)))
+		mux.Handle("PUT "+prefix+"/admin/settings/widget", adminMW(http.HandlerFunc(adminH.UpdateWidgetSettings)))
 
 		// Users (host User table: list + grant/revoke admin/agent).
 		mux.Handle("GET "+prefix+"/admin/users", adminMW(http.HandlerFunc(userH.Index)))

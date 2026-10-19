@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 
@@ -135,6 +136,25 @@ func TestTicketAccessWidget(t *testing.T) {
 	}
 	if response := send(handler, "GET", path, "900", "agent", ""); response.Code != 404 {
 		t.Fatalf("agent: %d %s", response.Code, response.Body)
+	}
+
+	// A request from an allowed embedding site always runs as a guest, even
+	// when the browser also carries a signed-in agent's identity.
+	embedded := handlers.WidgetCORS(handlers.WidgetConfig{Enabled: true, AllowedOrigins: "https://shop.example.com"}, f.esc.Store)(handler)
+	request := httptest.NewRequest("GET", path, nil)
+	request.Header.Set(headerUser, "900")
+	request.Header.Set(headerRole, "agent")
+	request.Header.Set("Origin", "https://shop.example.com")
+	response := httptest.NewRecorder()
+	embedded.ServeHTTP(response, request)
+	if response.Code != 200 || response.Header().Get("Access-Control-Allow-Origin") != "https://shop.example.com" {
+		t.Fatalf("embedded agent: %d %s", response.Code, response.Body)
+	}
+	request.Header.Set("Origin", "https://evil.example.net")
+	response = httptest.NewRecorder()
+	embedded.ServeHTTP(response, request)
+	if response.Code != 404 || response.Header().Get("Access-Control-Allow-Origin") != "" {
+		t.Fatalf("agent from a site that is not allowed: %d %s", response.Code, response.Body)
 	}
 }
 func TestTicketAccessBulkAndPreloadedWrites(t *testing.T) {

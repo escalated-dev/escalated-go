@@ -31,7 +31,6 @@ func NewWidgetChatHandler(cfg WidgetConfig, s store.Store, cs *services.ChatSess
 
 // Availability handles GET /widget/chat/availability.
 func (h *WidgetChatHandler) Availability(w http.ResponseWriter, r *http.Request) {
-	h.setCORS(w, r)
 	if !h.config.Enabled {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "widget is disabled"})
 		return
@@ -48,7 +47,6 @@ func (h *WidgetChatHandler) Availability(w http.ResponseWriter, r *http.Request)
 
 // StartChat handles POST /widget/chat/start.
 func (h *WidgetChatHandler) StartChat(w http.ResponseWriter, r *http.Request) {
-	h.setCORS(w, r)
 	if !h.config.Enabled {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "widget is disabled"})
 		return
@@ -58,11 +56,12 @@ func (h *WidgetChatHandler) StartChat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var in struct {
-		Name    string `json:"name"`
-		Email   string `json:"email"`
-		Subject string `json:"subject"`
-		Message string `json:"message"`
-		PageURL string `json:"page_url"`
+		Name     string          `json:"name"`
+		Email    string          `json:"email"`
+		Subject  string          `json:"subject"`
+		Message  string          `json:"message"`
+		PageURL  string          `json:"page_url"`
+		Metadata json.RawMessage `json:"metadata"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
@@ -71,6 +70,11 @@ func (h *WidgetChatHandler) StartChat(w http.ResponseWriter, r *http.Request) {
 
 	if in.Email == "" || in.Name == "" {
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "name and email are required"})
+		return
+	}
+	metadata, err := sanitizeWidgetMetadata(in.Metadata, WidgetCrossOrigin(r.Context()))
+	if err != nil {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
 		return
 	}
 
@@ -82,6 +86,7 @@ func (h *WidgetChatHandler) StartChat(w http.ResponseWriter, r *http.Request) {
 		PageURL:    in.PageURL,
 		VisitorIP:  r.RemoteAddr,
 		VisitorUA:  r.UserAgent(),
+		Metadata:   metadata,
 	})
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -98,7 +103,6 @@ func (h *WidgetChatHandler) StartChat(w http.ResponseWriter, r *http.Request) {
 
 // SendMessage handles POST /widget/chat/sessions/{ref}/messages.
 func (h *WidgetChatHandler) SendMessage(w http.ResponseWriter, r *http.Request) {
-	h.setCORS(w, r)
 	if !h.config.Enabled {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "widget is disabled"})
 		return
@@ -135,7 +139,6 @@ func (h *WidgetChatHandler) SendMessage(w http.ResponseWriter, r *http.Request) 
 
 // EndChat handles POST /widget/chat/sessions/{ref}/end.
 func (h *WidgetChatHandler) EndChat(w http.ResponseWriter, r *http.Request) {
-	h.setCORS(w, r)
 	if !h.config.Enabled {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "widget is disabled"})
 		return
@@ -174,16 +177,6 @@ func (h *WidgetChatHandler) findSessionByRef(r *http.Request, ref, token string)
 		return nil, nil
 	}
 	return h.store.GetChatSessionByTicket(r.Context(), t.ID)
-}
-
-func (h *WidgetChatHandler) setCORS(w http.ResponseWriter, _ *http.Request) {
-	origins := h.config.AllowedOrigins
-	if origins == "" {
-		origins = "*"
-	}
-	w.Header().Set("Access-Control-Allow-Origin", origins)
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Guest-Token")
 }
 
 func (h *WidgetChatHandler) rateLimit(w http.ResponseWriter, r *http.Request) bool {

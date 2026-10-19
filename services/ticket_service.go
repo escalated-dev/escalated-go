@@ -46,6 +46,9 @@ type CreateTicketInput struct {
 	GuestName     *string
 	GuestEmail    *string
 	DepartmentID  *int64
+	// Metadata is stored on the ticket's metadata column as given (nil
+	// leaves it empty).
+	Metadata models.JSONText
 }
 
 // Create creates a new ticket, applies SLA targets, and records a creation activity.
@@ -61,6 +64,7 @@ func (ts *TicketService) Create(ctx context.Context, in CreateTicketInput) (*mod
 		GuestName:     in.GuestName,
 		GuestEmail:    in.GuestEmail,
 		DepartmentID:  in.DepartmentID,
+		Metadata:      in.Metadata,
 	}
 
 	if t.TicketType == "" {
