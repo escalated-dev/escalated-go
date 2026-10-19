@@ -17,8 +17,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `AllowedOrigins`, `ESCALATED_WIDGET_ALLOWED_ORIGINS` or the
   `widget_allowed_origins` setting. A bare `*` is ignored. See
   [embedding the widget](docs/embedding-the-widget.md).
+- **`GET /widget/config` answers 403 `{"enabled": false}` when the widget is
+  disabled** (was 503), matching the other backends. The other widget routes
+  still answer 503.
+- **`NewWidgetChatHandler` now rate-limits chat start.** Its limiter was built
+  with a zero window and never limited anything; it now allows
+  `WidgetConfig.RateLimitPerMin` chats a minute per client IP, like ticket
+  creation.
 
 ### Added
+
+- `Config.EnableWidget` mounts the widget in `MountChi` and `MountStdlib`
+  under `{RoutePrefix}/widget` (`embed.js`, then every other route behind
+  `WidgetCORS`), configured by `Config.Widget`. Off by default, so hosts that
+  wire the handlers themselves are unaffected.
+- The widget API matches the shared widget: `/config` adds `enabled`, `color`,
+  `position`, `greeting`, `departments`, `kb_enabled`,
+  `guest_tickets_enabled` and `status_lookup_enabled: false` beside the
+  existing keys; `/articles?q=` and `/articles/{slug}` search and show
+  published knowledge-base articles; `POST /tickets` accepts `department_id`
+  and returns `reference` and `message`; `POST /chat/start` returns `id` (the
+  chat's unguessable guest token) and `messages`; and
+  `GET|POST /chat/{id}/messages`, `POST /chat/{id}/typing`, `/end` and `/rate`
+  are new. Validation errors carry `message` and `errors`.
+- Migrations create the `chat_sessions`, `chat_messages` and
+  `chat_routing_rules` tables the chat stores already used; without them
+  starting a chat failed.
 
 - Cross-origin widget embedding. `handlers.WidgetCORS` answers preflights and
   grants CORS per request only to listed origins (`https://*.example.com`

@@ -30,14 +30,38 @@ the admin endpoint rejects it with 422.
 
 ## 2. Mount the widget routes
 
-The library does not mount the widget for you. Put every widget route behind
-`handlers.WidgetCORS`, and mount `embed.js` outside it. WidgetCORS has to see
-`OPTIONS` requests, so wrap the whole widget prefix rather than single routes.
+### With MountChi or MountStdlib
+
+Set `EnableWidget` and configure `Widget`:
+
+```go
+cfg := escalated.DefaultConfig()
+cfg.EnableWidget = true
+cfg.Widget.Enabled = true
+cfg.Widget.AllowedOrigins = "https://shop.example.com"
+cfg.Widget.PrimaryColor = "#4F46E5"
+cfg.Widget.WelcomeMessage = "Hi! How can we help?"
+```
+
+The routers then mount the widget under `{RoutePrefix}/widget` (for example
+`/escalated/widget`): `embed.js` on its own, and every other widget route
+behind `handlers.WidgetCORS`, with `esc.TicketAccessMiddleware` inside it.
+`EnableWidget` is off by default, so a host that wires the handlers itself
+(below) is not affected. `Widget.Enabled` still turns the endpoints on and
+off: with it false, `/config` answers 403 `{"enabled": false}` and the other
+routes 503.
+
+### Wiring the handlers yourself
+
+Put every widget route behind `handlers.WidgetCORS`, and mount `embed.js`
+outside it. WidgetCORS has to see `OPTIONS` requests, so wrap the whole widget
+prefix rather than single routes.
 
 With chi:
 
 ```go
 widget := handlers.NewWidgetHandler(widgetCfg, esc.Store, services.NewTicketService(esc.Store))
+widget.DB = esc.Config.DB // the knowledge base; leave nil for none
 chat := handlers.NewWidgetChatHandler(widgetCfg, esc.Store, chatSessions, chatAvailability)
 
 r.Get("/support/widget/embed.js", handlers.WidgetScript)
@@ -45,11 +69,17 @@ r.Route("/support/widget", func(r chi.Router) {
     r.Use(handlers.WidgetCORS(widgetCfg, esc.Store))
     r.Get("/config", widget.Config)
     r.Get("/articles", widget.SearchArticles)
-    r.Get("/articles/{id}", widget.ShowArticle)
+    r.Get("/articles/{slug}", widget.ShowArticle)
     r.Post("/tickets", widget.CreateTicket)
     r.Get("/tickets/lookup", widget.LookupTicket)
     r.Get("/chat/availability", chat.Availability)
     r.Post("/chat/start", chat.StartChat)
+    r.Get("/chat/{id}/messages", chat.Messages)
+    r.Post("/chat/{id}/messages", chat.PostMessage)
+    r.Post("/chat/{id}/typing", chat.Typing)
+    r.Post("/chat/{id}/end", chat.End)
+    r.Post("/chat/{id}/rate", chat.Rate)
+    // Older routes, reference + X-Guest-Token header:
     r.Post("/chat/sessions/{ref}/messages", chat.SendMessage)
     r.Post("/chat/sessions/{ref}/end", chat.EndChat)
 })
@@ -72,10 +102,45 @@ Put WidgetCORS outside anything that can answer early, such as a rate limiter
 too. If you scope the widget with `esc.TicketAccessMiddleware`, put that
 inside WidgetCORS.
 
+### What the widget calls
+
+Paths are relative to the widget prefix.
+
+| Route | Notes |
+|---|---|
+| `GET /config` | `enabled`, `color`, `position`, `greeting`, `departments` (`[{id, name}]`, active only), `kb_enabled`, `guest_tickets_enabled`, `status_lookup_enabled: false`, `accepts_metadata: true`, plus the original `title`, `subtitle`, `primary_color`, `logo_url`, `welcome_message`. |
+| `GET /articles?q=` | Published knowledge-base articles matching the title or body: `{articles: [{title, slug, excerpt}]}`, at most 10. Fewer than two characters, or no knowledge base, returns none. |
+| `GET /articles/{slug}` | A published article: `{title, slug, body, category}`. Drafts and unknown slugs are 404. |
+| `POST /tickets` | `{name, email, subject, description, department_id?, metadata?}`. 201 `{message, reference, ticket_reference, guest_token}`. An unknown or inactive department is 422. |
+| `GET /tickets/lookup?ref=&token=` | Unchanged: needs the ticket's guest token. |
+| `GET /chat/availability` | `{available, queue_length}`. |
+| `POST /chat/start` | `{name, email, department_id?, message?, subject?, metadata?}`. 201 `{id, session_id, status, messages, agent?}`. |
+| `GET /chat/{id}/messages` | `{messages: [{id, body, is_agent, author: {name}, created_at}], typing: null, agent, ended}`. The opening message comes first. |
+| `POST /chat/{id}/messages` | `{body}`. 422 once the chat has ended. |
+| `POST /chat/{id}/typing`, `/end` | The visitor's typing indicator (broadcast, not stored); ending the chat. |
+| `POST /chat/{id}/rate` | `{rating: 1-5, comment?}`, once, after the chat ended. Stored on the chat ticket's metadata as `chat_rating`. |
+
+The chat `id` is the chat ticket's guest token: a random string, never a
+sequential number. It is the only credential the `/chat/{id}/...` routes take,
+so treat it like a password. Unknown ids, and the guest token of a ticket that
+is not a chat, are 404.
+
+Validation errors are 422 `{message, errors: {field: [message]}}` (the
+original `error` key stays). Ticket and chat-start requests are limited to
+`WidgetConfig.RateLimitPerMin` (default 30) a minute per client IP; over the
+limit the answer is 429 with `Retry-After`.
+
+There is no mailbox verification in this backend, so `/config` sends
+`status_lookup_enabled: false` and no `guest_verification_required`: the
+widget hides its Status tab. Nothing looks a ticket up by email address.
+Agent names in the chat transcript show as "Support" unless you set
+`WidgetChatHandler.AgentName`; the routers leave it unset.
+
 ## 3. Add the script to the other site
 
 ```html
 <script src="https://help.example.com/support/widget/embed.js" async></script>
+<!-- with MountChi/MountStdlib and the default prefix: /escalated/widget/embed.js -->
 ```
 
 The host parameters (tabs, department, prefill, metadata, title, the

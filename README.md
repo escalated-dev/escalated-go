@@ -38,7 +38,7 @@ Embeddable support ticket system for Go applications. Works with standard `net/h
 - **Ticket splitting** — Split a reply into a new standalone ticket while preserving the original context
 - **Ticket snooze** — Snooze tickets with presets (1h, 4h, tomorrow, next week); a background goroutine scheduler auto-wakes them on schedule
 - **Saved views / custom queues** — Save, name, and share filter presets as reusable ticket views
-- **Embeddable support widget** — Lightweight `<script>` widget with KB search, ticket form, and status check; other sites you list can embed it (see [embedding the widget](docs/embedding-the-widget.md))
+- **Embeddable support widget** — Lightweight `<script>` widget with KB search, ticket form and live chat, mounted by `Config.EnableWidget`; other sites you list can embed it (see [embedding the widget](docs/embedding-the-widget.md))
 - **Email threading** — Outbound emails include proper `In-Reply-To` and `References` headers for correct threading in mail clients
 - **Inbound email replies** — `email.InboundEmailService` turns provider webhooks into replies or new tickets. With an inbound secret set, only the signed Reply-To address links mail to a ticket; without one, the `In-Reply-To` / `References` headers and the `[ESC-...]` subject reference are used. A matched email becomes a reply only when `From` is the ticket's requester (the guest email, or the requester's email via `WithRequesterEmailResolver`), and it is posted as that requester. A requester's reply to a resolved or closed ticket reopens it. Anyone else, including an address belonging to an agent, gets a new ticket
 - **Branded email templates** — Configurable logo, primary color, and footer text for all outbound emails
