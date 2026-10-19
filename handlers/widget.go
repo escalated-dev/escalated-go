@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -14,23 +15,32 @@ import (
 
 // WidgetConfig holds configuration for the embeddable widget.
 type WidgetConfig struct {
-	Enabled         bool   `json:"enabled"`
-	Title           string `json:"title"`
-	Subtitle        string `json:"subtitle"`
-	PrimaryColor    string `json:"primary_color"`
-	LogoURL         string `json:"logo_url,omitempty"`
-	WelcomeMessage  string `json:"welcome_message,omitempty"`
-	AllowedOrigins  string `json:"allowed_origins,omitempty"` // comma-separated
+	Enabled        bool   `json:"enabled"`
+	Title          string `json:"title"`
+	Subtitle       string `json:"subtitle"`
+	PrimaryColor   string `json:"primary_color"`
+	LogoURL        string `json:"logo_url,omitempty"`
+	WelcomeMessage string `json:"welcome_message,omitempty"`
+	// AllowedOrigins lists the other sites that may embed the widget, comma or
+	// newline separated: "https://shop.example.com, https://*.example.com".
+	// Entries are scheme://host[:port] (http or https, no path); "*." matches
+	// any subdomain but not the apex. A bare "*" is ignored. Empty (the
+	// default) grants no cross-origin access. Admins can add more through the
+	// widget_allowed_origins setting. Enforced by WidgetCORS.
+	AllowedOrigins  string `json:"allowed_origins,omitempty"`
 	RateLimitPerMin int    `json:"-"`
 }
 
 // DefaultWidgetConfig returns a widget config with sensible defaults.
+// AllowedOrigins starts from the ESCALATED_WIDGET_ALLOWED_ORIGINS environment
+// variable (empty when unset).
 func DefaultWidgetConfig() WidgetConfig {
 	return WidgetConfig{
 		Enabled:         false,
 		Title:           "Help Center",
 		Subtitle:        "How can we help you?",
 		PrimaryColor:    "#4F46E5",
+		AllowedOrigins:  os.Getenv("ESCALATED_WIDGET_ALLOWED_ORIGINS"),
 		RateLimitPerMin: 30,
 	}
 }
@@ -59,7 +69,6 @@ func NewWidgetHandler(cfg WidgetConfig, s store.Store, ts *services.TicketServic
 
 // Config handles GET /widget/config - returns public widget configuration.
 func (h *WidgetHandler) Config(w http.ResponseWriter, r *http.Request) {
-	h.setCORS(w, r)
 	if !h.config.Enabled {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "widget is disabled"})
 		return
@@ -70,12 +79,14 @@ func (h *WidgetHandler) Config(w http.ResponseWriter, r *http.Request) {
 		"primary_color":   h.config.PrimaryColor,
 		"logo_url":        h.config.LogoURL,
 		"welcome_message": h.config.WelcomeMessage,
+		// The widget may send host parameters (order number, plan, page
+		// URL, ...) as "metadata" with a ticket or chat.
+		"accepts_metadata": true,
 	})
 }
 
 // SearchArticles handles GET /widget/articles?q=... - search knowledge base articles.
 func (h *WidgetHandler) SearchArticles(w http.ResponseWriter, r *http.Request) {
-	h.setCORS(w, r)
 	if !h.config.Enabled {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "widget is disabled"})
 		return
@@ -99,7 +110,6 @@ func (h *WidgetHandler) SearchArticles(w http.ResponseWriter, r *http.Request) {
 
 // ShowArticle handles GET /widget/articles/{id} - get a single article.
 func (h *WidgetHandler) ShowArticle(w http.ResponseWriter, r *http.Request) {
-	h.setCORS(w, r)
 	if !h.config.Enabled {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "widget is disabled"})
 		return
@@ -120,7 +130,6 @@ func (h *WidgetHandler) ShowArticle(w http.ResponseWriter, r *http.Request) {
 
 // CreateTicket handles POST /widget/tickets - create a ticket from the widget (no auth).
 func (h *WidgetHandler) CreateTicket(w http.ResponseWriter, r *http.Request) {
-	h.setCORS(w, r)
 	if !h.config.Enabled {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "widget is disabled"})
 		return
@@ -130,10 +139,11 @@ func (h *WidgetHandler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var in struct {
-		Name        string `json:"name"`
-		Email       string `json:"email"`
-		Subject     string `json:"subject"`
-		Description string `json:"description"`
+		Name        string          `json:"name"`
+		Email       string          `json:"email"`
+		Subject     string          `json:"subject"`
+		Description string          `json:"description"`
+		Metadata    json.RawMessage `json:"metadata"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
@@ -144,12 +154,18 @@ func (h *WidgetHandler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "email, subject, and description are required"})
 		return
 	}
+	metadata, err := sanitizeWidgetMetadata(in.Metadata, WidgetCrossOrigin(r.Context()))
+	if err != nil {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
+		return
+	}
 
 	t, err := h.tickets.Create(r.Context(), services.CreateTicketInput{
 		Subject:     in.Subject,
 		Description: in.Description,
 		GuestName:   &in.Name,
 		GuestEmail:  &in.Email,
+		Metadata:    widgetMetadataJSON(metadata),
 	})
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -164,7 +180,6 @@ func (h *WidgetHandler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 
 // LookupTicket handles GET /widget/tickets/lookup?ref=...&token=... - lookup ticket by reference and guest token.
 func (h *WidgetHandler) LookupTicket(w http.ResponseWriter, r *http.Request) {
-	h.setCORS(w, r)
 	if !h.config.Enabled {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "widget is disabled"})
 		return
@@ -208,16 +223,6 @@ func (h *WidgetHandler) LookupTicket(w http.ResponseWriter, r *http.Request) {
 		},
 		"replies": replies,
 	})
-}
-
-func (h *WidgetHandler) setCORS(w http.ResponseWriter, _ *http.Request) {
-	origins := h.config.AllowedOrigins
-	if origins == "" {
-		origins = "*"
-	}
-	w.Header().Set("Access-Control-Allow-Origin", origins)
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 }
 
 func (h *WidgetHandler) rateLimit(w http.ResponseWriter, r *http.Request) bool {

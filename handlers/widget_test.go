@@ -16,16 +16,18 @@ import (
 
 // widgetMockStore implements store.Store for widget handler tests.
 type widgetMockStore struct {
-	tickets map[int64]*models.Ticket
-	replies map[int64]*models.Reply
-	nextID  int64
+	tickets  map[int64]*models.Ticket
+	replies  map[int64]*models.Reply
+	settings map[string]string
+	nextID   int64
 }
 
 func newWidgetMockStore() *widgetMockStore {
 	return &widgetMockStore{
-		tickets: make(map[int64]*models.Ticket),
-		replies: make(map[int64]*models.Reply),
-		nextID:  1,
+		tickets:  make(map[int64]*models.Ticket),
+		replies:  make(map[int64]*models.Reply),
+		settings: make(map[string]string),
+		nextID:   1,
 	}
 }
 
@@ -236,8 +238,13 @@ func (m *widgetMockStore) CreateContact(_ context.Context, _ *models.Contact) er
 func (m *widgetMockStore) UpdateContactName(_ context.Context, _ int64, _ string) error {
 	return nil
 }
-func (m *widgetMockStore) GetSetting(_ context.Context, _ string) (string, error) { return "", nil }
-func (m *widgetMockStore) SetSetting(_ context.Context, _, _ string) error        { return nil }
+func (m *widgetMockStore) GetSetting(_ context.Context, key string) (string, error) {
+	return m.settings[key], nil
+}
+func (m *widgetMockStore) SetSetting(_ context.Context, key, value string) error {
+	m.settings[key] = value
+	return nil
+}
 
 func TestWidgetHandler_Config(t *testing.T) {
 	tests := []struct {
@@ -448,23 +455,5 @@ func TestWidgetHandler_RateLimit(t *testing.T) {
 	h.SearchArticles(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Errorf("different IP: expected 200, got %d", rec.Code)
-	}
-}
-
-func TestWidgetHandler_CORS(t *testing.T) {
-	cfg := DefaultWidgetConfig()
-	cfg.Enabled = true
-	cfg.AllowedOrigins = "https://example.com"
-	ms := newWidgetMockStore()
-	svc := services.NewTicketService(ms)
-	h := NewWidgetHandler(cfg, ms, svc)
-
-	req := httptest.NewRequest(http.MethodGet, "/widget/config", nil)
-	rec := httptest.NewRecorder()
-	h.Config(rec, req)
-
-	origin := rec.Header().Get("Access-Control-Allow-Origin")
-	if origin != "https://example.com" {
-		t.Errorf("CORS origin = %q, want 'https://example.com'", origin)
 	}
 }

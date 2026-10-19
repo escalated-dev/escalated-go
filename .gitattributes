@@ -15,3 +15,6 @@ Dockerfile* text eol=lf
 *.jpeg binary
 *.gif binary
 *.ico binary
+
+# Vendored from @escalated-dev/escalated (dist/widget/escalated-widget.js). Not edited by hand.
+handlers/assets/widget/escalated-widget.js -text linguist-generated=true linguist-vendored=true

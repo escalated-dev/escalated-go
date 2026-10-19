@@ -7,7 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Upgrading
+
+- **The widget no longer sends `Access-Control-Allow-Origin: *` by default.**
+  The widget handlers used to send `*` when `WidgetConfig.AllowedOrigins` was
+  empty, and the raw configured string otherwise, which was invalid with more
+  than one origin. They now send no CORS headers themselves. Wrap the widget
+  routes in `handlers.WidgetCORS` and list the embedding sites in
+  `AllowedOrigins`, `ESCALATED_WIDGET_ALLOWED_ORIGINS` or the
+  `widget_allowed_origins` setting. A bare `*` is ignored. See
+  [embedding the widget](docs/embedding-the-widget.md).
+
 ### Added
+
+- Cross-origin widget embedding. `handlers.WidgetCORS` answers preflights and
+  grants CORS per request only to listed origins (`https://*.example.com`
+  subdomain patterns supported), including on 403/404/422/429 answers, and
+  runs those requests as guests (`Escalated.TicketAccessMiddleware` ignores the
+  signed-in user for them).
+- `handlers.WidgetScript` serves the standalone widget bundle
+  (`@escalated-dev/escalated` 0.12.1) at `{widget prefix}/embed.js` with an
+  ETag and a one-hour cache.
+- Widget tickets and live chats store sanitised host `metadata`, including the
+  server-recorded `embedded_on` origin. `GET /widget/config` returns
+  `accepts_metadata: true`.
+- `GET/PUT /admin/settings/widget` reads and validates the
+  `widget_allowed_origins` setting.
 
 - Opt-in department/account ticket visibility across both routers, built-in SQL stores, direct handlers, reports, bulk operations, widget and related records.
 - Nullable indexed ticket account identity with host requester/subject resolvers, account/type rule conditions and targeted department/type SLAs that preserve routing clocks.

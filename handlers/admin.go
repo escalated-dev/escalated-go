@@ -312,6 +312,50 @@ func (h *AdminHandler) UpdatePublicTicketsSettings(w http.ResponseWriter, r *htt
 	h.GetPublicTicketsSettings(w, r)
 }
 
+// --- Widget embedding settings ---
+
+// GetWidgetSettings handles GET /admin/settings/widget and returns the sites
+// admins allowed to embed the widget, as stored (one origin per line or
+// comma separated). They are added to WidgetConfig.AllowedOrigins.
+func (h *AdminHandler) GetWidgetSettings(w http.ResponseWriter, r *http.Request) {
+	origins, err := h.store.GetSetting(r.Context(), WidgetAllowedOriginsSetting)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{WidgetAllowedOriginsSetting: origins})
+}
+
+// UpdateWidgetSettings handles PUT /admin/settings/widget. Every entry of
+// widget_allowed_origins must be an http(s) origin ("https://shop.example.com")
+// or subdomain pattern ("https://*.example.com"); otherwise nothing is saved
+// and it answers 422 naming the invalid entries. An empty value clears the list.
+func (h *AdminHandler) UpdateWidgetSettings(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		AllowedOrigins *string `json:"widget_allowed_origins"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		http.Error(w, "invalid JSON body", http.StatusBadRequest)
+		return
+	}
+	if in.AllowedOrigins != nil {
+		value := strings.TrimSpace(*in.AllowedOrigins)
+		if _, invalid := ParseWidgetOrigins(value); len(invalid) > 0 {
+			message := "Each allowed origin must look like https://shop.example.com or https://*.example.com (no path, no bare *). Invalid: " + strings.Join(invalid, ", ")
+			writeJSON(w, http.StatusUnprocessableEntity, map[string]any{
+				"error":  message,
+				"errors": map[string][]string{WidgetAllowedOriginsSetting: {message}},
+			})
+			return
+		}
+		if err := h.store.SetSetting(r.Context(), WidgetAllowedOriginsSetting, value); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+	h.GetWidgetSettings(w, r)
+}
+
 // parseOptionalPositiveInt returns *int64 when s is a positive integer,
 // nil otherwise. Used to surface empty-string / zero / invalid stored
 // values as JSON null so the Vue page can bind against a nullable.

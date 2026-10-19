@@ -296,6 +296,8 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 
 				r.Get("/settings/public-tickets", adminH.GetPublicTicketsSettings)
 				r.Put("/settings/public-tickets", adminH.UpdatePublicTicketsSettings)
+				r.Get("/settings/widget", adminH.GetWidgetSettings)
+				r.Put("/settings/widget", adminH.UpdateWidgetSettings)
 
 				// Users (host User table: list + grant/revoke admin/agent).
 				r.Get("/users", userH.Index)

@@ -30,6 +30,7 @@ import (
 
 	"github.com/escalated-dev/escalated-go/ticketaccess"
 
+	"github.com/escalated-dev/escalated-go/handlers"
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/renderer"
 	"github.com/escalated-dev/escalated-go/services/newsletter"
@@ -240,6 +241,19 @@ func applyDefaults(cfg *Config) {
 }
 
 // TicketAccessMiddleware scopes all package query paths after host authentication.
+// A request that handlers.WidgetCORS let in from an allowed embedding site is
+// always scoped as a guest, whoever is signed in to the host in that browser.
 func (e *Escalated) TicketAccessMiddleware(next http.Handler) http.Handler {
-	return e.Access.Middleware(e.Config.AgentCheck, e.Config.AdminCheck, e.Config.UserIDFunc)(next)
+	agent, admin, userID := e.Config.AgentCheck, e.Config.AdminCheck, e.Config.UserIDFunc
+	embedded := func(r *http.Request) bool { return handlers.WidgetCrossOrigin(r.Context()) != "" }
+	return e.Access.Middleware(
+		func(r *http.Request) bool { return !embedded(r) && agent(r) },
+		func(r *http.Request) bool { return !embedded(r) && admin(r) },
+		func(r *http.Request) models.UserID {
+			if embedded(r) {
+				return ""
+			}
+			return userID(r)
+		},
+	)(next)
 }
