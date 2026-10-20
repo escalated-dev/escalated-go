@@ -155,3 +155,31 @@ func TestStatusAndPriorityFromValue(t *testing.T) {
 		t.Errorf("PriorityFromValue(Urgent) = %d,%v", p, ok)
 	}
 }
+
+// "sla_breached = 1" compares a BOOLEAN with an integer, which PostgreSQL
+// rejects, so every escalation rule on that condition errored and never fired.
+func TestEscalationSLABreachedConditionRunsOnTheDatabase(t *testing.T) {
+	db := newWorkflowTestDB(t)
+	s := testdb.Store(t, db)
+	ts := NewTicketService(s)
+	ctx := context.Background()
+	breached, err := ts.Create(ctx, CreateTicketInput{Subject: "late", Description: "D"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ts.Create(ctx, CreateTicketInput{Subject: "fine", Description: "D"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(sqldialect.Rebind(db, `UPDATE escalated_tickets SET sla_breached = TRUE WHERE id = ?`), breached.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	es := NewEscalationService(db, discardLogger())
+	ids, err := es.findMatchingTicketIDs(models.EscalationRule{Conditions: models.JSONText(`[{"field":"sla_breached"}]`)})
+	if err != nil {
+		t.Fatalf("findMatchingTicketIDs: %v", err)
+	}
+	if len(ids) != 1 || ids[0] != breached.ID {
+		t.Fatalf("matched %v, want [%d]", ids, breached.ID)
+	}
+}

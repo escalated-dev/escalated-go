@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- Attachment downloads are always `attachment` / `application/octet-stream`
+  with `X-Content-Type-Options: nosniff`, `Cache-Control: private, no-store`
+  and an RFC 6266/5987 filename. They were served inline with the sender's
+  MIME type, so an emailed HTML or SVG attachment rendered on the app origin.
+- `POST /tickets/{id}/rate` accepts a rating only from the ticket's requester
+  (403 otherwise) and records `rated_by`.
+
+### Fixed
+- Agent and customer ticket screens and the SLA policy list rendered page
+  names the frontend does not ship (blank panels). They now render
+  `Escalated/Agent/TicketIndex`, `TicketShow`, `Escalated/Customer/Index`,
+  `Show` and `Escalated/Admin/SlaPolicies/Index`; every page name carries the
+  `Escalated/` prefix, and the parity test reads every `Render` call.
+- Widget `department_id` sent as a numeric string (embed.js `data-department`)
+  is accepted instead of answering 400.
+- `ticket.department_changed`, `ticket.priority_changed`, `ticket.unassigned`
+  and `ticket.updated` are emitted (webhooks and workflows) through new
+  `TicketService.ChangeDepartment/ChangePriority/Unassign/UpdateDetails`.
+  `PATCH /api/tickets/{id}` validates status/priority (number or slug, 422
+  otherwise) and goes through the service; macros and escalation rules do too.
+- The `sla_breached` escalation condition works on PostgreSQL.
+- The `knowledge_base_enabled` / `knowledge_base_public` settings are enforced
+  on `/api/kb/*` and the widget (404 when off, 403 signed out when private).
+
+### Upgrading
+- **Every widget route is rate limited with `Config.GuestRateLimit`.** The
+  widget used its own limiter keyed on `RemoteAddr` (one shared bucket behind a
+  proxy). It now uses `GuestRateLimit`'s `ClientIP`, `Store` and `Disabled`: a
+  general budget of `WidgetConfig.RateLimitPerMin` (now default 0, meaning
+  `GuestRateLimit.RequestsPerMinute`, default 60) on every route, plus the
+  submission limit (5) on ticket creation and chat start and the reply limit
+  (10) on chat messages, ratings and lookups.
+
 ## [0.2.1] - 2026-10-19
 
 ### Changed

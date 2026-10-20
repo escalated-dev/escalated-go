@@ -80,6 +80,11 @@ type WidgetHandler struct {
 	// kb_enabled false, searches return no articles and every article is 404.
 	// The routers set it from Config.DB.
 	DB *sql.DB
+
+	// SignedIn reports whether the request comes from a signed-in host user.
+	// A private knowledge base (knowledge_base_public off) is served only to
+	// them. The routers set it; cross-origin embeds always count as guests.
+	SignedIn func(r *http.Request) bool
 }
 
 // NewWidgetHandler creates a new WidgetHandler.
@@ -145,7 +150,7 @@ func (h *WidgetHandler) Config(w http.ResponseWriter, r *http.Request) {
 		"welcome_message":       h.config.WelcomeMessage,
 		"greeting":              h.config.WelcomeMessage,
 		"departments":           departments,
-		"kb_enabled":            h.DB != nil,
+		"kb_enabled":            h.kbEnabledFor(r),
 		"guest_tickets_enabled": true,
 		"status_lookup_enabled": false,
 		// The widget may send host parameters (order number, plan, page
@@ -166,6 +171,10 @@ func (h *WidgetHandler) SearchArticles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !h.rateLimit(w, r) {
+		return
+	}
+
+	if !h.widgetKBAllowed(w, r) {
 		return
 	}
 
@@ -215,6 +224,9 @@ func (h *WidgetHandler) ShowArticle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.widgetKBAllowed(w, r) {
+		return
+	}
 	key := pathParam(r, "slug")
 	if key == "" {
 		key = pathParam(r, "id")
@@ -473,4 +485,15 @@ func (o *widgetOptionalID) UnmarshalJSON(b []byte) error {
 	}
 	o.v = &id
 	return nil
+}
+
+// kbEnabledFor reports whether the widget should offer its knowledge base to
+// this caller: there is one, it is enabled, and it is public or they are
+// signed in.
+func (h *WidgetHandler) kbEnabledFor(r *http.Request) bool {
+	if h.DB == nil {
+		return false
+	}
+	kb := KBSettingsFromStore(r.Context(), h.store)
+	return kb.KnowledgeBaseEnabled && (kb.Public || h.signedIn(r))
 }

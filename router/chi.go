@@ -66,6 +66,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	// Per-client-IP limits on the unauthenticated guest endpoints.
 	guestLimit := middleware.NewGuestRateLimiter(cfg.GuestRateLimit)
 	kbH := handlers.NewKBHandler(cfg.DB)
+	kbGuard := kbPublicGuard(esc)
 	retentionH := handlers.NewRetentionHandler(services.NewRetentionService(cfg.DB, s))
 	macroSvc := services.NewMacroService(cfg.DB, nil, esc.Access)
 	macroSvc.Tickets = ticketSvc
@@ -149,10 +150,14 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 			r.Get("/guest/tickets/{token}", guestH.Show)
 			r.Post("/guest/tickets/{token}/rate", satH.GuestRate)
 
-			// Public knowledge base (published only).
-			r.Get("/kb/articles", kbH.ListArticles)
-			r.Get("/kb/categories", kbH.ListCategories)
-			r.Get("/kb/articles/{slug}", kbH.ShowArticle)
+			// Public knowledge base (published only), behind the KB enabled
+			// and public settings.
+			r.Group(func(r chi.Router) {
+				r.Use(kbGuard)
+				r.Get("/kb/articles", kbH.ListArticles)
+				r.Get("/kb/categories", kbH.ListCategories)
+				r.Get("/kb/articles/{slug}", kbH.ShowArticle)
+			})
 		})
 
 		if cfg.EnableNewsletters {

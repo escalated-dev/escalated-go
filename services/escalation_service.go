@@ -170,7 +170,7 @@ func escalationClauses(conds []models.EscalationCondition) ([]string, []interfac
 			clauses = append(clauses, "created_at <= ?")
 			args = append(args, hoursAgo(toInt(c.Value)))
 		case "sla_breached":
-			clauses = append(clauses, "sla_breached = 1")
+			clauses = append(clauses, "sla_breached = TRUE")
 		case "department_id":
 			clauses = append(clauses, "department_id = ?")
 			args = append(args, toInt(c.Value))

@@ -75,6 +75,7 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 	// Per-client-IP limits on the unauthenticated guest endpoints.
 	guestLimit := middleware.NewGuestRateLimiter(cfg.GuestRateLimit)
 	kbH := handlers.NewKBHandler(cfg.DB)
+	kbGuard := kbPublicGuard(esc)
 	retentionH := handlers.NewRetentionHandler(services.NewRetentionService(cfg.DB, s))
 	macroSvc := services.NewMacroService(cfg.DB, nil, esc.Access)
 	macroSvc.Tickets = ticketSvc
@@ -127,9 +128,9 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 	mux.HandleFunc("POST "+prefix+"/api/guest/tickets/{token}/rate", satH.GuestRate)
 
 	// Public knowledge base (published only).
-	mux.HandleFunc("GET "+prefix+"/api/kb/articles", kbH.ListArticles)
-	mux.HandleFunc("GET "+prefix+"/api/kb/categories", kbH.ListCategories)
-	mux.HandleFunc("GET "+prefix+"/api/kb/articles/{slug}", kbH.ShowArticle)
+	mux.Handle("GET "+prefix+"/api/kb/articles", kbGuard(http.HandlerFunc(kbH.ListArticles)))
+	mux.Handle("GET "+prefix+"/api/kb/categories", kbGuard(http.HandlerFunc(kbH.ListCategories)))
+	mux.Handle("GET "+prefix+"/api/kb/articles/{slug}", kbGuard(http.HandlerFunc(kbH.ShowArticle)))
 
 	if cfg.EnableNewsletters {
 		mux.HandleFunc("GET "+prefix+"/n/o/{token}", newsletterH.OpenPixel)

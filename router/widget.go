@@ -6,6 +6,7 @@ import (
 	escalated "github.com/escalated-dev/escalated-go"
 	"github.com/escalated-dev/escalated-go/handlers"
 	"github.com/escalated-dev/escalated-go/middleware"
+	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/services"
 )
 
@@ -31,6 +32,9 @@ func newWidgetStack(esc *escalated.Escalated, ticketSvc *services.TicketService)
 
 	widget := handlers.NewWidgetHandler(cfg.Widget, s, ticketSvc)
 	widget.DB = cfg.DB
+	widget.SignedIn = func(r *http.Request) bool {
+		return handlers.WidgetCrossOrigin(r.Context()) == "" && !cfg.UserIDFunc(r).Empty()
+	}
 	chat := handlers.NewWidgetChatHandler(cfg.Widget, s,
 		services.NewChatSessionService(s, services.NewChatRoutingService(s), nil),
 		services.NewChatAvailabilityService(s))
@@ -65,5 +69,21 @@ func newWidgetStack(esc *escalated.Escalated, ticketSvc *services.TicketService)
 			{http.MethodPost, "/chat/sessions/{ref}/messages", chat.SendMessage},
 			{http.MethodPost, "/chat/sessions/{ref}/end", chat.EndChat},
 		},
+	}
+}
+
+// kbPublicGuard applies the knowledge_base_enabled / knowledge_base_public
+// settings to the public KB API: 404 when off, 403 for a signed-out caller
+// when private.
+func kbPublicGuard(esc *escalated.Escalated) func(http.Handler) http.Handler {
+	cfg := esc.Config
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			provider := func() models.KBSettings { return handlers.KBSettingsFromStore(r.Context(), esc.Store) }
+			signedIn := func(r *http.Request) bool {
+				return !cfg.UserIDFunc(r).Empty() || cfg.AgentCheck(r) || cfg.AdminCheck(r)
+			}
+			middleware.RequireKBPublic(provider, signedIn)(next).ServeHTTP(w, r)
+		})
 	}
 }

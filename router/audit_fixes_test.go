@@ -149,3 +149,45 @@ func TestAPITicketPatchGoesThroughTheLifecycle(t *testing.T) {
 		t.Errorf("status/priority activities = %d, want 2", acts)
 	}
 }
+
+// middleware.RequireKBEnabled/RequireKBPublic existed but were never mounted:
+// the public KB API and the widget served articles with the KB switched off
+// or private.
+func TestKnowledgeBaseSettingsAreEnforced(t *testing.T) {
+	f := newWidgetContractFixture(t, true)
+	ctx := context.Background()
+	set := func(k, v string) {
+		t.Helper()
+		if err := f.esc.Store.SetSetting(ctx, k, v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for name, h := range f.mounts() {
+		t.Run(name, func(t *testing.T) {
+			set("knowledge_base_enabled", "1")
+			set("knowledge_base_public", "1")
+			if rec := send(h, http.MethodGet, "/escalated/api/kb/articles", "", "", ""); rec.Code != http.StatusOK {
+				t.Fatalf("public KB: got %d", rec.Code)
+			}
+
+			set("knowledge_base_public", "0")
+			if rec := send(h, http.MethodGet, "/escalated/api/kb/articles", "", "", ""); rec.Code != http.StatusForbidden {
+				t.Errorf("private KB, signed out: got %d, want 403", rec.Code)
+			}
+			if rec, _ := widgetCall(t, h, http.MethodGet, "/articles/reset-password", nil); rec.Code != http.StatusForbidden {
+				t.Errorf("private KB, widget article: got %d, want 403", rec.Code)
+			}
+			if _, out := widgetCall(t, h, http.MethodGet, "/config", nil); out["kb_enabled"] != false {
+				t.Errorf("private KB: widget kb_enabled = %v, want false", out["kb_enabled"])
+			}
+
+			set("knowledge_base_enabled", "0")
+			if rec := send(h, http.MethodGet, "/escalated/api/kb/articles/reset-password", "", "", ""); rec.Code != http.StatusNotFound {
+				t.Errorf("disabled KB: got %d, want 404", rec.Code)
+			}
+			if rec, _ := widgetCall(t, h, http.MethodGet, "/articles?q=password", nil); rec.Code != http.StatusNotFound {
+				t.Errorf("disabled KB, widget search: got %d, want 404", rec.Code)
+			}
+		})
+	}
+}
