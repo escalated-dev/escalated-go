@@ -53,7 +53,9 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	attachH.AdminCheck = cfg.AdminCheck
 	attachH.UserID = cfg.UserIDFunc
 	autoH := handlers.NewAutomationHandler(cfg.DB, services.NewAutomationRunner(cfg.DB, nil, esc.Access))
-	escH := handlers.NewEscalationHandler(cfg.DB, services.NewEscalationService(cfg.DB, nil, esc.Access))
+	escSvc := services.NewEscalationService(cfg.DB, nil, esc.Access)
+	escSvc.Tickets = ticketSvc
+	escH := handlers.NewEscalationHandler(cfg.DB, escSvc)
 	satH := handlers.NewSatisfactionHandler(cfg.DB)
 	satH.UserID = cfg.UserIDFunc
 	capH := handlers.NewCapacityHandler(cfg.DB)
@@ -65,7 +67,9 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	guestLimit := middleware.NewGuestRateLimiter(cfg.GuestRateLimit)
 	kbH := handlers.NewKBHandler(cfg.DB)
 	retentionH := handlers.NewRetentionHandler(services.NewRetentionService(cfg.DB, s))
-	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil, esc.Access))
+	macroSvc := services.NewMacroService(cfg.DB, nil, esc.Access)
+	macroSvc.Tickets = ticketSvc
+	macroH := handlers.NewMacroHandler(cfg.DB, macroSvc)
 	cannedH := handlers.NewCannedResponseHandler(cfg.DB, services.NewCannedResponseService(cfg.DB, nil))
 	articleH := handlers.NewArticleHandler(cfg.DB, services.NewArticleService(cfg.DB, nil))
 	webhookH := handlers.NewWebhookHandler(cfg.DB, webhookDispatcher)

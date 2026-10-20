@@ -26,6 +26,12 @@ type EscalationService struct {
 	Access *ticketaccess.Access
 	DB     *sql.DB
 	Logger *log.Logger
+
+	// Tickets, when set, carries status, priority, assignment and department
+	// actions through the ticket service, so they record activity and fire
+	// webhooks and workflows (Laravel routes these through TicketService).
+	// The routers set it; when nil the actions write the row directly.
+	Tickets *TicketService
 }
 
 // NewEscalationService constructs a service with the given DB and a logger
@@ -193,6 +199,23 @@ func (s *EscalationService) executeActions(rule models.EscalationRule, ticketID 
 }
 
 func (s *EscalationService) runAction(action models.EscalationAction, ticketID int64) error {
+	if s.Tickets != nil {
+		ctx := context.Background()
+		switch action.Type {
+		case "escalate":
+			return s.Tickets.ChangeStatus(ctx, ticketID, models.StatusEscalated, nil)
+		case "change_priority":
+			priority, ok := PriorityFromValue(action.Value)
+			if !ok {
+				return ErrInvalidPriority
+			}
+			return s.Tickets.ChangePriority(ctx, ticketID, priority, nil)
+		case "assign_to":
+			return s.Tickets.Assign(ctx, ticketID, models.UserID(toString(action.Value)), nil)
+		case "change_department":
+			return s.Tickets.ChangeDepartment(ctx, ticketID, int64(toInt(action.Value)), nil)
+		}
+	}
 	switch action.Type {
 	case "escalate":
 		_, err := s.DB.Exec(

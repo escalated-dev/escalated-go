@@ -107,3 +107,45 @@ func TestTicketRateIsLimitedToTheRequester(t *testing.T) {
 		t.Errorf("rated_by_id = %q, want %q", ratedBy, customerB)
 	}
 }
+
+// PATCH /api/tickets/{id} wrote status and priority straight to the row: any
+// integer, no activity, no resolved_at, no status/priority events.
+func TestAPITicketPatchGoesThroughTheLifecycle(t *testing.T) {
+	f := newGuardFixture(t)
+	path := "/escalated/api/tickets/" + strconv.FormatInt(f.ticketOfB, 10)
+	h := f.mounts()["chi"]
+
+	status, priority := f.statusAndPriority(t)
+	for _, body := range []string{`{"status":99}`, `{"priority":17}`, `{"status":"nonsense","subject":"x"}`} {
+		if rec := send(h, http.MethodPatch, path, "", "agent", body); rec.Code != http.StatusUnprocessableEntity {
+			t.Errorf("PATCH %s: got %d, want 422: %s", body, rec.Code, rec.Body.String())
+		}
+	}
+	if s, p := f.statusAndPriority(t); s != status || p != priority {
+		t.Fatalf("invalid PATCH changed status/priority to %d/%d", s, p)
+	}
+
+	rec := send(h, http.MethodPatch, path, "", "agent", `{"status":"resolved","priority":3,"subject":"Renamed"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PATCH: got %d: %s", rec.Code, rec.Body.String())
+	}
+	if s, p := f.statusAndPriority(t); s != models.StatusResolved || p != models.PriorityUrgent {
+		t.Fatalf("status/priority = %d/%d, want resolved/urgent", s, p)
+	}
+	var resolvedAt *string
+	var subject string
+	if err := f.db.QueryRow(sqldialect.Rebind(f.db, `SELECT CAST(resolved_at AS TEXT), subject FROM escalated_tickets WHERE id = ?`), f.ticketOfB).Scan(&resolvedAt, &subject); err != nil {
+		t.Fatal(err)
+	}
+	if resolvedAt == nil || subject != "Renamed" {
+		t.Errorf("resolved_at = %v, subject = %q", resolvedAt, subject)
+	}
+	var acts int
+	if err := f.db.QueryRow(sqldialect.Rebind(f.db, `SELECT COUNT(*) FROM escalated_ticket_activities WHERE ticket_id = ? AND action IN (?, ?)`),
+		f.ticketOfB, models.ActionStatusChanged, models.ActionPriorityChanged).Scan(&acts); err != nil {
+		t.Fatal(err)
+	}
+	if acts != 2 {
+		t.Errorf("status/priority activities = %d, want 2", acts)
+	}
+}
