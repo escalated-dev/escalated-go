@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- The bundled widget is now `@escalated-dev/escalated` 0.12.3. It keeps its script settings when `embed.js` is placed in the page `<head>`, and Enter no longer picks a stale mention suggestion.
+
 ### Security
 - Attachment downloads are always `attachment` / `application/octet-stream`
   with `X-Content-Type-Options: nosniff`, `Cache-Control: private, no-store`
