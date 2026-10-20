@@ -19,12 +19,16 @@ const (
 	GuestTicketScope GuestScope = "ticket"
 	// GuestReplyScope counts guest replies.
 	GuestReplyScope GuestScope = "reply"
+	// GuestRequestScope counts every request to a guest route (the widget's
+	// general budget, Laravel's escalated-guest-requests).
+	GuestRequestScope GuestScope = "request"
 )
 
 const (
 	guestRateLimitWindow  = time.Minute
 	defaultGuestTickets   = 5
 	defaultGuestReplies   = 10
+	defaultGuestRequests  = 60
 	memoryStoreSweepAfter = 1000
 )
 
@@ -62,6 +66,10 @@ type GuestRateLimitConfig struct {
 	// means the default, 10.
 	RepliesPerMinute int
 
+	// RequestsPerMinute is the general budget for every request to a guest
+	// route (the widget routes), per IP per minute. Zero means the default, 60.
+	RequestsPerMinute int
+
 	// Store holds the counters. Nil means an in-memory store, per process.
 	Store GuestRateLimitStore
 
@@ -91,41 +99,66 @@ func NewGuestRateLimiter(cfg GuestRateLimitConfig) *GuestRateLimiter {
 // handler. Wrap the handler that checks a guest token, rather than the other
 // way round, so requests with a wrong token are counted too.
 func (l *GuestRateLimiter) Middleware(scope GuestScope) func(http.Handler) http.Handler {
-	limit := l.limitFor(scope)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if l.cfg.Disabled {
+			if l.Allow(w, r, scope) {
 				next.ServeHTTP(w, r)
-				return
 			}
-
-			key := "escalated:guest:" + string(scope) + ":" + l.clientIP(r)
-			count, resetIn, err := l.store.Hit(r.Context(), key, guestRateLimitWindow)
-			if err != nil {
-				// A store outage must not take the guest endpoints down with it.
-				log.Printf("escalated: guest rate limit store: %v", err)
-				next.ServeHTTP(w, r)
-				return
-			}
-
-			if count > limit {
-				retryAfter := int((resetIn + time.Second - 1) / time.Second)
-				if retryAfter < 1 {
-					retryAfter = 1
-				}
-				w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusTooManyRequests)
-				_, _ = w.Write([]byte(`{"error":"Too many requests. Please try again later."}`))
-				return
-			}
-
-			next.ServeHTTP(w, r)
 		})
 	}
 }
 
+// Allow counts one request against each scope in order and reports whether
+// it may proceed. When a scope is over its limit it answers 429 with
+// Retry-After and returns false; the caller must not write anything else.
+func (l *GuestRateLimiter) Allow(w http.ResponseWriter, r *http.Request, scopes ...GuestScope) bool {
+	if l == nil || l.cfg.Disabled {
+		return true
+	}
+	ip := l.clientIP(r)
+	for _, scope := range scopes {
+		key := "escalated:guest:" + string(scope) + ":" + ip
+		count, resetIn, err := l.store.Hit(r.Context(), key, guestRateLimitWindow)
+		if err != nil {
+			// A store outage must not take the guest endpoints down with it.
+			log.Printf("escalated: guest rate limit store: %v", err)
+			continue
+		}
+
+		if count > l.limitFor(scope) {
+			retryAfter := int((resetIn + time.Second - 1) / time.Second)
+			if retryAfter < 1 {
+				retryAfter = 1
+			}
+			w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = w.Write([]byte(`{"error":"Too many requests. Please try again later.","message":"Too many requests. Please try again later."}`))
+			return false
+		}
+	}
+	return true
+}
+
+// WithRequestsPerMinute returns a limiter sharing this one's store, client-IP
+// extractor and other limits, with the general request budget set to n.
+// n <= 0 returns l unchanged.
+func (l *GuestRateLimiter) WithRequestsPerMinute(n int) *GuestRateLimiter {
+	if n <= 0 {
+		return l
+	}
+	cfg := l.cfg
+	cfg.RequestsPerMinute = n
+	return &GuestRateLimiter{cfg: cfg, store: l.store}
+}
+
 func (l *GuestRateLimiter) limitFor(scope GuestScope) int {
+	if scope == GuestRequestScope {
+		if l.cfg.RequestsPerMinute > 0 {
+			return l.cfg.RequestsPerMinute
+		}
+		return defaultGuestRequests
+	}
 	if scope == GuestReplyScope {
 		if l.cfg.RepliesPerMinute > 0 {
 			return l.cfg.RepliesPerMinute

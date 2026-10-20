@@ -62,8 +62,11 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 	attachH.AdminCheck = cfg.AdminCheck
 	attachH.UserID = cfg.UserIDFunc
 	autoH := handlers.NewAutomationHandler(cfg.DB, services.NewAutomationRunner(cfg.DB, nil, esc.Access))
-	escH := handlers.NewEscalationHandler(cfg.DB, services.NewEscalationService(cfg.DB, nil, esc.Access))
+	escSvc := services.NewEscalationService(cfg.DB, nil, esc.Access)
+	escSvc.Tickets = ticketSvc
+	escH := handlers.NewEscalationHandler(cfg.DB, escSvc)
 	satH := handlers.NewSatisfactionHandler(cfg.DB)
+	satH.UserID = cfg.UserIDFunc
 	capH := handlers.NewCapacityHandler(cfg.DB)
 	linkH := handlers.NewTicketLinkHandler(cfg.DB)
 	scH := handlers.NewSideConversationHandler(cfg.DB)
@@ -72,8 +75,11 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 	// Per-client-IP limits on the unauthenticated guest endpoints.
 	guestLimit := middleware.NewGuestRateLimiter(cfg.GuestRateLimit)
 	kbH := handlers.NewKBHandler(cfg.DB)
+	kbGuard := kbPublicGuard(esc)
 	retentionH := handlers.NewRetentionHandler(services.NewRetentionService(cfg.DB, s))
-	macroH := handlers.NewMacroHandler(cfg.DB, services.NewMacroService(cfg.DB, nil, esc.Access))
+	macroSvc := services.NewMacroService(cfg.DB, nil, esc.Access)
+	macroSvc.Tickets = ticketSvc
+	macroH := handlers.NewMacroHandler(cfg.DB, macroSvc)
 	cannedH := handlers.NewCannedResponseHandler(cfg.DB, services.NewCannedResponseService(cfg.DB, nil))
 	articleH := handlers.NewArticleHandler(cfg.DB, services.NewArticleService(cfg.DB, nil))
 	webhookH := handlers.NewWebhookHandler(cfg.DB, webhookDispatcher)
@@ -122,9 +128,9 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 	mux.HandleFunc("POST "+prefix+"/api/guest/tickets/{token}/rate", satH.GuestRate)
 
 	// Public knowledge base (published only).
-	mux.HandleFunc("GET "+prefix+"/api/kb/articles", kbH.ListArticles)
-	mux.HandleFunc("GET "+prefix+"/api/kb/categories", kbH.ListCategories)
-	mux.HandleFunc("GET "+prefix+"/api/kb/articles/{slug}", kbH.ShowArticle)
+	mux.Handle("GET "+prefix+"/api/kb/articles", kbGuard(http.HandlerFunc(kbH.ListArticles)))
+	mux.Handle("GET "+prefix+"/api/kb/categories", kbGuard(http.HandlerFunc(kbH.ListCategories)))
+	mux.Handle("GET "+prefix+"/api/kb/articles/{slug}", kbGuard(http.HandlerFunc(kbH.ShowArticle)))
 
 	if cfg.EnableNewsletters {
 		mux.HandleFunc("GET "+prefix+"/n/o/{token}", newsletterH.OpenPixel)

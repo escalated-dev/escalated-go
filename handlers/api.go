@@ -321,24 +321,90 @@ func (h *APIHandler) UpdateTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if v, ok := updates["subject"].(string); ok {
-		t.Subject = v
+	// Validate everything before writing anything, so a bad field never leaves
+	// a half-applied update behind.
+	errs := map[string][]string{}
+	// status and priority take the number or the slug ("resolved", "high").
+	enumField := func(key string, parse func(any) (int, bool), msg string) *int {
+		raw, ok := updates[key]
+		if !ok || raw == nil {
+			return nil
+		}
+		v, valid := parse(raw)
+		if !valid {
+			errs[key] = []string{msg}
+			return nil
+		}
+		return &v
 	}
-	if v, ok := updates["description"].(string); ok {
-		t.Description = v
+	strField := func(key string) *string {
+		raw, ok := updates[key]
+		if !ok || raw == nil {
+			return nil
+		}
+		v, isStr := raw.(string)
+		if !isStr {
+			errs[key] = []string{"The " + key + " must be a string."}
+			return nil
+		}
+		return &v
 	}
-	if v, ok := updates["status"].(float64); ok {
-		t.Status = int(v)
+	status := enumField("status", services.StatusFromValue, "The selected status is invalid.")
+	priority := enumField("priority", services.PriorityFromValue, "The selected priority is invalid.")
+	subject, description, ticketType := strField("subject"), strField("description"), strField("ticket_type")
+	var departmentID *int64
+	if raw, ok := updates["department_id"]; ok && raw != nil {
+		f, isNum := raw.(float64)
+		if !isNum || f != float64(int64(f)) {
+			errs["department_id"] = []string{"The selected department is invalid."}
+		} else if d, err := h.store.GetDepartment(r.Context(), int64(f)); err != nil || d == nil {
+			errs["department_id"] = []string{"The selected department is invalid."}
+		} else {
+			v := int64(f)
+			departmentID = &v
+		}
 	}
-	if v, ok := updates["priority"].(float64); ok {
-		t.Priority = int(v)
-	}
-	if v, ok := updates["ticket_type"].(string); ok {
-		t.TicketType = v
+	if len(errs) > 0 {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{"message": "The given data was invalid.", "errors": errs})
+		return
 	}
 
-	if err := h.store.UpdateTicket(r.Context(), t); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	// Each change goes through the ticket service, so it records activity and
+	// fires the same webhooks and workflows (status_changed, resolved,
+	// priority_changed, department_changed, updated) as the agent screens.
+	var causer *models.UserID
+	if h.userID != nil {
+		if uid := h.userID(r); !uid.Empty() {
+			causer = &uid
+		}
+	}
+	ctx := r.Context()
+	if _, err := h.tickets.UpdateDetails(ctx, id, subject, description, ticketType, causer); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not update ticket"})
+		return
+	}
+	if status != nil && *status != t.Status {
+		if err := h.tickets.ChangeStatus(ctx, id, *status, causer); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not update ticket"})
+			return
+		}
+	}
+	if priority != nil {
+		if err := h.tickets.ChangePriority(ctx, id, *priority, causer); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not update ticket"})
+			return
+		}
+	}
+	if departmentID != nil {
+		if err := h.tickets.ChangeDepartment(ctx, id, *departmentID, causer); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not update ticket"})
+			return
+		}
+	}
+
+	t, err = h.store.GetTicket(ctx, id)
+	if err != nil || t == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not load ticket"})
 		return
 	}
 

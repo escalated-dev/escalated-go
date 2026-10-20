@@ -39,7 +39,7 @@ func TestEscalationClausesConditions(t *testing.T) {
 		"status = ?",
 		"priority = ?",
 		"assigned_to IS NULL",
-		"sla_breached = 1",
+		"sla_breached = TRUE",
 		"created_at <= ?",
 		"department_id = ?",
 	} {

@@ -52,6 +52,12 @@ type MacroService struct {
 	Access *ticketaccess.Access
 	DB     *sql.DB
 	Logger *log.Logger
+
+	// Tickets, when set, carries status, priority, assignment and department
+	// actions through the ticket service, so they record activity and fire
+	// webhooks and workflows (Laravel routes these through TicketService).
+	// The routers set it; when nil the actions write the row directly.
+	Tickets *TicketService
 }
 
 // NewMacroService constructs a service with the given DB and a logger
@@ -193,6 +199,9 @@ func (s *MacroService) runAction(action models.MacroAction, ticketID int64, agen
 	return s.runActionContext(context.Background(), action, ticketID, agentID)
 }
 func (s *MacroService) runActionContext(ctx context.Context, action models.MacroAction, ticketID int64, agentID models.UserID) error {
+	if handled, err := s.runViaTicketService(ctx, action, ticketID, agentID); handled {
+		return err
+	}
 	switch action.Type {
 	case "change_status", "set_status":
 		_, err := ticketaccess.ExecContext(ctx, s.DB,
@@ -265,4 +274,35 @@ func (s *MacroService) query(query string) string {
 		query = strings.ReplaceAll(query, "escalated_", s.Access.Prefix)
 	}
 	return sqldialect.Rebind(s.DB, query)
+}
+
+// runViaTicketService runs the actions the ticket service owns. handled is
+// false when there is no service or the action is not one of them.
+func (s *MacroService) runViaTicketService(ctx context.Context, action models.MacroAction, ticketID int64, agentID models.UserID) (handled bool, err error) {
+	if s.Tickets == nil {
+		return false, nil
+	}
+	var causer *models.UserID
+	if !agentID.Empty() {
+		causer = &agentID
+	}
+	switch action.Type {
+	case "change_status", "set_status":
+		status, ok := StatusFromValue(action.Value)
+		if !ok {
+			return true, ErrInvalidStatus
+		}
+		return true, s.Tickets.ChangeStatus(ctx, ticketID, status, causer)
+	case "change_priority", "set_priority":
+		priority, ok := PriorityFromValue(action.Value)
+		if !ok {
+			return true, ErrInvalidPriority
+		}
+		return true, s.Tickets.ChangePriority(ctx, ticketID, priority, causer)
+	case "assign":
+		return true, s.Tickets.Assign(ctx, ticketID, models.UserID(macroToString(action.Value)), causer)
+	case "set_department", "change_department", "department":
+		return true, s.Tickets.ChangeDepartment(ctx, ticketID, int64(macroToInt(action.Value)), causer)
+	}
+	return false, nil
 }

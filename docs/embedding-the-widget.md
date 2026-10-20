@@ -126,9 +126,14 @@ so treat it like a password. Unknown ids, and the guest token of a ticket that
 is not a chat, are 404.
 
 Validation errors are 422 `{message, errors: {field: [message]}}` (the
-original `error` key stays). Ticket and chat-start requests are limited to
-`WidgetConfig.RateLimitPerMin` (default 30) a minute per client IP; over the
-limit the answer is 429 with `Retry-After`.
+original `error` key stays). Every widget route counts against a general
+per-client-IP budget of `WidgetConfig.RateLimitPerMin` a minute (when zero,
+`Config.GuestRateLimit.RequestsPerMinute`, default 60). Ticket creation and chat
+start also count against the guest submission limit (default 5 a minute);
+chat messages, chat ratings and ticket lookups against the guest reply limit
+(default 10). Over a limit the answer is 429 with `Retry-After`. The widget
+uses `Config.GuestRateLimit`'s `ClientIP`, `Store` and `Disabled`, so behind a
+proxy set `ClientIP` or every visitor shares the proxy's budget.
 
 There is no mailbox verification in this backend, so `/config` sends
 `status_lookup_enabled: false` and no `guest_verification_required`: the

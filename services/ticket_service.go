@@ -179,6 +179,7 @@ func (ts *TicketService) Assign(ctx context.Context, ticketID int64, agentID mod
 	payload["agent_id"] = string(agentID)
 	ts.dispatchWebhook("ticket.assigned", payload)
 	ts.runWorkflows("ticket.assigned", t)
+	ts.emitUpdated(t)
 
 	return nil
 }
@@ -234,6 +235,7 @@ func (ts *TicketService) ChangeStatus(ctx context.Context, ticketID int64, newSt
 		ts.dispatchWebhook(event, payload)
 		ts.runWorkflows(event, t)
 	}
+	ts.emitUpdated(t)
 
 	return nil
 }

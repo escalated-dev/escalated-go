@@ -42,9 +42,10 @@ func (h *CustomerHandler) Index(w http.ResponseWriter, r *http.Request) {
 		t.PopulateComputed(nil)
 	}
 
-	_ = h.renderer.Render(w, r, "Customer/Tickets/Index", map[string]any{
+	_ = h.renderer.Render(w, r, "Escalated/Customer/Index", map[string]any{
 		"tickets": tickets,
 		"total":   total,
+		"filters": queryFilters(r),
 	})
 }
 
@@ -91,7 +92,7 @@ func (h *CustomerHandler) Show(w http.ResponseWriter, r *http.Request) {
 
 	t.PopulateComputed(replies)
 
-	_ = h.renderer.Render(w, r, "Customer/Tickets/Show", map[string]any{
+	_ = h.renderer.Render(w, r, "Escalated/Customer/Show", map[string]any{
 		"ticket":      t,
 		"replies":     replies,
 		"attachments": ticketAttachments,
@@ -175,4 +176,16 @@ func (h *CustomerHandler) Reply(w http.ResponseWriter, r *http.Request) {
 // uid is nobody.
 func requestedBy(t *models.Ticket, uid models.UserID) bool {
 	return !uid.Empty() && t.RequesterID != nil && *t.RequesterID == uid
+}
+
+// queryFilters echoes the list query string back as the "filters" prop the
+// ticket list pages read to pre-fill their filter controls.
+func queryFilters(r *http.Request) map[string]string {
+	out := map[string]string{}
+	for k, v := range r.URL.Query() {
+		if len(v) > 0 {
+			out[k] = v[0]
+		}
+	}
+	return out
 }
