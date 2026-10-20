@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strconv"
+	"strings"
 
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/store"
@@ -83,11 +83,75 @@ func (h *AttachmentHandler) Download(w http.ResponseWriter, r *http.Request) {
 	}
 	defer f.Close()
 
-	w.Header().Set("Content-Type", a.MimeType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s"`, a.OriginalFilename))
-	w.Header().Set("Content-Length", strconv.FormatInt(a.Size, 10))
+	// Attachments are user-supplied (inbound mail parts carry the sender's
+	// MIME type), so they are never rendered on the app origin: always a
+	// download, always an opaque type, and never sniffed. Mirrors Laravel's
+	// AttachmentController.
+	name := safeDownloadFilename(a.OriginalFilename)
+	hdr := w.Header()
+	hdr.Set("Content-Type", "application/octet-stream")
+	hdr.Set("Content-Disposition", contentDispositionAttachment(name))
+	hdr.Set("X-Content-Type-Options", "nosniff")
+	hdr.Set("Cache-Control", "private, no-store, max-age=0")
+	hdr.Set("Referrer-Policy", "no-referrer")
+	hdr.Set("Content-Security-Policy", "default-src 'none'; sandbox")
 
-	http.ServeContent(w, r, a.OriginalFilename, a.CreatedAt, f)
+	// ServeContent sets Content-Length itself; the name passed here has no
+	// effect because Content-Type is already set.
+	http.ServeContent(w, r, name, a.CreatedAt, f)
+}
+
+// safeDownloadFilename keeps only the base name and drops control characters,
+// falling back to "attachment" when nothing is left.
+func safeDownloadFilename(name string) string {
+	name = strings.ReplaceAll(name, "\\", "/")
+	if i := strings.LastIndex(name, "/"); i >= 0 {
+		name = name[i+1:]
+	}
+	name = strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f {
+			return -1
+		}
+		return r
+	}, name)
+	name = strings.TrimSpace(name)
+	if name == "" || name == "." || name == ".." {
+		return "attachment"
+	}
+	return name
+}
+
+// contentDispositionAttachment builds an RFC 6266 "attachment" header with an
+// ASCII-only quoted filename (quotes, backslashes and non-ASCII replaced) and
+// an RFC 5987 filename* carrying the exact UTF-8 name.
+func contentDispositionAttachment(name string) string {
+	var ascii strings.Builder
+	for _, r := range name {
+		switch {
+		case r == '"' || r == '\\' || r == ';' || r == '%':
+			ascii.WriteByte('_')
+		case r < 0x20 || r >= 0x7f:
+			ascii.WriteByte('_')
+		default:
+			ascii.WriteRune(r)
+		}
+	}
+	return fmt.Sprintf(`attachment; filename="%s"; filename*=UTF-8''%s`, ascii.String(), rfc5987Escape(name))
+}
+
+// rfc5987Escape percent-encodes everything outside RFC 5987's attr-char set.
+func rfc5987Escape(s string) string {
+	const attrChars = "!#$&+-.^_`|~"
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || strings.IndexByte(attrChars, c) >= 0 {
+			b.WriteByte(c)
+			continue
+		}
+		fmt.Fprintf(&b, "%%%02X", c)
+	}
+	return b.String()
 }
 
 func (h *AttachmentHandler) isStaff(r *http.Request) bool {

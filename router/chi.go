@@ -55,6 +55,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	autoH := handlers.NewAutomationHandler(cfg.DB, services.NewAutomationRunner(cfg.DB, nil, esc.Access))
 	escH := handlers.NewEscalationHandler(cfg.DB, services.NewEscalationService(cfg.DB, nil, esc.Access))
 	satH := handlers.NewSatisfactionHandler(cfg.DB)
+	satH.UserID = cfg.UserIDFunc
 	capH := handlers.NewCapacityHandler(cfg.DB)
 	linkH := handlers.NewTicketLinkHandler(cfg.DB)
 	scH := handlers.NewSideConversationHandler(cfg.DB)
