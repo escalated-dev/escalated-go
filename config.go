@@ -159,6 +159,9 @@ type Config struct {
 	// GuestRateLimit caps the unauthenticated guest endpoints per client IP:
 	// ticket submissions (POST /api/guest/tickets) at 5 a minute and guest
 	// replies at 10 a minute by default, answering 429 with Retry-After. The
+	// widget routes use the same limits plus a general request budget
+	// (RequestsPerMinute, default 60; WidgetConfig.RateLimitPerMin overrides
+	// it for the widget). The
 	// zero value is enabled with those defaults and an in-memory store; set
 	// Store for a counter shared between instances. Behind a proxy, every guest
 	// shares the proxy's address unless a trusted real-IP middleware runs first

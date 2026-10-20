@@ -5,6 +5,7 @@ import (
 
 	escalated "github.com/escalated-dev/escalated-go"
 	"github.com/escalated-dev/escalated-go/handlers"
+	"github.com/escalated-dev/escalated-go/middleware"
 	"github.com/escalated-dev/escalated-go/services"
 )
 
@@ -33,6 +34,13 @@ func newWidgetStack(esc *escalated.Escalated, ticketSvc *services.TicketService)
 	chat := handlers.NewWidgetChatHandler(cfg.Widget, s,
 		services.NewChatSessionService(s, services.NewChatRoutingService(s), nil),
 		services.NewChatAvailabilityService(s))
+
+	// Every widget route is throttled per client IP with the guest limiter
+	// config (ClientIP, Store, Disabled), so behind a trusted proxy each
+	// visitor gets their own budget instead of sharing the proxy's.
+	limiter := middleware.NewGuestRateLimiter(cfg.GuestRateLimit).WithRequestsPerMinute(cfg.Widget.RateLimitPerMin)
+	widget.Limiter = limiter
+	chat.Limiter = limiter
 
 	cors := handlers.WidgetCORS(cfg.Widget, s)
 	return widgetStack{

@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/escalated-dev/escalated-go/middleware"
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/services"
 	"github.com/escalated-dev/escalated-go/store"
@@ -28,7 +29,10 @@ type WidgetChatHandler struct {
 	store        store.Store
 	sessions     *services.ChatSessionService
 	availability *services.ChatAvailabilityService
-	limiter      *rateLimiter
+
+	// Limiter throttles the chat routes per client IP; see
+	// WidgetHandler.Limiter.
+	Limiter *middleware.GuestRateLimiter
 
 	// AgentName, when set, returns the display name of an agent for the
 	// widget's chat transcript. When nil (or it returns ""), agents show as
@@ -44,12 +48,15 @@ func NewWidgetChatHandler(cfg WidgetConfig, s store.Store, cs *services.ChatSess
 		store:        s,
 		sessions:     cs,
 		availability: avail,
-		limiter:      newWidgetRateLimiter(cfg),
+		Limiter:      newWidgetRateLimiter(cfg),
 	}
 }
 
 // Availability handles GET /widget/chat/availability.
 func (h *WidgetChatHandler) Availability(w http.ResponseWriter, r *http.Request) {
+	if !h.rateLimit(w, r) {
+		return
+	}
 	if !h.config.Enabled {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "widget is disabled"})
 		return
@@ -84,18 +91,18 @@ func (h *WidgetChatHandler) StartChat(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "widget is disabled"})
 		return
 	}
-	if !h.rateLimit(w, r) {
+	if !h.rateLimit(w, r, middleware.GuestTicketScope) {
 		return
 	}
 
 	var in struct {
-		Name         string          `json:"name"`
-		Email        string          `json:"email"`
-		Subject      string          `json:"subject"`
-		Message      string          `json:"message"`
-		PageURL      string          `json:"page_url"`
-		DepartmentID *int64          `json:"department_id"`
-		Metadata     json.RawMessage `json:"metadata"`
+		Name         string           `json:"name"`
+		Email        string           `json:"email"`
+		Subject      string           `json:"subject"`
+		Message      string           `json:"message"`
+		PageURL      string           `json:"page_url"`
+		DepartmentID widgetOptionalID `json:"department_id"`
+		Metadata     json.RawMessage  `json:"metadata"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body", "message": "Invalid request body."})
@@ -106,7 +113,7 @@ func (h *WidgetChatHandler) StartChat(w http.ResponseWriter, r *http.Request) {
 		writeWidgetValidation(w, "name and email are required", missing)
 		return
 	}
-	if !widgetDepartmentValid(r, h.store, in.DepartmentID) {
+	if !widgetDepartmentValid(r, h.store, in.DepartmentID.Ptr()) {
 		writeWidgetValidation(w, "the selected department is invalid", map[string][]string{
 			"department_id": {"The selected department is invalid."},
 		})
@@ -126,7 +133,7 @@ func (h *WidgetChatHandler) StartChat(w http.ResponseWriter, r *http.Request) {
 		PageURL:      in.PageURL,
 		VisitorIP:    r.RemoteAddr,
 		VisitorUA:    r.UserAgent(),
-		DepartmentID: in.DepartmentID,
+		DepartmentID: in.DepartmentID.Ptr(),
 		Metadata:     metadata,
 	})
 	if err != nil {
@@ -156,6 +163,9 @@ func (h *WidgetChatHandler) StartChat(w http.ResponseWriter, r *http.Request) {
 // (public replies, oldest first, the latest 100) plus agent and ended state.
 // typing is always null: agent typing is broadcast, not stored.
 func (h *WidgetChatHandler) Messages(w http.ResponseWriter, r *http.Request) {
+	if !h.rateLimit(w, r) {
+		return
+	}
 	ticket, session, ok := h.chatByID(w, r)
 	if !ok {
 		return
@@ -179,6 +189,9 @@ func (h *WidgetChatHandler) Messages(w http.ResponseWriter, r *http.Request) {
 
 // PostMessage handles POST /widget/chat/{id}/messages with {body}.
 func (h *WidgetChatHandler) PostMessage(w http.ResponseWriter, r *http.Request) {
+	if !h.rateLimit(w, r, middleware.GuestReplyScope) {
+		return
+	}
 	_, session, ok := h.chatByID(w, r)
 	if !ok {
 		return
@@ -193,6 +206,9 @@ func (h *WidgetChatHandler) PostMessage(w http.ResponseWriter, r *http.Request) 
 // Typing handles POST /widget/chat/{id}/typing - the visitor's typing
 // indicator, broadcast to agents.
 func (h *WidgetChatHandler) Typing(w http.ResponseWriter, r *http.Request) {
+	if !h.rateLimit(w, r) {
+		return
+	}
 	_, session, ok := h.chatByID(w, r)
 	if !ok {
 		return
@@ -207,6 +223,9 @@ func (h *WidgetChatHandler) Typing(w http.ResponseWriter, r *http.Request) {
 
 // End handles POST /widget/chat/{id}/end.
 func (h *WidgetChatHandler) End(w http.ResponseWriter, r *http.Request) {
+	if !h.rateLimit(w, r) {
+		return
+	}
 	_, session, ok := h.chatByID(w, r)
 	if !ok {
 		return
@@ -225,6 +244,9 @@ func (h *WidgetChatHandler) End(w http.ResponseWriter, r *http.Request) {
 // Rate handles POST /widget/chat/{id}/rate with {rating: 1-5, comment?}. Only
 // an ended chat can be rated, once.
 func (h *WidgetChatHandler) Rate(w http.ResponseWriter, r *http.Request) {
+	if !h.rateLimit(w, r, middleware.GuestReplyScope) {
+		return
+	}
 	_, session, ok := h.chatByID(w, r)
 	if !ok {
 		return
@@ -263,6 +285,9 @@ func (h *WidgetChatHandler) Rate(w http.ResponseWriter, r *http.Request) {
 
 // SendMessage handles POST /widget/chat/sessions/{ref}/messages.
 func (h *WidgetChatHandler) SendMessage(w http.ResponseWriter, r *http.Request) {
+	if !h.rateLimit(w, r, middleware.GuestReplyScope) {
+		return
+	}
 	if !h.config.Enabled {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "widget is disabled"})
 		return
@@ -307,6 +332,9 @@ func (h *WidgetChatHandler) send(w http.ResponseWriter, r *http.Request, session
 
 // EndChat handles POST /widget/chat/sessions/{ref}/end.
 func (h *WidgetChatHandler) EndChat(w http.ResponseWriter, r *http.Request) {
+	if !h.rateLimit(w, r) {
+		return
+	}
 	if !h.config.Enabled {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "widget is disabled"})
 		return
@@ -453,6 +481,6 @@ func (h *WidgetChatHandler) findSessionByRef(r *http.Request, ref, token string)
 	return h.store.GetChatSessionByTicket(r.Context(), t.ID)
 }
 
-func (h *WidgetChatHandler) rateLimit(w http.ResponseWriter, r *http.Request) bool {
-	return widgetAllow(w, r, h.limiter)
+func (h *WidgetChatHandler) rateLimit(w http.ResponseWriter, r *http.Request, scopes ...middleware.GuestScope) bool {
+	return widgetAllow(w, r, h.Limiter, scopes...)
 }

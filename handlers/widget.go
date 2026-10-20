@@ -3,20 +3,19 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"html"
-	"net"
 	"net/http"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
-	"time"
 	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/escalated-dev/escalated-go/internal/sqldialect"
+	"github.com/escalated-dev/escalated-go/middleware"
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/services"
 	"github.com/escalated-dev/escalated-go/store"
@@ -40,8 +39,14 @@ type WidgetConfig struct {
 	// any subdomain but not the apex. A bare "*" is ignored. Empty (the
 	// default) grants no cross-origin access. Admins can add more through the
 	// widget_allowed_origins setting. Enforced by WidgetCORS.
-	AllowedOrigins  string `json:"allowed_origins,omitempty"`
-	RateLimitPerMin int    `json:"-"`
+	AllowedOrigins string `json:"allowed_origins,omitempty"`
+	// RateLimitPerMin is the general per-client-IP budget for every widget
+	// route, a minute. Zero means Config.GuestRateLimit.RequestsPerMinute
+	// (default 60, Laravel's guest_rate_limits.requests_per_minute). Ticket
+	// creation and chat start also count against the guest submission limit
+	// (default 5), chat messages, ratings and lookups against the guest reply
+	// limit (default 10).
+	RateLimitPerMin int `json:"-"`
 }
 
 // DefaultWidgetConfig returns a widget config with sensible defaults.
@@ -49,13 +54,12 @@ type WidgetConfig struct {
 // variable (empty when unset).
 func DefaultWidgetConfig() WidgetConfig {
 	return WidgetConfig{
-		Enabled:         false,
-		Title:           "Help Center",
-		Subtitle:        "How can we help you?",
-		PrimaryColor:    "#4F46E5",
-		Position:        "bottom-right",
-		AllowedOrigins:  os.Getenv("ESCALATED_WIDGET_ALLOWED_ORIGINS"),
-		RateLimitPerMin: 30,
+		Enabled:        false,
+		Title:          "Help Center",
+		Subtitle:       "How can we help you?",
+		PrimaryColor:   "#4F46E5",
+		Position:       "bottom-right",
+		AllowedOrigins: os.Getenv("ESCALATED_WIDGET_ALLOWED_ORIGINS"),
 	}
 }
 
@@ -64,7 +68,12 @@ type WidgetHandler struct {
 	config  WidgetConfig
 	store   store.Store
 	tickets *services.TicketService
-	limiter *rateLimiter
+
+	// Limiter throttles the widget routes per client IP. The constructor gives
+	// it an in-memory limiter keyed on RemoteAddr; the routers replace it with
+	// one built from Config.GuestRateLimit, so the widget shares the guest
+	// routes' client-IP extractor, store and Disabled switch.
+	Limiter *middleware.GuestRateLimiter
 
 	// DB is the database holding the knowledge base (escalated_articles).
 	// When nil the widget has no knowledge base: /config reports
@@ -79,22 +88,15 @@ func NewWidgetHandler(cfg WidgetConfig, s store.Store, ts *services.TicketServic
 		config:  cfg,
 		store:   s,
 		tickets: ts,
-		limiter: newWidgetRateLimiter(cfg),
+		Limiter: newWidgetRateLimiter(cfg),
 	}
 }
 
-// widgetRateLimitWindow is the window RateLimitPerMin counts over, shared by
-// the ticket and chat limiters.
-const widgetRateLimitWindow = time.Minute
-
-// newWidgetRateLimiter returns the per-client-IP limiter for the widget
-// endpoints: RateLimitPerMin requests a minute, 30 when unset.
-func newWidgetRateLimiter(cfg WidgetConfig) *rateLimiter {
-	limit := cfg.RateLimitPerMin
-	if limit <= 0 {
-		limit = 30
-	}
-	return newRateLimiter(limit, widgetRateLimitWindow)
+// newWidgetRateLimiter is the limiter a handler built without the routers
+// uses: in memory, keyed on RemoteAddr, with RateLimitPerMin as the request
+// budget.
+func newWidgetRateLimiter(cfg WidgetConfig) *middleware.GuestRateLimiter {
+	return middleware.NewGuestRateLimiter(middleware.GuestRateLimitConfig{RequestsPerMinute: cfg.RateLimitPerMin})
 }
 
 // Config handles GET /widget/config - returns public widget configuration.
@@ -106,6 +108,9 @@ func newWidgetRateLimiter(cfg WidgetConfig) *rateLimiter {
 // status_lookup_enabled is false and guest_verification_required is never
 // sent: the widget hides its Status tab.
 func (h *WidgetHandler) Config(w http.ResponseWriter, r *http.Request) {
+	if !h.rateLimit(w, r) {
+		return
+	}
 	if !h.config.Enabled {
 		writeJSON(w, http.StatusForbidden, map[string]any{
 			"enabled": false,
@@ -267,17 +272,17 @@ func (h *WidgetHandler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "widget is disabled"})
 		return
 	}
-	if !h.rateLimit(w, r) {
+	if !h.rateLimit(w, r, middleware.GuestTicketScope) {
 		return
 	}
 
 	var in struct {
-		Name         string          `json:"name"`
-		Email        string          `json:"email"`
-		Subject      string          `json:"subject"`
-		Description  string          `json:"description"`
-		DepartmentID *int64          `json:"department_id"`
-		Metadata     json.RawMessage `json:"metadata"`
+		Name         string           `json:"name"`
+		Email        string           `json:"email"`
+		Subject      string           `json:"subject"`
+		Description  string           `json:"description"`
+		DepartmentID widgetOptionalID `json:"department_id"`
+		Metadata     json.RawMessage  `json:"metadata"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body", "message": "Invalid request body."})
@@ -289,7 +294,7 @@ func (h *WidgetHandler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 		writeWidgetValidation(w, "email, subject, and description are required", missing)
 		return
 	}
-	if !widgetDepartmentValid(r, h.store, in.DepartmentID) {
+	if !widgetDepartmentValid(r, h.store, in.DepartmentID.Ptr()) {
 		writeWidgetValidation(w, "the selected department is invalid", map[string][]string{
 			"department_id": {"The selected department is invalid."},
 		})
@@ -306,7 +311,7 @@ func (h *WidgetHandler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 		Description:  in.Description,
 		GuestName:    &in.Name,
 		GuestEmail:   &in.Email,
-		DepartmentID: in.DepartmentID,
+		DepartmentID: in.DepartmentID.Ptr(),
 		Metadata:     widgetMetadataJSON(metadata),
 	})
 	if err != nil {
@@ -328,7 +333,7 @@ func (h *WidgetHandler) LookupTicket(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "widget is disabled"})
 		return
 	}
-	if !h.rateLimit(w, r) {
+	if !h.rateLimit(w, r, middleware.GuestReplyScope) {
 		return
 	}
 
@@ -369,24 +374,14 @@ func (h *WidgetHandler) LookupTicket(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *WidgetHandler) rateLimit(w http.ResponseWriter, r *http.Request) bool {
-	return widgetAllow(w, r, h.limiter)
+func (h *WidgetHandler) rateLimit(w http.ResponseWriter, r *http.Request, scopes ...middleware.GuestScope) bool {
+	return widgetAllow(w, r, h.Limiter, scopes...)
 }
 
-// widgetAllow applies a widget limiter to the request's client IP (the port
-// is ignored, so a new connection does not reset the count) and answers 429
-// when it is over the limit.
-func widgetAllow(w http.ResponseWriter, r *http.Request, l *rateLimiter) bool {
-	ip := r.RemoteAddr
-	if host, _, err := net.SplitHostPort(ip); err == nil {
-		ip = host
-	}
-	if !l.allow(ip) {
-		w.Header().Set("Retry-After", strconv.Itoa(int(l.window/time.Second)))
-		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded", "message": "Too many requests."})
-		return false
-	}
-	return true
+// widgetAllow counts the request against the general widget budget and then
+// any extra scopes, answering 429 with Retry-After when one is exhausted.
+func widgetAllow(w http.ResponseWriter, r *http.Request, l *middleware.GuestRateLimiter, scopes ...middleware.GuestScope) bool {
+	return l.Allow(w, r, append([]middleware.GuestScope{middleware.GuestRequestScope}, scopes...)...)
 }
 
 // requiredWidgetFields returns a validation error for each blank field.
@@ -445,42 +440,37 @@ func articleExcerpt(body string) string {
 	return strings.TrimSpace(string([]rune(text)[:160])) + "..."
 }
 
-// rateLimiter implements a simple per-IP sliding window rate limiter.
-type rateLimiter struct {
-	mu     sync.Mutex
-	hits   map[string][]time.Time
-	limit  int
-	window time.Duration
+// widgetOptionalID is an optional id from a widget request. embed.js forwards
+// data-department="3" as the string "3", so a numeric string is accepted as
+// well as a number; null and "" mean absent. Anything else fails decoding.
+type widgetOptionalID struct {
+	v *int64
 }
 
-func newRateLimiter(limit int, window time.Duration) *rateLimiter {
-	return &rateLimiter{
-		hits:   make(map[string][]time.Time),
-		limit:  limit,
-		window: window,
+// Ptr returns the id, or nil when it was absent.
+func (o widgetOptionalID) Ptr() *int64 { return o.v }
+
+func (o *widgetOptionalID) UnmarshalJSON(b []byte) error {
+	raw := strings.TrimSpace(string(b))
+	if raw == "null" {
+		o.v = nil
+		return nil
 	}
-}
-
-func (rl *rateLimiter) allow(key string) bool {
-	rl.mu.Lock()
-	defer rl.mu.Unlock()
-
-	now := time.Now()
-	cutoff := now.Add(-rl.window)
-
-	// Prune old entries
-	var recent []time.Time
-	for _, t := range rl.hits[key] {
-		if t.After(cutoff) {
-			recent = append(recent, t)
+	if strings.HasPrefix(raw, `"`) {
+		var s string
+		if err := json.Unmarshal(b, &s); err != nil {
+			return err
+		}
+		raw = strings.TrimSpace(s)
+		if raw == "" {
+			o.v = nil
+			return nil
 		}
 	}
-
-	if len(recent) >= rl.limit {
-		rl.hits[key] = recent
-		return false
+	id, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return fmt.Errorf("department_id must be an integer: %w", err)
 	}
-
-	rl.hits[key] = append(recent, now)
-	return true
+	o.v = &id
+	return nil
 }
