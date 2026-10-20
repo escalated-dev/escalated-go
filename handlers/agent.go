@@ -58,7 +58,7 @@ func (h *AgentHandler) Dashboard(w http.ResponseWriter, r *http.Request) {
 		t.PopulateComputed(nil)
 	}
 
-	_ = h.renderer.Render(w, r, "Agent/Dashboard", map[string]any{
+	_ = h.renderer.Render(w, r, "Escalated/Agent/Dashboard", map[string]any{
 		"my_tickets":       myTickets,
 		"my_total":         myTotal,
 		"unassigned":       unassigned,
@@ -92,9 +92,10 @@ func (h *AgentHandler) ListTickets(w http.ResponseWriter, r *http.Request) {
 		t.PopulateComputed(nil)
 	}
 
-	_ = h.renderer.Render(w, r, "Agent/Tickets/Index", map[string]any{
+	_ = h.renderer.Render(w, r, "Escalated/Agent/TicketIndex", map[string]any{
 		"tickets":     tickets,
 		"total":       total,
+		"filters":     queryFilters(r),
 		"departments": depts,
 		"tags":        tags,
 	})
@@ -137,7 +138,7 @@ func (h *AgentHandler) ShowTicket(w http.ResponseWriter, r *http.Request) {
 
 	t.PopulateComputed(replies)
 
-	_ = h.renderer.Render(w, r, "Agent/Tickets/Show", map[string]any{
+	_ = h.renderer.Render(w, r, "Escalated/Agent/TicketShow", map[string]any{
 		"ticket":        t,
 		"replies":       replies,
 		"activities":    activities,

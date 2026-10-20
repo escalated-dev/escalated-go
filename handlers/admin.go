@@ -31,7 +31,7 @@ func (h *AdminHandler) ListDepartments(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	_ = h.renderer.Render(w, r, "Admin/Departments/Index", map[string]any{
+	_ = h.renderer.Render(w, r, "Escalated/Admin/Departments/Index", map[string]any{
 		"departments": depts,
 	})
 }
@@ -123,7 +123,7 @@ func (h *AdminHandler) ListTags(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	_ = h.renderer.Render(w, r, "Admin/Tags/Index", map[string]any{
+	_ = h.renderer.Render(w, r, "Escalated/Admin/Tags/Index", map[string]any{
 		"tags": tags,
 	})
 }
@@ -176,7 +176,8 @@ func (h *AdminHandler) ListSLAPolicies(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	_ = h.renderer.Render(w, r, "Admin/SLAPolicies/Index", map[string]any{
+	_ = h.renderer.Render(w, r, "Escalated/Admin/SlaPolicies/Index", map[string]any{
+		"policies":     policies,
 		"sla_policies": policies,
 	})
 }

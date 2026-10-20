@@ -77,7 +77,7 @@ func (h *SkillsHandler) ListSkills(w http.ResponseWriter, r *http.Request) {
 		}
 		skills = append(skills, it)
 	}
-	_ = h.Renderer.Render(w, r, "Admin/Skills/Index", map[string]any{
+	_ = h.Renderer.Render(w, r, "Escalated/Admin/Skills/Index", map[string]any{
 		"skills": skills,
 	})
 }
@@ -90,7 +90,7 @@ func (h *SkillsHandler) NewSkillForm(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	_ = h.Renderer.Render(w, r, "Admin/Skills/Form", map[string]any{
+	_ = h.Renderer.Render(w, r, "Escalated/Admin/Skills/Form", map[string]any{
 		"skill":                 nil,
 		"available_tags":        tags,
 		"available_departments": depts,
@@ -120,7 +120,7 @@ func (h *SkillsHandler) EditSkill(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	_ = h.Renderer.Render(w, r, "Admin/Skills/Form", map[string]any{
+	_ = h.Renderer.Render(w, r, "Escalated/Admin/Skills/Form", map[string]any{
 		"skill":                 detail,
 		"available_tags":        tags,
 		"available_departments": depts,

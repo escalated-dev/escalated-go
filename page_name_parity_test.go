@@ -34,6 +34,19 @@ const pageManifest = "testdata/escalated-pages.json"
 
 var pageNamePattern = regexp.MustCompile(`"(Escalated/[A-Za-z0-9/_]+)"`)
 
+// renderCallPattern catches the first string argument of every Render call,
+// prefixed or not. The frontend resolver strips an optional "Escalated/", so an
+// unprefixed name is checked as if it carried the prefix; matching only the
+// prefixed spelling let five unprefixed names that resolve to nothing through.
+var renderCallPattern = regexp.MustCompile(`\.Render\(\s*\w+\s*,\s*\w+\s*,\s*"([A-Za-z0-9/_]+)"`)
+
+func normalizePageName(name string) string {
+	if strings.HasPrefix(name, "Escalated/") {
+		return name
+	}
+	return "Escalated/" + name
+}
+
 func shippedPages(t *testing.T) []string {
 	t.Helper()
 
@@ -84,12 +97,15 @@ func renderedPages(t *testing.T) map[string]map[string]bool {
 			return err
 		}
 
-		for _, match := range pageNamePattern.FindAllStringSubmatch(string(source), -1) {
-			if found[match[1]] == nil {
-				found[match[1]] = map[string]bool{}
+		matches := pageNamePattern.FindAllStringSubmatch(string(source), -1)
+		matches = append(matches, renderCallPattern.FindAllStringSubmatch(string(source), -1)...)
+		for _, match := range matches {
+			name := normalizePageName(match[1])
+			if found[name] == nil {
+				found[name] = map[string]bool{}
 			}
 
-			found[match[1]][filepath.ToSlash(path)] = true
+			found[name][filepath.ToSlash(path)] = true
 		}
 
 		return nil
@@ -146,6 +162,23 @@ func TestRendersOnlyPageNamesTheFrontendShips(t *testing.T) {
 
 	if len(missing) > 0 {
 		t.Error(explainMissingPages(missing, rendered))
+	}
+}
+
+func TestTheGuardSeesUnprefixedRenderCalls(t *testing.T) {
+	src := `_ = h.renderer.Render(w, r, "Agent/Tickets/Index", map[string]any{})`
+	m := renderCallPattern.FindAllStringSubmatch(src, -1)
+	if len(m) != 1 || normalizePageName(m[0][1]) != "Escalated/Agent/Tickets/Index" {
+		t.Fatalf("render call pattern missed an unprefixed page name: %v", m)
+	}
+
+	// The ticket screens are rendered from these files; if the scan cannot see
+	// them it is not looking where it should.
+	rendered := renderedPages(t)
+	for _, name := range []string{"Escalated/Agent/TicketIndex", "Escalated/Agent/TicketShow", "Escalated/Customer/Index", "Escalated/Customer/Show", "Escalated/Admin/SlaPolicies/Index"} {
+		if len(rendered[name]) == 0 {
+			t.Errorf("no render call found for %s", name)
+		}
 	}
 }
 
