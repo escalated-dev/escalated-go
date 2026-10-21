@@ -1,9 +1,9 @@
 package handlers
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -42,10 +42,12 @@ func (h *TicketMergeHandler) Search(w http.ResponseWriter, r *http.Request) {
 // Merge handles POST /admin/tickets/{ticket}/merge with {target_reference}:
 // {ticket} (an id or a reference) is merged into the target and closed.
 func (h *TicketMergeHandler) Merge(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		TargetReference string `json:"target_reference"`
+	form, err := readInput(r)
+	target := ""
+	if err == nil {
+		target = strings.TrimSpace(form.Get("target_reference"))
 	}
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || strings.TrimSpace(in.TargetReference) == "" {
+	if target == "" {
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{
 			"message": "The target reference field is required.",
 			"errors":  map[string][]string{"target_reference": {"The target reference field is required."}},
@@ -54,6 +56,9 @@ func (h *TicketMergeHandler) Merge(w http.ResponseWriter, r *http.Request) {
 	}
 
 	key := pathParam(r, "ticket")
+	if key == "" {
+		key = pathParam(r, "id")
+	}
 	var sourceID int64
 	if id, err := strconv.ParseInt(key, 10, 64); err == nil {
 		sourceID = id
@@ -71,7 +76,7 @@ func (h *TicketMergeHandler) Merge(w http.ResponseWriter, r *http.Request) {
 			by = &uid
 		}
 	}
-	_, ref, err := h.Merges.Merge(r.Context(), sourceID, in.TargetReference, by)
+	_, ref, err := h.Merges.Merge(r.Context(), sourceID, target, by)
 	switch {
 	case errors.Is(err, services.ErrMergeIntoSelf):
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": "Cannot merge a ticket into itself."})
@@ -79,6 +84,9 @@ func (h *TicketMergeHandler) Merge(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"message": "Ticket not found."})
 	case err != nil:
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": "The merge failed."})
+	case isInertia(r):
+		// A page visit goes back (Laravel back()), else to the target.
+		backTo(w, r, strings.TrimSuffix(r.URL.Path, "/"+key+"/merge")+"/"+url.PathEscape(ref))
 	default:
 		writeJSON(w, http.StatusOK, map[string]string{"message": "Ticket merged into " + ref + ".", "target_reference": ref})
 	}

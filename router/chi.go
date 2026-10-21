@@ -224,34 +224,13 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Get("/", agentH.Dashboard)
 				r.Get("/tickets", agentH.ListTickets)
 				r.Get("/tickets/{id}", agentH.ShowTicket)
-				r.Post("/tickets/{id}/assign", agentH.AssignTicket)
 				r.Post("/tickets/{id}/replies", agentH.Reply)
-				r.Post("/tickets/{id}/status", agentH.ChangeStatus)
-				// The ticket screen's writes (Laravel route names
-				// escalated.agent.tickets.*).
-				r.Put("/tickets/{id}", agentH.UpdateTicket)
-				r.Post("/tickets/{id}/reply", agentH.PageReply)
-				r.Post("/tickets/{id}/note", agentH.PageNote)
-				r.Post("/tickets/{id}/priority", agentH.ChangePriority)
-				r.Post("/tickets/{id}/tags", agentH.UpdateTags)
-				r.Post("/tickets/{id}/department", agentH.ChangeDepartment)
-				r.Post("/tickets/{id}/macro", agentH.ApplyMacro)
-				r.Post("/tickets/{id}/follow", agentH.ToggleFollow)
-				r.Post("/tickets/{id}/replies/{reply}/pin", agentH.TogglePin)
-				r.Post("/tickets/{id}/subjects", subjectH.AttachSubject)
-				r.Delete("/tickets/{id}/subjects/{subject}", subjectH.DetachSubject)
 				r.Post("/tickets/{id}/actions/{action}", agentH.CustomAction)
-
-				// Typed ticket-to-ticket links.
-				r.Get("/tickets/{id}/links", linkH.List)
-				r.Post("/tickets/{id}/links", linkH.Create)
-				r.Delete("/tickets/{id}/links/{linkId}", linkH.Delete)
-
-				// Side conversations (internal / email side-channel threads).
-				r.Get("/tickets/{id}/side-conversations", scH.List)
-				r.Post("/tickets/{id}/side-conversations", scH.Create)
-				r.Post("/tickets/{id}/side-conversations/{scId}/reply", scH.Reply)
-				r.Post("/tickets/{id}/side-conversations/{scId}/close", scH.Close)
+				r.Post("/tickets/bulk", agentH.Bulk)
+				// The ticket screen's writes (escalated.agent.tickets.*) and
+				// panels: subjects, typed links, side conversations.
+				mountTicketWrites(chiGroup{r: r, prefix: "/tickets"}, agentH)
+				mountTicketPanels(chiGroup{r: r, prefix: "/tickets"}, s, subjectH, linkH, scH)
 
 				// Macros (agent-applied one-click bundles).
 				r.Get("/macros", macroH.AgentList)
@@ -279,7 +258,16 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Delete("/tags/{id}", adminH.DeleteTag)
 				// Ticket merge (Laravel TicketMergeController).
 				r.Get("/tickets/merge-search", mergeH.Search)
-				r.Post("/tickets/{ticket}/merge", mergeH.Merge)
+				r.Post("/tickets/{id}/merge", mergeH.Merge)
+
+				// The admin ticket pages and their writes
+				// (escalated.admin.tickets.*).
+				r.Get("/tickets", agentH.AdminListTickets)
+				r.Post("/tickets/bulk", agentH.Bulk)
+				r.Get("/tickets/{id}", agentH.ShowTicket)
+				r.Post("/tickets/{id}/split", agentH.Split)
+				mountTicketWrites(chiGroup{r: r, prefix: "/tickets"}, agentH)
+				mountTicketPanels(chiGroup{r: r, prefix: "/tickets"}, s, subjectH, linkH, scH)
 				r.Get("/sla-policies", adminH.ListSLAPolicies)
 				r.Post("/sla-policies", adminH.CreateSLAPolicy)
 				r.Delete("/sla-policies/{id}", adminH.DeleteSLAPolicy)

@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	escalated "github.com/escalated-dev/escalated-go"
+	"github.com/escalated-dev/escalated-go/handlers"
 	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/internal/testdb"
 	"github.com/escalated-dev/escalated-go/models"
@@ -54,6 +55,8 @@ func newUIFixture(t *testing.T) *uiFixture {
 	cfg.UserEmail = func(_ context.Context, id models.UserID) (string, error) {
 		return map[models.UserID]string{customerB: "bea@example.com", uiAgent: "ada@example.com"}[id], nil
 	}
+
+	cfg.SkillAgentDirectory = uiAgents{}
 
 	esc, err := escalated.New(cfg)
 	if err != nil {
@@ -151,6 +154,13 @@ func newUIFixture(t *testing.T) *uiFixture {
 }
 
 func ptr(s string) *string { return &s }
+
+// uiAgents is the host's agent list for the assignee controls.
+type uiAgents struct{}
+
+func (uiAgents) ListAgentsForSkillForm(context.Context) ([]handlers.SkillFormAgent, error) {
+	return []handlers.SkillFormAgent{{ID: 900, Name: "Ada Agent", Email: "ada@example.com"}}, nil
+}
 
 func (f *uiFixture) mounts() map[string]http.Handler {
 	r := chi.NewRouter()

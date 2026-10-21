@@ -9,6 +9,7 @@ import (
 
 	"github.com/escalated-dev/escalated-go/actions"
 	"github.com/escalated-dev/escalated-go/models"
+	"github.com/escalated-dev/escalated-go/services"
 )
 
 // The agent ticket screen's writes (Laravel Agent\TicketController). Each one
@@ -16,18 +17,22 @@ import (
 // (X-Inertia) is answered with a 303 back to the page it came from, or the
 // ticket screen again with an errors prop; an API client gets JSON.
 
-func (h *AgentHandler) showURL(t *models.Ticket) string {
+func (h *AgentHandler) showURL(r *http.Request, t *models.Ticket) string {
 	prefix := h.RoutePrefix
 	if prefix == "" {
 		prefix = "/escalated"
 	}
-	return prefix + "/agent/tickets/" + url.PathEscape(t.Reference)
+	surface := "/agent/tickets/"
+	if isAdminTicketPath(r) {
+		surface = "/admin/tickets/"
+	}
+	return prefix + surface + url.PathEscape(t.Reference)
 }
 
 // done ends a successful write.
 func (h *AgentHandler) done(w http.ResponseWriter, r *http.Request, t *models.Ticket, code int, body any) {
 	if isInertia(r) {
-		backTo(w, r, h.showURL(t))
+		backTo(w, r, h.showURL(r, t))
 		return
 	}
 	writeJSON(w, code, body)
@@ -429,4 +434,165 @@ func validTicketType(v string) bool {
 		}
 	}
 	return false
+}
+
+// bulkActions are the actions Laravel's BulkActionRequest accepts.
+var bulkActions = map[string]bool{"status": true, "priority": true, "assign": true, "tags": true, "department": true, "delete": true}
+
+// Bulk handles POST /agent/tickets/bulk and /admin/tickets/bulk
+// (escalated.agent.tickets.bulk, escalated.admin.tickets.bulk): ticket_ids,
+// action and value, as Laravel's BulkActionController. Tickets the action
+// fails on are skipped; only admins may delete.
+func (h *AgentHandler) Bulk(w http.ResponseWriter, r *http.Request) {
+	in, err := readInput(r)
+	if err != nil {
+		http.Error(w, "invalid input", http.StatusBadRequest)
+		return
+	}
+	var ids []int64
+	for _, key := range []string{"ticket_ids", "ticket_ids[]"} {
+		for _, v := range in[key] {
+			for _, part := range strings.Split(strings.Trim(v, "[]"), ",") {
+				if id, err := strconv.ParseInt(strings.TrimSpace(part), 10, 64); err == nil {
+					ids = append(ids, id)
+				}
+			}
+		}
+	}
+	action := in.Get("action")
+	values := append(append([]string{}, in["value"]...), in["value[]"]...)
+	value := ""
+	if len(values) > 0 {
+		value = strings.TrimSpace(values[0])
+	}
+
+	errs := map[string]string{}
+	if len(ids) == 0 {
+		errs["ticket_ids"] = requiredMessage("ticket ids")
+	}
+	if !bulkActions[action] {
+		errs["action"] = "The selected action is invalid."
+	} else if action != "delete" && value == "" {
+		errs["value"] = requiredMessage("value")
+	}
+	if len(errs) > 0 {
+		validationErrors(w, r, errs, func(errs map[string]string) {
+			props, ok := h.queueProps(w, r)
+			if !ok {
+				return
+			}
+			props["errors"] = pageErrors(errs)
+			component := "Escalated/Agent/TicketIndex"
+			if isAdminTicketPath(r) {
+				component = "Escalated/Admin/Tickets/Index"
+				props["agents"] = h.agents(r)
+				props["savedViews"] = []any{}
+			}
+			_ = h.renderer.Render(w, r, component, props)
+		})
+		return
+	}
+	if action == "delete" && (h.IsAdmin == nil || !h.IsAdmin(r)) {
+		http.Error(w, "Only admins can delete tickets", http.StatusForbidden)
+		return
+	}
+
+	ctx := r.Context()
+	uid := h.userID(r)
+	updated := 0
+	for _, id := range ids {
+		t, err := h.store.GetTicket(ctx, id)
+		if err != nil || t == nil {
+			continue
+		}
+		var failed error
+		switch action {
+		case "status":
+			if status, ok := parseStatus(value); ok {
+				failed = h.tickets.ChangeStatus(ctx, id, status, &uid)
+			} else {
+				failed = fmt.Errorf("invalid status")
+			}
+		case "priority":
+			if priority, ok := parsePriority(value); ok {
+				failed = h.tickets.ChangePriority(ctx, id, priority, &uid)
+			} else {
+				failed = fmt.Errorf("invalid priority")
+			}
+		case "assign":
+			failed = h.assignments.Reassign(ctx, id, models.UserID(value), &uid)
+		case "tags":
+			for _, v := range values {
+				tagID, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+				if err != nil {
+					failed = err
+					break
+				}
+				if failed = h.tickets.AddTag(ctx, id, tagID, &uid); failed != nil {
+					break
+				}
+			}
+		case "department":
+			deptID, err := strconv.ParseInt(value, 10, 64)
+			if err != nil {
+				failed = err
+			} else {
+				failed = h.tickets.ChangeDepartment(ctx, id, deptID, &uid)
+			}
+		case "delete":
+			failed = h.store.DeleteTicket(ctx, id)
+		}
+		if failed == nil {
+			updated++
+		}
+	}
+
+	if isInertia(r) {
+		prefix := h.RoutePrefix
+		if prefix == "" {
+			prefix = "/escalated"
+		}
+		index := prefix + "/agent/tickets"
+		if isAdminTicketPath(r) {
+			index = prefix + "/admin/tickets"
+		}
+		backTo(w, r, index)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"updated": updated})
+}
+
+// Split handles POST /admin/tickets/{id}/split with reply_id and an optional
+// subject: a new ticket from that reply (Laravel TicketController::split). A
+// page visit goes to the new ticket.
+func (h *AgentHandler) Split(w http.ResponseWriter, r *http.Request) {
+	t, in, ok := h.writeInput(w, r)
+	if !ok {
+		return
+	}
+	replyID, err := strconv.ParseInt(strings.TrimSpace(in.Get("reply_id")), 10, 64)
+	var reply *models.Reply
+	if err == nil {
+		reply, _ = h.store.GetReply(r.Context(), replyID)
+	}
+	if reply == nil || reply.TicketID != t.ID {
+		h.invalid(w, r, t, map[string]string{"reply_id": "The selected reply is invalid."})
+		return
+	}
+	subject := strings.TrimSpace(in.Get("subject"))
+	if len(subject) > 255 {
+		h.invalid(w, r, t, map[string]string{"subject": "The subject may not be greater than 255 characters."})
+		return
+	}
+	uid := h.userID(r)
+	created, err := h.tickets.SplitTicket(r.Context(), services.SplitTicketInput{TicketID: t.ID, ReplyID: replyID, Subject: subject, CauserID: &uid})
+	if err != nil {
+		h.failed(w, "split the ticket")
+		return
+	}
+	if isInertia(r) {
+		seeOther(w, r, h.showURL(r, created))
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"ticket": created})
 }

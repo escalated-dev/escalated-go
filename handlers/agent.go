@@ -42,6 +42,11 @@ type AgentHandler struct {
 	Subjects        *services.TicketSubjectService
 	Macros          *services.MacroService
 	CannedResponses *services.CannedResponseService
+
+	// Agents lists agents for the admin pages' assignee controls; IsAdmin
+	// gates the bulk delete. Both optional.
+	Agents  SkillAgentDirectory
+	IsAdmin func(r *http.Request) bool
 }
 
 // NewAgentHandler creates a new AgentHandler.
@@ -178,6 +183,14 @@ func truthy(v string) bool {
 // paginator (tickets.data, 15 a page), the query string echoed as filters,
 // and the active departments and tags for the filter controls.
 func (h *AgentHandler) ListTickets(w http.ResponseWriter, r *http.Request) {
+	props, ok := h.queueProps(w, r)
+	if !ok {
+		return
+	}
+	_ = h.renderer.Render(w, r, "Escalated/Agent/TicketIndex", props)
+}
+
+func (h *AgentHandler) queueProps(w http.ResponseWriter, r *http.Request) (map[string]any, bool) {
 	ctx := r.Context()
 	q := r.URL.Query()
 	pg := uiPageFrom(q, 15)
@@ -188,15 +201,15 @@ func (h *AgentHandler) ListTickets(w http.ResponseWriter, r *http.Request) {
 	tickets, total, err := h.store.ListTickets(ctx, f)
 	if err != nil {
 		http.Error(w, "could not list tickets", http.StatusInternalServerError)
-		return
+		return nil, false
 	}
 
-	_ = h.renderer.Render(w, r, "Escalated/Agent/TicketIndex", map[string]any{
+	return map[string]any{
 		"tickets":     uiPaginator(h.presenter().ticketRows(ctx, tickets), total, pg, r.URL.Path),
 		"filters":     queryFilters(r),
 		"departments": uiDepartments(ctx, h.store),
 		"tags":        uiTags(ctx, h.store),
-	})
+	}, true
 }
 
 // ShowTicket renders Escalated/Agent/TicketShow for the ticket the path names
@@ -249,20 +262,65 @@ func (h *AgentHandler) renderShow(w http.ResponseWriter, r *http.Request, t *mod
 		}
 	}
 
+	detail := h.ticketDetail(r, t)
 	props := map[string]any{
-		"ticket":          h.ticketDetail(r, t),
+		"ticket":          detail,
 		"departments":     uiDepartments(ctx, h.store),
 		"tags":            uiTags(ctx, h.store),
 		"cannedResponses": canned,
 		"macros":          macros,
 		"is_following":    q.isFollowing(ctx, t.ID, uid),
 		"followers_count": q.followersCount(ctx, t.ID),
-		"customActions":   h.customActionsFor(t, uid, "agent"),
 	}
 	if errs != nil {
 		props["errors"] = pageErrors(errs)
 	}
+	if isAdminTicketPath(r) {
+		// Laravel Admin\TicketController::show: agents and is_snoozed, no
+		// custom actions.
+		props["agents"] = h.agents(r)
+		props["is_snoozed"] = detail["is_snoozed"]
+		_ = h.renderer.Render(w, r, "Escalated/Admin/Tickets/Show", props)
+		return
+	}
+	props["customActions"] = h.customActionsFor(t, uid, "agent")
 	_ = h.renderer.Render(w, r, "Escalated/Agent/TicketShow", props)
+}
+
+// isAdminTicketPath reports whether the request came through the admin ticket
+// routes, which render the admin ticket pages.
+func isAdminTicketPath(r *http.Request) bool {
+	return strings.Contains(r.URL.Path, "/admin/tickets")
+}
+
+// agents lists the agents for the assignee controls, from the host's
+// SkillAgentDirectory (Laravel's getAgents()).
+func (h *AgentHandler) agents(r *http.Request) []map[string]any {
+	out := []map[string]any{}
+	if h.Agents == nil {
+		return out
+	}
+	list, err := h.Agents.ListAgentsForSkillForm(r.Context())
+	if err != nil {
+		return out
+	}
+	for _, a := range list {
+		out = append(out, map[string]any{"id": a.ID, "name": a.Name, "email": a.Email})
+	}
+	return out
+}
+
+// AdminListTickets renders Escalated/Admin/Tickets/Index: the queue's props
+// plus agents and savedViews (Laravel Admin\TicketController::index).
+// Saved views have no table in this package yet, so savedViews is empty.
+func (h *AgentHandler) AdminListTickets(w http.ResponseWriter, r *http.Request) {
+	props, ok := h.queueProps(w, r)
+	if !ok {
+		return
+	}
+	props["agents"] = h.agents(r)
+	props["savedViews"] = []any{}
+	_ = h.renderer.Render(w, r, "Escalated/Admin/Tickets/Index", props)
 }
 
 // ticketDetail is the ticket as the agent screen reads it: the list row plus

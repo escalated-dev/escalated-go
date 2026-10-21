@@ -64,6 +64,17 @@ with an `attachments` error: this package stores no uploads yet.
 | `escalated.customer.tickets.close` / `.reopen` | `POST /tickets/{ticket}/close`, `/reopen` |
 | `escalated.customer.tickets.rate` | `POST /tickets/{ticket}/rate` |
 
+The admin ticket screen has the same writes under `/admin/tickets/{ticket}`
+(`escalated.admin.tickets.*`), plus `split` (`reply_id`, optional `subject`;
+a page visit goes to the new ticket) and `merge` (`target_reference`). Bulk
+actions are at `POST /agent/tickets/bulk` and `POST /admin/tickets/bulk`
+(`ticket_ids`, `action` = status, priority, assign, tags, department or
+delete, and `value`); only admins may delete. The ticket panels (subjects,
+links, side conversations) are mounted under both.
+
+The admin pages list agents for their assignee controls from
+`Config.SkillAgentDirectory`; without it the list is empty.
+
 `{ticket}` is the reference or the id. Escalated ships no Ziggy route list;
 point your `route()` names at these paths under your `RoutePrefix`.
 
@@ -78,6 +89,8 @@ point your `route()` names at these paths under your `RoutePrefix`.
 | `Customer/Create` | `GET /tickets/create` |
 | `Customer/Show` | `GET /tickets/{reference}` |
 | `Admin/SlaPolicies/Index` | `GET /admin/sla-policies` |
+| `Admin/Tickets/Index` | `GET /admin/tickets` |
+| `Admin/Tickets/Show` | `GET /admin/tickets/{reference}` |
 
 The others this package renders are the departments, tags, skills, users, audit
 log and newsletter screens. `notYetRendered` in `page_name_parity_test.go` lists
@@ -95,5 +108,8 @@ every shipped page not rendered yet.
   `false`.
 - Shared props (`auth.user`, `escalated.*`) and Ziggy's `route()` come from the
   host's Inertia setup.
-- Presence (`escalated.agent.tickets.presence`) and typing indicators, and the
-  queue's bulk actions, are not served yet.
+- Presence (`escalated.*.tickets.presence`) and typing indicators are not
+  served yet.
+- Snooze and saved views: the store has methods for them, but the migrations
+  create no columns or table for them, so `savedViews` is always empty and the
+  snooze and saved-view routes are not mounted.
