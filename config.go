@@ -221,6 +221,12 @@ type Config struct {
 	// not emailed (guest requesters still are). Escalated owns no users table.
 	UserEmail func(ctx context.Context, id models.UserID) (string, error)
 
+	// UserName returns a host user's display name for the shared pages:
+	// requesters, assignees, reply authors and activity causers. Nil (or "")
+	// shows staff as "Support" and a signed-in requester as "Unknown".
+	// Guests are named from their ticket. Escalated owns no users table.
+	UserName func(ctx context.Context, id models.UserID) string
+
 	// Notifications configures the ticket notification emails, sent through
 	// Mailer. Nothing is sent while Mailer is nil. See
 	// docs/notification-emails.md.

@@ -96,7 +96,9 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 	macroSvc := services.NewMacroService(cfg.DB, nil, esc.Access)
 	macroSvc.Tickets = ticketSvc
 	macroH := handlers.NewMacroHandler(cfg.DB, macroSvc)
-	cannedH := handlers.NewCannedResponseHandler(cfg.DB, services.NewCannedResponseService(cfg.DB, nil))
+	cannedSvc := services.NewCannedResponseService(cfg.DB, nil)
+	cannedH := handlers.NewCannedResponseHandler(cfg.DB, cannedSvc)
+	wireUIPages(esc, agentH, customerH, adminH, uiPageDeps{subjects: subjectSvc, macros: macroSvc, canned: cannedSvc})
 	articleH := handlers.NewArticleHandler(cfg.DB, services.NewArticleService(cfg.DB, nil))
 	webhookH := handlers.NewWebhookHandler(cfg.DB, webhookDispatcher)
 	workflowH := handlers.NewWorkflowHandler(cfg.DB)
@@ -171,6 +173,7 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 		userMW := middleware.RequireUser(cfg.UserIDFunc)
 		mux.Handle("GET "+prefix+"/tickets", userMW(http.HandlerFunc(customerH.Index)))
 		mux.Handle("POST "+prefix+"/tickets", userMW(http.HandlerFunc(customerH.Create)))
+		mux.Handle("GET "+prefix+"/tickets/create", userMW(http.HandlerFunc(customerH.CreateForm)))
 		mux.Handle("GET "+prefix+"/tickets/{id}", userMW(http.HandlerFunc(customerH.Show)))
 		mux.Handle("POST "+prefix+"/tickets/{id}/replies", userMW(http.HandlerFunc(customerH.Reply)))
 		mux.Handle("POST "+prefix+"/tickets/{id}/rate", userMW(http.HandlerFunc(satH.Rate)))

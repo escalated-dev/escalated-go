@@ -87,7 +87,9 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	macroSvc := services.NewMacroService(cfg.DB, nil, esc.Access)
 	macroSvc.Tickets = ticketSvc
 	macroH := handlers.NewMacroHandler(cfg.DB, macroSvc)
-	cannedH := handlers.NewCannedResponseHandler(cfg.DB, services.NewCannedResponseService(cfg.DB, nil))
+	cannedSvc := services.NewCannedResponseService(cfg.DB, nil)
+	cannedH := handlers.NewCannedResponseHandler(cfg.DB, cannedSvc)
+	wireUIPages(esc, agentH, customerH, adminH, uiPageDeps{subjects: subjectSvc, macros: macroSvc, canned: cannedSvc})
 	articleH := handlers.NewArticleHandler(cfg.DB, services.NewArticleService(cfg.DB, nil))
 	webhookH := handlers.NewWebhookHandler(cfg.DB, webhookDispatcher)
 	workflowH := handlers.NewWorkflowHandler(cfg.DB)
@@ -205,6 +207,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Use(middleware.RequireUser(cfg.UserIDFunc))
 				r.Get("/", customerH.Index)
 				r.Post("/", customerH.Create)
+				r.Get("/create", customerH.CreateForm)
 				r.Get("/{id}", customerH.Show)
 				r.Post("/{id}/replies", customerH.Reply)
 				r.Post("/{id}/rate", satH.Rate)

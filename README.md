@@ -185,6 +185,7 @@ func main() {
 | `SkillAgentDirectory` | `handlers.SkillAgentDirectory` | nil | Lists agents for the Skills form. When nil, `available_agents` is empty |
 | `TicketSubjectResolver` | `func(type, id string) (models.TicketSubject, bool)` | nil | Loads host models for subject presentation |
 | `TicketSubjectTypes` | `[]string` | nil | Allowlist of `subject_type` values for API attach; empty disables API attach |
+| `UserName` | `func(ctx, models.UserID) string` | nil | Display names for the shared pages (requesters, assignees, authors). See [the shared pages](docs/ui-pages.md) |
 
 ### Which database you are on
 
@@ -373,6 +374,9 @@ address and does not read forwarded headers.
 
 ### Customer UI (when `UIEnabled: true`)
 
+The UI routes render the pages of `@escalated-dev/escalated` with the props
+escalated-laravel passes them; see [the shared pages](docs/ui-pages.md).
+
 These routes require a signed-in user, meaning `UserIDFunc` returns a
 non-empty id, and return 401 otherwise. A customer can view and reply only to
 tickets they requested. Any other ticket returns 403.
@@ -380,8 +384,9 @@ tickets they requested. Any other ticket returns 403.
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/tickets` | My tickets |
+| `GET` | `/tickets/create` | New ticket form |
 | `POST` | `/tickets` | Submit a ticket |
-| `GET` | `/tickets/{id}` | View ticket |
+| `GET` | `/tickets/{id}` | View ticket (`{id}` is the reference or the id) |
 | `POST` | `/tickets/{id}/replies` | Reply to ticket |
 
 ### Attachments (always mounted)

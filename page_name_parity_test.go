@@ -175,9 +175,101 @@ func TestTheGuardSeesUnprefixedRenderCalls(t *testing.T) {
 	// The ticket screens are rendered from these files; if the scan cannot see
 	// them it is not looking where it should.
 	rendered := renderedPages(t)
-	for _, name := range []string{"Escalated/Agent/TicketIndex", "Escalated/Agent/TicketShow", "Escalated/Customer/Index", "Escalated/Customer/Show", "Escalated/Admin/SlaPolicies/Index"} {
+	for _, name := range []string{"Escalated/Agent/TicketIndex", "Escalated/Agent/TicketShow", "Escalated/Agent/Dashboard", "Escalated/Customer/Index", "Escalated/Customer/Create", "Escalated/Customer/Show", "Escalated/Admin/SlaPolicies/Index"} {
 		if len(rendered[name]) == 0 {
 			t.Errorf("no render call found for %s", name)
+		}
+	}
+}
+
+// notYetRendered lists the shipped pages this package does not render yet. It
+// is the to-do list: render a page and its name must leave the list, and a
+// page the frontend adds must be listed or rendered.
+var notYetRendered = []string{
+	"Escalated/Admin/ApiTokens/Index",
+	"Escalated/Admin/Automations/Form",
+	"Escalated/Admin/Automations/Index",
+	"Escalated/Admin/BusinessHours/Form",
+	"Escalated/Admin/BusinessHours/Index",
+	"Escalated/Admin/CannedResponses/Index",
+	"Escalated/Admin/Capacity/Index",
+	"Escalated/Admin/CustomFields/Form",
+	"Escalated/Admin/CustomFields/Index",
+	"Escalated/Admin/CustomObjects/Form",
+	"Escalated/Admin/CustomObjects/Index",
+	"Escalated/Admin/CustomObjects/Records",
+	"Escalated/Admin/Departments/Form",
+	"Escalated/Admin/EscalationRules/Form",
+	"Escalated/Admin/EscalationRules/Index",
+	"Escalated/Admin/Import/Connect",
+	"Escalated/Admin/Import/Index",
+	"Escalated/Admin/Import/Mapping",
+	"Escalated/Admin/Import/Progress",
+	"Escalated/Admin/Import/Review",
+	"Escalated/Admin/KnowledgeBase/Articles/Form",
+	"Escalated/Admin/KnowledgeBase/Articles/Index",
+	"Escalated/Admin/KnowledgeBase/Categories/Index",
+	"Escalated/Admin/Macros/Index",
+	"Escalated/Admin/Plugins/Index",
+	"Escalated/Admin/Reports",
+	"Escalated/Admin/Reports/AgentDetail",
+	"Escalated/Admin/Reports/AgentMetrics",
+	"Escalated/Admin/Reports/AgentRanking",
+	"Escalated/Admin/Reports/Cohorts",
+	"Escalated/Admin/Reports/Comparison",
+	"Escalated/Admin/Reports/CsatReport",
+	"Escalated/Admin/Reports/Dashboard",
+	"Escalated/Admin/Reports/ResolutionTimes",
+	"Escalated/Admin/Reports/ResponseTimes",
+	"Escalated/Admin/Reports/SlaReport",
+	"Escalated/Admin/Reports/SlaTrends",
+	"Escalated/Admin/Roles/Form",
+	"Escalated/Admin/Roles/Index",
+	"Escalated/Admin/Settings",
+	"Escalated/Admin/Settings/CsatSettings",
+	"Escalated/Admin/Settings/DataRetention",
+	"Escalated/Admin/Settings/DatabaseConnection",
+	"Escalated/Admin/Settings/EmailSettings",
+	"Escalated/Admin/Settings/PublicTickets",
+	"Escalated/Admin/Settings/Sandbox",
+	"Escalated/Admin/Settings/SsoSettings",
+	"Escalated/Admin/Settings/TwoFactor",
+	"Escalated/Admin/SlaPolicies/Form",
+	"Escalated/Admin/Statuses/Form",
+	"Escalated/Admin/Statuses/Index",
+	"Escalated/Admin/Tickets/Index",
+	"Escalated/Admin/Tickets/Show",
+	"Escalated/Admin/Webhooks/DeliveryLog",
+	"Escalated/Admin/Webhooks/Form",
+	"Escalated/Admin/Webhooks/Index",
+	"Escalated/Admin/Workflows/Builder",
+	"Escalated/Admin/Workflows/Form",
+	"Escalated/Admin/Workflows/Index",
+	"Escalated/Admin/Workflows/Logs",
+	"Escalated/Auth/TwoFactorChallenge",
+	"Escalated/Customer/KnowledgeBase/Article",
+	"Escalated/Customer/KnowledgeBase/Index",
+	"Escalated/Error",
+	"Escalated/Guest/Create",
+	"Escalated/Guest/Show",
+	"Escalated/Plugin/Page",
+}
+
+func TestNotYetRenderedListIsExact(t *testing.T) {
+	rendered := renderedPages(t)
+	listed := map[string]bool{}
+	for _, name := range notYetRendered {
+		if listed[name] {
+			t.Errorf("%s is listed twice", name)
+		}
+		listed[name] = true
+		if len(rendered[name]) > 0 {
+			t.Errorf("%s is rendered now; remove it from notYetRendered", name)
+		}
+	}
+	for _, name := range shippedPages(t) {
+		if len(rendered[name]) == 0 && !listed[name] {
+			t.Errorf("%s ships but is neither rendered nor listed in notYetRendered", name)
 		}
 	}
 }
