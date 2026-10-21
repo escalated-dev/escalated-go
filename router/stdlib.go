@@ -42,6 +42,11 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 	ticketSvc := esc.NewTicketService()
 	assignSvc := services.NewAssignmentService(s)
 	assignSvc.Tickets = ticketSvc
+	mergeH := &handlers.TicketMergeHandler{
+		Merges: &services.TicketMergeService{DB: cfg.DB, Prefix: cfg.TablePrefix, Tickets: ticketSvc},
+		Store:  s,
+		UserID: cfg.UserIDFunc,
+	}
 	subjectSvc := services.NewTicketSubjectService(s, cfg.TicketSubjectTypes, cfg.TicketSubjectResolver)
 
 	// The dispatcher is shared between the ticket service and the admin CRUD
@@ -195,6 +200,9 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 		mux.Handle("GET "+prefix+"/admin/tags", adminMW(http.HandlerFunc(adminH.ListTags)))
 		mux.Handle("POST "+prefix+"/admin/tags", adminMW(http.HandlerFunc(adminH.CreateTag)))
 		mux.Handle("DELETE "+prefix+"/admin/tags/{id}", adminMW(http.HandlerFunc(adminH.DeleteTag)))
+		// Ticket merge (Laravel TicketMergeController).
+		mux.Handle("GET "+prefix+"/admin/tickets/merge-search", adminMW(http.HandlerFunc(mergeH.Search)))
+		mux.Handle("POST "+prefix+"/admin/tickets/{ticket}/merge", adminMW(http.HandlerFunc(mergeH.Merge)))
 		mux.Handle("GET "+prefix+"/admin/sla-policies", adminMW(http.HandlerFunc(adminH.ListSLAPolicies)))
 		mux.Handle("POST "+prefix+"/admin/sla-policies", adminMW(http.HandlerFunc(adminH.CreateSLAPolicy)))
 		mux.Handle("DELETE "+prefix+"/admin/sla-policies/{id}", adminMW(http.HandlerFunc(adminH.DeleteSLAPolicy)))

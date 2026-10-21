@@ -38,6 +38,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reply author ids.
 
 ### Added
+- Ticket merge, as escalated-laravel's `TicketMergeService`:
+  `POST /admin/tickets/{ticket}/merge` with `{target_reference}` moves every
+  reply to the target, adds an internal system note to both tickets and
+  closes the source with `merged_into_id`, in one transaction, then records
+  the activity and fires `ticket.updated` for both. `GET
+  /admin/tickets/merge-search?q=` lists unmerged targets. Admin only.
 - `POST /api/guest/verification`, `POST /api/guest/lookup`,
   `POST /api/guest/tickets/{token}/replies`, and on the widget
   `POST /verification`, `POST /lookup` and

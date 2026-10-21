@@ -24,6 +24,11 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	ticketSvc := esc.NewTicketService()
 	assignSvc := services.NewAssignmentService(s)
 	assignSvc.Tickets = ticketSvc
+	mergeH := &handlers.TicketMergeHandler{
+		Merges: &services.TicketMergeService{DB: cfg.DB, Prefix: cfg.TablePrefix, Tickets: ticketSvc},
+		Store:  s,
+		UserID: cfg.UserIDFunc,
+	}
 	subjectSvc := services.NewTicketSubjectService(s, cfg.TicketSubjectTypes, cfg.TicketSubjectResolver)
 
 	// The dispatcher is shared between the ticket service and the admin CRUD
@@ -238,6 +243,9 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Get("/tags", adminH.ListTags)
 				r.Post("/tags", adminH.CreateTag)
 				r.Delete("/tags/{id}", adminH.DeleteTag)
+				// Ticket merge (Laravel TicketMergeController).
+				r.Get("/tickets/merge-search", mergeH.Search)
+				r.Post("/tickets/{ticket}/merge", mergeH.Merge)
 				r.Get("/sla-policies", adminH.ListSLAPolicies)
 				r.Post("/sla-policies", adminH.CreateSLAPolicy)
 				r.Delete("/sla-policies/{id}", adminH.DeleteSLAPolicy)
