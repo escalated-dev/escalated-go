@@ -34,6 +34,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for a page visit), and redirects a page visit to the new ticket.
 
 ### Added
+- Guest pages on the verified guest flow: `Escalated/Guest/Create` at
+  `GET /guest/create` (with `verification_url` and `lookup_url`) posting to
+  `POST /guest` with the email code, and `Escalated/Guest/Show` at
+  `GET /guest/{token}` opened by the ticket's grant, with replies
+  (`/guest/{token}/reply`) and the rating (`/guest/{token}/rate`). Behind the
+  guest rate limits, never cached.
 - Knowledge base pages: `Admin/KnowledgeBase/Articles/Index` and `Form` and
   `Categories/Index` at Laravel's `/admin/kb-articles` and
   `/admin/kb-categories` resource routes (the `/admin/kb/...` JSON routes

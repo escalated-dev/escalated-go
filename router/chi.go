@@ -92,10 +92,11 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	articleH := handlers.NewArticleHandler(cfg.DB, services.NewArticleService(cfg.DB, nil))
 	webhookH := handlers.NewWebhookHandler(cfg.DB, webhookDispatcher)
 	kbPages := &handlers.KBPages{DB: cfg.DB, Store: s}
+	guestPages := &handlers.GuestPages{Store: s, Tickets: ticketSvc, Access: esc.GuestAccess, DB: cfg.DB, Prefix: cfg.TablePrefix}
 	wireUIPages(esc, agentH, customerH, adminH, uiPageDeps{
 		subjects: subjectSvc, macros: macroSvc, canned: cannedSvc,
 		escalations: escH, macroAdmin: macroH, cannedAdmin: cannedH, webhooks: webhookH,
-		articles: articleH, kbPages: kbPages,
+		articles: articleH, kbPages: kbPages, guestPages: guestPages,
 	})
 	workflowH := handlers.NewWorkflowHandler(cfg.DB)
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
@@ -221,6 +222,16 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Post("/{id}/reply", customerH.Reply)
 				r.Post("/{id}/close", customerH.Close)
 				r.Post("/{id}/reopen", customerH.Reopen)
+			})
+
+			// The guest ticket pages (escalated.guest.tickets.*) on the
+			// verified guest flow, behind the guest rate limits.
+			r.Route("/guest", func(r chi.Router) {
+				r.Get("/create", guestPages.Create)
+				r.With(guestLimit.Middleware(middleware.GuestTicketScope)).Post("/", guestPages.Submit)
+				r.With(guestLimit.Middleware(middleware.GuestRequestScope)).Get("/{token}", guestPages.Show)
+				r.With(guestLimit.Middleware(middleware.GuestReplyScope)).Post("/{token}/reply", guestPages.Reply)
+				r.With(guestLimit.Middleware(middleware.GuestReplyScope)).Post("/{token}/rate", guestPages.Rate)
 			})
 
 			// The knowledge base reader pages (escalated.customer.kb.*), behind

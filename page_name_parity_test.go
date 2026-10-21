@@ -235,8 +235,6 @@ var notYetRendered = []string{
 	"Escalated/Admin/Workflows/Logs",
 	"Escalated/Auth/TwoFactorChallenge",
 	"Escalated/Error",
-	"Escalated/Guest/Create",
-	"Escalated/Guest/Show",
 	"Escalated/Plugin/Page",
 }
 

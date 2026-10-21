@@ -96,6 +96,7 @@ point your `route()` names at these paths under your `RoutePrefix`.
 | `Admin/KnowledgeBase/Articles/Index`, `Form` | `GET /admin/kb-articles`, `/create`, `/{id}/edit` |
 | `Admin/KnowledgeBase/Categories/Index` | `GET /admin/kb-categories` |
 | `Customer/KnowledgeBase/Index`, `Article` | `GET /kb`, `/kb/{slug}` (and `POST /kb/{slug}/feedback`) |
+| `Guest/Create`, `Guest/Show` | `GET /guest/create`, `/guest/{token}` (and `POST /guest`, `/guest/{token}/reply`, `/rate`) |
 | `Admin/Users/Index` | `GET /admin/users` (needs `Config.UserDirectory`) |
 | `Admin/Macros/Index` | `GET /admin/macros` |
 | `Admin/CannedResponses/Index` | `GET /admin/canned-responses` |
@@ -115,6 +116,13 @@ routes stay. Their forms send ids as `""` when unset, which is read as none.
 The reader pages follow the `knowledge_base_enabled` (404 when off) and
 `knowledge_base_public` (403 for a visitor when off) settings, and
 `knowledge_base_feedback_enabled` switches the helpfulness vote.
+
+The guest pages run on the verified guest flow (`docs/guest-access.md`): the
+form asks `/api/guest/verification` for an email code and posts it with the
+ticket; the ticket page opens by the expiring grant the ticket is created
+with (a legacy token while those are accepted), and the grant is the guest's
+proof for replies and the rating. Guest pages carry no file list: guests have
+no attachment access here.
 
 Macros created in the shared editor use its action names (`status`,
 `priority`, `assign`, `tags`, `department`, `reply`, `note`), which now run

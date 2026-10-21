@@ -101,10 +101,11 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 	articleH := handlers.NewArticleHandler(cfg.DB, services.NewArticleService(cfg.DB, nil))
 	webhookH := handlers.NewWebhookHandler(cfg.DB, webhookDispatcher)
 	kbPages := &handlers.KBPages{DB: cfg.DB, Store: s}
+	guestPages := &handlers.GuestPages{Store: s, Tickets: ticketSvc, Access: esc.GuestAccess, DB: cfg.DB, Prefix: cfg.TablePrefix}
 	wireUIPages(esc, agentH, customerH, adminH, uiPageDeps{
 		subjects: subjectSvc, macros: macroSvc, canned: cannedSvc,
 		escalations: escH, macroAdmin: macroH, cannedAdmin: cannedH, webhooks: webhookH,
-		articles: articleH, kbPages: kbPages,
+		articles: articleH, kbPages: kbPages, guestPages: guestPages,
 	})
 	workflowH := handlers.NewWorkflowHandler(cfg.DB)
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
@@ -185,6 +186,14 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 		mux.Handle("POST "+prefix+"/tickets/{id}/reply", userMW(http.HandlerFunc(customerH.Reply)))
 		mux.Handle("POST "+prefix+"/tickets/{id}/close", userMW(http.HandlerFunc(customerH.Close)))
 		mux.Handle("POST "+prefix+"/tickets/{id}/reopen", userMW(http.HandlerFunc(customerH.Reopen)))
+
+		// The guest ticket pages (escalated.guest.tickets.*) on the verified
+		// guest flow, behind the guest rate limits.
+		mux.HandleFunc("GET "+prefix+"/guest/create", guestPages.Create)
+		mux.Handle("POST "+prefix+"/guest", guestLimit.Middleware(middleware.GuestTicketScope)(http.HandlerFunc(guestPages.Submit)))
+		mux.Handle("GET "+prefix+"/guest/{token}", guestLimit.Middleware(middleware.GuestRequestScope)(http.HandlerFunc(guestPages.Show)))
+		mux.Handle("POST "+prefix+"/guest/{token}/reply", guestLimit.Middleware(middleware.GuestReplyScope)(http.HandlerFunc(guestPages.Reply)))
+		mux.Handle("POST "+prefix+"/guest/{token}/rate", guestLimit.Middleware(middleware.GuestReplyScope)(http.HandlerFunc(guestPages.Rate)))
 
 		// The knowledge base reader pages (escalated.customer.kb.*), behind the
 		// knowledge base enabled and public settings.

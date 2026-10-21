@@ -23,6 +23,7 @@ type uiPageDeps struct {
 	webhooks    *handlers.WebhookHandler
 	articles    *handlers.ArticleHandler
 	kbPages     *handlers.KBPages
+	guestPages  *handlers.GuestPages
 }
 
 // wireUIPages gives the page handlers what they need to build the props the
@@ -70,6 +71,9 @@ func wireUIPages(esc *escalated.Escalated, agentH *handlers.AgentHandler, custom
 	}
 	if deps.kbPages != nil {
 		deps.kbPages.Pages = pages
+	}
+	if deps.guestPages != nil {
+		deps.guestPages.Pages = pages
 	}
 }
 
