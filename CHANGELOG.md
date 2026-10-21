@@ -30,6 +30,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for a page visit), and redirects a page visit to the new ticket.
 
 ### Added
+- `Escalated/Admin/Tickets/Index` and `Escalated/Admin/Tickets/Show` at
+  `GET /admin/tickets` and `/admin/tickets/{ticket}`, with Laravel's props
+  (`agents` from `Config.SkillAgentDirectory`, `savedViews`, `is_snoozed`)
+  and the ticket screen's writes under `/admin/tickets/{ticket}`, plus
+  `split`.
+- Bulk actions at `POST /agent/tickets/bulk` and `/admin/tickets/bulk`
+  (Laravel BulkActionController).
+- The ticket panels (subjects, links, side conversations) accept the ticket
+  reference and are mounted under `/admin/tickets` too. Merge takes a form
+  as well as JSON, and answers a page visit with a 303.
 - The ticket screens' writes at escalated-laravel's routes: agent `reply`,
   `note`, `priority`, `tags`, `department`, `macro`, `follow`,
   `replies/{reply}/pin` and `PUT /agent/tickets/{ticket}`; customer `reply`,

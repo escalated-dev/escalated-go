@@ -237,8 +237,6 @@ var notYetRendered = []string{
 	"Escalated/Admin/SlaPolicies/Form",
 	"Escalated/Admin/Statuses/Form",
 	"Escalated/Admin/Statuses/Index",
-	"Escalated/Admin/Tickets/Index",
-	"Escalated/Admin/Tickets/Show",
 	"Escalated/Admin/Webhooks/DeliveryLog",
 	"Escalated/Admin/Webhooks/Form",
 	"Escalated/Admin/Webhooks/Index",
