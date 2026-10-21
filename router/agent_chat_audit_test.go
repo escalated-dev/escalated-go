@@ -153,19 +153,21 @@ func TestAdminAuditLog(t *testing.T) {
 		t.Run(mount, func(t *testing.T) {
 			f := newConsoleFixture(t, mount, nil)
 			inertia := []string{"X-Inertia", "true", "User-Agent", "audit-test"}
+			// The writes go as an API client: a page visit gets a 303, not JSON.
+			api := []string{"User-Agent", "audit-test"}
 
-			code, out := f.call(t, "9", http.MethodPost, "/admin/departments", map[string]any{"name": "Billing"}, inertia...)
+			code, out := f.call(t, "9", http.MethodPost, "/admin/departments", map[string]any{"name": "Billing"}, api...)
 			if code != http.StatusCreated {
 				t.Fatalf("create department: %d %v", code, out)
 			}
 			id := int64(out["department"].(map[string]any)["id"].(float64))
-			if code, _ := f.call(t, "9", http.MethodPatch, fmt.Sprintf("/admin/departments/%d", id), map[string]any{"name": "Billing & Payments"}, inertia...); code != http.StatusOK {
+			if code, _ := f.call(t, "9", http.MethodPatch, fmt.Sprintf("/admin/departments/%d", id), map[string]any{"name": "Billing & Payments"}, api...); code != http.StatusOK {
 				t.Fatalf("update department: %d", code)
 			}
-			if code, _ := f.call(t, "9", http.MethodPost, "/admin/tags", map[string]any{"name": "vip", "secret_token": "x"}, inertia...); code != http.StatusCreated {
+			if code, _ := f.call(t, "9", http.MethodPost, "/admin/tags", map[string]any{"name": "vip", "secret_token": "x"}, api...); code != http.StatusCreated {
 				t.Fatalf("create tag: %d", code)
 			}
-			if code, _ := f.call(t, "9", http.MethodDelete, fmt.Sprintf("/admin/departments/%d", id), nil, inertia...); code != http.StatusOK {
+			if code, _ := f.call(t, "9", http.MethodDelete, fmt.Sprintf("/admin/departments/%d", id), nil, api...); code != http.StatusOK {
 				t.Fatalf("delete department: %d", code)
 			}
 

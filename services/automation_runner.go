@@ -155,11 +155,22 @@ func (r *AutomationRunner) findMatchingTickets(a models.Automation) ([]models.Ti
 			clauses = append(clauses, fmt.Sprintf("updated_at %s ?", flipOperator(c.Operator)))
 			args = append(args, threshold)
 		case "status":
+			// The editor sends the slug; older rows may hold the number.
+			status, ok := StatusFromValue(c.Value)
+			if !ok {
+				clauses = append(clauses, "1=0")
+				continue
+			}
 			clauses = append(clauses, "status = ?")
-			args = append(args, c.Value)
+			args = append(args, status)
 		case "priority":
+			priority, ok := PriorityFromValue(c.Value)
+			if !ok {
+				clauses = append(clauses, "1=0")
+				continue
+			}
 			clauses = append(clauses, "priority = ?")
-			args = append(args, c.Value)
+			args = append(args, priority)
 		case "assigned":
 			if s, _ := c.Value.(string); s == "unassigned" {
 				clauses = append(clauses, "assigned_to IS NULL")
@@ -232,15 +243,30 @@ func (r *AutomationRunner) executeActions(a models.Automation, t models.Ticket) 
 func (r *AutomationRunner) runAction(a models.Automation, t models.Ticket, action models.AutomationAction) error {
 	switch action.Type {
 	case "change_status":
+		// The editor sends the slug ("closed"); toInt made it 0 (open).
+		status, ok := StatusFromValue(action.Value)
+		if !ok {
+			return ErrInvalidStatus
+		}
 		_, err := r.DB.Exec(
 			r.query(`UPDATE escalated_tickets SET status = ?, updated_at = ? WHERE id = ?`),
-			toInt(action.Value), time.Now(), t.ID,
+			status, time.Now(), t.ID,
 		)
 		return err
 	case "change_priority":
+		priority, ok := PriorityFromValue(action.Value)
+		if !ok {
+			return ErrInvalidPriority
+		}
 		_, err := r.DB.Exec(
 			r.query(`UPDATE escalated_tickets SET priority = ?, updated_at = ? WHERE id = ?`),
-			toInt(action.Value), time.Now(), t.ID,
+			priority, time.Now(), t.ID,
+		)
+		return err
+	case "set_ticket_type":
+		_, err := r.DB.Exec(
+			r.query(`UPDATE escalated_tickets SET ticket_type = ?, updated_at = ? WHERE id = ?`),
+			toString(action.Value), time.Now(), t.ID,
 		)
 		return err
 	case "assign":

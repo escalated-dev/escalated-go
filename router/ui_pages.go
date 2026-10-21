@@ -26,6 +26,8 @@ type uiPageDeps struct {
 	guestPages  *handlers.GuestPages
 	workflows   *handlers.WorkflowHandler
 	reports     *handlers.ReportHandler
+	automations *handlers.AutomationHandler
+	capacity    *handlers.CapacityHandler
 }
 
 // wireUIPages gives the page handlers what they need to build the props the
@@ -82,6 +84,12 @@ func wireUIPages(esc *escalated.Escalated, agentH *handlers.AgentHandler, custom
 	}
 	if deps.reports != nil {
 		deps.reports.Pages = pages
+	}
+	if deps.automations != nil {
+		deps.automations.Pages = pages
+	}
+	if deps.capacity != nil {
+		deps.capacity.Pages = pages
 	}
 }
 

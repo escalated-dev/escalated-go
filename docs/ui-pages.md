@@ -99,6 +99,11 @@ point your `route()` names at these paths under your `RoutePrefix`.
 | `Guest/Create`, `Guest/Show` | `GET /guest/create`, `/guest/{token}` (and `POST /guest`, `/guest/{token}/reply`, `/rate`) |
 | `Admin/Workflows/Index`, `Form`, `Logs` | `GET /admin/workflows`, `/create`, `/{id}`, `/logs` |
 | `Admin/Reports` and `Reports/Dashboard`, `AgentMetrics`, `SlaReport`, `CsatReport`, `SlaTrends`, `ResponseTimes`, `ResolutionTimes`, `AgentRanking`, `Cohorts`, `Comparison` | `GET /admin/reports`, `/reports/dashboard`, `/agents`, `/sla`, `/csat`, `/sla-trends`, `/response-times` (`/frt`), `/resolution-times` (`/resolution`), `/agent-ranking`, `/cohorts`, `/comparison` (`?days=`) |
+| `Admin/Departments/Index`, `Form` | `GET /admin/departments`, `/create`, `/{id}/edit` |
+| `Admin/Tags/Index` | `GET /admin/tags` |
+| `Admin/Automations/Index`, `Form` | `GET /admin/automations`, `/create`, `/{id}/edit` |
+| `Admin/Capacity/Index` | `GET /admin/capacity` |
+| `Admin/Settings/PublicTickets` | `GET /admin/settings/public-tickets` |
 | `Admin/Users/Index` | `GET /admin/users` (needs `Config.UserDirectory`) |
 | `Admin/Macros/Index` | `GET /admin/macros` |
 | `Admin/CannedResponses/Index` | `GET /admin/canned-responses` |
@@ -161,6 +166,7 @@ every shipped page not rendered yet.
 - Tickets keep no channel column, so a ticket shows `channel: "chat"` only
   while it is a live chat (or, on the ticket screen, when it has a chat
   session).
+- Departments have no agent membership here, so `agents_count` is null.
 - Roles and API tokens: authentication and users stay with the host, so the
   `Admin/Roles/*` and `Admin/ApiTokens/Index` pages are not rendered.
 - SLA policies have no business-hours mode: `business_hours_only` is always

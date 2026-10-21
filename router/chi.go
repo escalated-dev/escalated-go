@@ -100,7 +100,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	wireUIPages(esc, agentH, customerH, adminH, uiPageDeps{
 		subjects: subjectSvc, macros: macroSvc, canned: cannedSvc,
 		escalations: escH, macroAdmin: macroH, cannedAdmin: cannedH, webhooks: webhookH,
-		articles: articleH, kbPages: kbPages, guestPages: guestPages, workflows: workflowH, reports: reportH,
+		articles: articleH, kbPages: kbPages, guestPages: guestPages, workflows: workflowH, reports: reportH, automations: autoH, capacity: capH,
 	})
 	var newsletterH *handlers.NewsletterHandler
 	if cfg.EnableNewsletters {
@@ -276,10 +276,15 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Use(middleware.RequireAdmin(cfg.AdminCheck))
 				r.Get("/departments", adminH.ListDepartments)
 				r.Post("/departments", adminH.CreateDepartment)
+				r.Get("/departments/create", adminH.CreateDepartmentForm)
+				r.Get("/departments/{id}/edit", adminH.EditDepartmentForm)
+				r.Put("/departments/{id}", adminH.UpdateDepartment)
 				r.Patch("/departments/{id}", adminH.UpdateDepartment)
 				r.Delete("/departments/{id}", adminH.DeleteDepartment)
 				r.Get("/tags", adminH.ListTags)
 				r.Post("/tags", adminH.CreateTag)
+				r.Put("/tags/{id}", adminH.UpdateTag)
+				r.Patch("/tags/{id}", adminH.UpdateTag)
 				r.Delete("/tags/{id}", adminH.DeleteTag)
 				// Ticket merge (Laravel TicketMergeController).
 				r.Get("/tickets/merge-search", mergeH.Search)
@@ -324,6 +329,9 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				// escalated-developer-context).
 				r.Get("/automations", autoH.List)
 				r.Post("/automations", autoH.Create)
+				r.Get("/automations/create", autoH.CreateForm)
+				r.Get("/automations/{id}/edit", autoH.EditForm)
+				r.Put("/automations/{id}", autoH.Update)
 				r.Patch("/automations/{id}", autoH.Update)
 				r.Delete("/automations/{id}", autoH.Delete)
 				r.Post("/automations/run", autoH.Run)
@@ -340,6 +348,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 
 				// Per-agent ticket capacity (load-aware assignment).
 				r.Get("/capacity", capH.List)
+				r.Put("/capacity/{id}", capH.Update)
 				r.Patch("/capacity/{id}", capH.Update)
 
 				// Macros admin CRUD.
