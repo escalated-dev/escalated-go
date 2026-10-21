@@ -13,10 +13,14 @@ import (
 // webhook's latest delivery, the form with the events this package sends, and
 // the delivery log; their writes answered the Inertia way.
 func TestAdminWebhookPages(t *testing.T) {
-	f := newUIFixture(t)
-	db := f.esc.Config.DB
-	for name, h := range f.mounts() {
+	// A database per router: the retry below re-sends in the background, and
+	// on a shared database its late write could land on the next router's
+	// delivery once SQLite reuses the deleted rows' ids.
+	for _, name := range []string{"chi", "stdlib"} {
 		t.Run(name, func(t *testing.T) {
+			f := newUIFixture(t)
+			db := f.esc.Config.DB
+			h := f.mounts()[name]
 			index := "/escalated/admin/webhooks"
 			form := visit(t, h, index+"/create", uiAgent, "admin")
 			if form.Component != "Escalated/Admin/Webhooks/Form" {
