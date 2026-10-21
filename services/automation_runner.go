@@ -29,6 +29,9 @@ type AutomationRunner struct {
 	Access *ticketaccess.Access
 	DB     *sql.DB
 	Logger *log.Logger
+	// Tickets, when set, carries add_tag through the ticket service so it
+	// records activity and announces ticket.tag_added.
+	Tickets *TicketService
 }
 
 // NewAutomationRunner constructs a runner with the given DB and a logger
@@ -261,6 +264,9 @@ func (r *AutomationRunner) runAction(a models.Automation, t models.Ticket, actio
 		}
 		if err != nil {
 			return err
+		}
+		if r.Tickets != nil {
+			return r.Tickets.AddTag(context.Background(), t.ID, tagID, nil)
 		}
 		// Idempotent insert into the join table.
 		_, err = r.DB.Exec(

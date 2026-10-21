@@ -120,6 +120,65 @@ func (ts *TicketService) Unassign(ctx context.Context, ticketID int64, causerID 
 	return nil
 }
 
+// AddTag attaches a tag, records the activity and fires ticket.tag_added
+// (Laravel TagAddedToTicket). A tag the ticket already has is left alone and
+// announces nothing.
+func (ts *TicketService) AddTag(ctx context.Context, ticketID, tagID int64, causerID *models.UserID) error {
+	return ts.changeTag(ctx, ticketID, tagID, causerID, true)
+}
+
+// RemoveTag detaches a tag, records the activity and fires ticket.tag_removed
+// (Laravel TagRemovedFromTicket). A tag the ticket does not have announces
+// nothing.
+func (ts *TicketService) RemoveTag(ctx context.Context, ticketID, tagID int64, causerID *models.UserID) error {
+	return ts.changeTag(ctx, ticketID, tagID, causerID, false)
+}
+
+func (ts *TicketService) changeTag(ctx context.Context, ticketID, tagID int64, causerID *models.UserID, add bool) error {
+	tag, err := ts.store.GetTag(ctx, tagID)
+	if err != nil {
+		return err
+	}
+	if tag == nil {
+		return fmt.Errorf("tag %d not found", tagID)
+	}
+	t, err := ts.load(ctx, ticketID)
+	if err != nil {
+		return err
+	}
+	current, err := ts.store.GetTicketTags(ctx, ticketID)
+	if err != nil {
+		return err
+	}
+	has := false
+	for _, tg := range current {
+		if tg.ID == tagID {
+			has = true
+			break
+		}
+	}
+	if has == add {
+		return nil
+	}
+
+	action, event := models.ActionTagsAdded, "ticket.tag_added"
+	if add {
+		err = ts.store.AddTagToTicket(ctx, ticketID, tagID)
+	} else {
+		action, event = models.ActionTagsRemoved, "ticket.tag_removed"
+		err = ts.store.RemoveTagFromTicket(ctx, ticketID, tagID)
+	}
+	if err != nil {
+		return err
+	}
+
+	ts.logActivity(ctx, ticketID, action, causerID, map[string]any{"tag_id": tagID})
+	payload := ticketWebhookPayload(t)
+	payload["tag"] = map[string]any{"id": tag.ID, "name": tag.Name}
+	ts.emit(event, payload, t)
+	return nil
+}
+
 // UpdateDetails saves subject, description and ticket type edits (nil leaves
 // a field alone) and fires ticket.updated when anything changed.
 func (ts *TicketService) UpdateDetails(ctx context.Context, ticketID int64, subject, description, ticketType *string, causerID *models.UserID) (*models.Ticket, error) {

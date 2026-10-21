@@ -236,6 +236,13 @@ func (s *MacroService) runActionContext(ctx context.Context, action models.Macro
 		if err != nil {
 			return err
 		}
+		if s.Tickets != nil {
+			var causer *models.UserID
+			if !agentID.Empty() {
+				causer = &agentID
+			}
+			return s.Tickets.AddTag(ctx, ticketID, tagID, causer)
+		}
 		_, err = ticketaccess.ExecContext(ctx, s.DB,
 			s.query(`INSERT INTO escalated_ticket_tags (ticket_id, tag_id) VALUES (?, ?) ON CONFLICT DO NOTHING`),
 			ticketID, tagID,
