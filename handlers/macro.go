@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/escalated-dev/escalated-go/ticketaccess"
 
@@ -29,6 +30,10 @@ import (
 type MacroHandler struct {
 	DB      *sql.DB
 	Service *services.MacroService
+
+	// Pages serves Escalated/Admin/Macros/Index from GET /admin/macros and
+	// answers the page's writes the Inertia way. Set by the router.
+	Pages PageSupport
 }
 
 // NewMacroHandler constructs the handler.
@@ -39,15 +44,28 @@ func NewMacroHandler(db *sql.DB, svc *services.MacroService) *MacroHandler {
 	return &MacroHandler{DB: db, Service: svc}
 }
 
-// AdminList handles GET /admin/macros — list all macros for admin.
+// AdminList handles GET /admin/macros — list all macros for admin, or the
+// Escalated/Admin/Macros/Index page for a page visit.
 func (h *MacroHandler) AdminList(w http.ResponseWriter, r *http.Request) {
+	out, err := h.listAll(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if h.Pages.wantsPage(r) {
+		h.renderIndex(w, r, out, nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"macros": out})
+}
+
+func (h *MacroHandler) listAll(r *http.Request) ([]models.Macro, error) {
 	rows, err := ticketaccess.QueryContext(r.Context(), h.DB, sqldialect.Rebind(h.DB, `SELECT id, name, description, actions, is_shared, created_by, created_at, updated_at
 		   FROM escalated_macros
 		  ORDER BY name ASC`),
 	)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -59,8 +77,7 @@ func (h *MacroHandler) AdminList(w http.ResponseWriter, r *http.Request) {
 			&m.ID, &m.Name, &m.Description, &m.Actions, &m.IsShared,
 			&createdBy, &m.CreatedAt, &m.UpdatedAt,
 		); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			return nil, err
 		}
 		if createdBy.Valid {
 			uid := models.UserID(createdBy.String)
@@ -68,8 +85,43 @@ func (h *MacroHandler) AdminList(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, m)
 	}
+	return out, rows.Err()
+}
 
-	writeJSON(w, http.StatusOK, map[string]any{"macros": out})
+// renderIndex renders Escalated/Admin/Macros/Index (Laravel
+// Admin\MacroController::index): each macro with its actions and creator.
+func (h *MacroHandler) renderIndex(w http.ResponseWriter, r *http.Request, macros []models.Macro, errs map[string]string) {
+	if macros == nil {
+		var err error
+		if macros, err = h.listAll(r); err != nil {
+			http.Error(w, "could not list macros", http.StatusInternalServerError)
+			return
+		}
+	}
+	rows := make([]map[string]any, 0, len(macros))
+	for i, m := range macros {
+		actions, _ := uiJSON(m.Actions).([]any)
+		if actions == nil {
+			actions = []any{}
+		}
+		rows = append(rows, map[string]any{
+			"id":          m.ID,
+			"name":        m.Name,
+			"description": m.Description,
+			"is_shared":   m.IsShared,
+			"actions":     actions,
+			"order":       i,
+			"created_by":  m.CreatedBy,
+			"creator":     h.Pages.creator(r, m.CreatedBy),
+			"created_at":  uiTimeValue(m.CreatedAt),
+			"updated_at":  uiTimeValue(m.UpdatedAt),
+		})
+	}
+	h.Pages.render(w, r, "Escalated/Admin/Macros/Index", map[string]any{"macros": rows}, errs)
+}
+
+func (h *MacroHandler) rerender(w http.ResponseWriter, r *http.Request) func(map[string]string) {
+	return func(errs map[string]string) { h.renderIndex(w, r, nil, errs) }
 }
 
 // Create handles POST /admin/macros.
@@ -80,8 +132,8 @@ func (h *MacroHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Actions     json.RawMessage `json:"actions"`
 		IsShared    *bool           `json:"is_shared"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || in.Name == "" {
-		http.Error(w, "name is required", http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || strings.TrimSpace(in.Name) == "" {
+		h.Pages.fail(w, r, http.StatusBadRequest, "name is required", map[string]string{"name": requiredMessage("name")}, h.rerender(w, r))
 		return
 	}
 
@@ -89,7 +141,7 @@ func (h *MacroHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if in.IsShared != nil {
 		isShared = *in.IsShared
 	}
-	creator := currentAgentID(r)
+	creator := h.Pages.currentUser(r)
 	var creatorPtr *models.UserID
 	if !creator.Empty() {
 		creatorPtr = &creator
@@ -106,7 +158,7 @@ func (h *MacroHandler) Create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"id": m.ID})
+	h.Pages.succeed(w, r, h.Pages.path("/admin/macros"), http.StatusCreated, map[string]any{"id": m.ID})
 }
 
 // Update handles PATCH /admin/macros/{id}.
@@ -135,6 +187,10 @@ func (h *MacroHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if in.Name != nil {
+		if strings.TrimSpace(*in.Name) == "" {
+			h.Pages.fail(w, r, http.StatusBadRequest, "name is required", map[string]string{"name": requiredMessage("name")}, h.rerender(w, r))
+			return
+		}
 		m.Name = *in.Name
 	}
 	if in.Description != nil {
@@ -151,7 +207,7 @@ func (h *MacroHandler) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"id": m.ID})
+	h.Pages.succeed(w, r, h.Pages.path("/admin/macros"), http.StatusOK, map[string]any{"id": m.ID})
 }
 
 // Delete handles DELETE /admin/macros/{id}.
@@ -165,7 +221,7 @@ func (h *MacroHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	h.Pages.succeed(w, r, h.Pages.path("/admin/macros"), http.StatusNoContent, nil)
 }
 
 // AgentList handles GET /agent/macros — list visible to the current agent.

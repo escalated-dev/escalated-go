@@ -276,6 +276,24 @@ func (s *MacroService) runActionContext(ctx context.Context, action models.Macro
 	return nil
 }
 
+// lookupID reads an id, or finds the row of table named v; 0 when there is
+// none.
+func (s *MacroService) lookupID(ctx context.Context, table string, v interface{}) (int64, error) {
+	if id := macroToInt(v); id > 0 {
+		return int64(id), nil
+	}
+	name := strings.TrimSpace(macroToString(v))
+	if name == "" {
+		return 0, nil
+	}
+	var id int64
+	err := ticketaccess.QueryRowContext(ctx, s.DB, s.query(`SELECT id FROM `+table+` WHERE name = ?`), name).Scan(&id)
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+	return id, err
+}
+
 func (s *MacroService) query(query string) string {
 	if s.Access != nil {
 		query = strings.ReplaceAll(query, "escalated_", s.Access.Prefix)
@@ -294,22 +312,57 @@ func (s *MacroService) runViaTicketService(ctx context.Context, action models.Ma
 		causer = &agentID
 	}
 	switch action.Type {
-	case "change_status", "set_status":
+	case "change_status", "set_status", "status":
 		status, ok := StatusFromValue(action.Value)
 		if !ok {
 			return true, ErrInvalidStatus
 		}
 		return true, s.Tickets.ChangeStatus(ctx, ticketID, status, causer)
-	case "change_priority", "set_priority":
+	case "change_priority", "set_priority", "priority":
 		priority, ok := PriorityFromValue(action.Value)
 		if !ok {
 			return true, ErrInvalidPriority
 		}
 		return true, s.Tickets.ChangePriority(ctx, ticketID, priority, causer)
+	case "reply", "note":
+		// The shared macro editor's names (Laravel MacroService): a public
+		// reply or an internal note by the agent.
+		authorType := "User"
+		_, err := s.Tickets.AddReply(ctx, ticketID, macroToString(action.Value), &authorType, causer, action.Type == "note")
+		return true, err
+	case "tags":
+		// Tags by id or name: a list, or the editor's comma-separated text.
+		values, ok := action.Value.([]interface{})
+		if !ok {
+			values = nil
+			for _, part := range strings.Split(macroToString(action.Value), ",") {
+				values = append(values, strings.TrimSpace(part))
+			}
+		}
+		for _, v := range values {
+			id, err := s.lookupID(ctx, "escalated_tags", v)
+			if err != nil {
+				return true, err
+			}
+			if id > 0 {
+				if err := s.Tickets.AddTag(ctx, ticketID, id, causer); err != nil {
+					return true, err
+				}
+			}
+		}
+		return true, nil
 	case "assign":
 		return true, s.Tickets.Assign(ctx, ticketID, models.UserID(macroToString(action.Value)), causer)
 	case "set_department", "change_department", "department":
-		return true, s.Tickets.ChangeDepartment(ctx, ticketID, int64(macroToInt(action.Value)), causer)
+		// A department id, or its name as the editor allows.
+		id, err := s.lookupID(ctx, "escalated_departments", action.Value)
+		if err != nil {
+			return true, err
+		}
+		if id == 0 {
+			return true, ErrInvalidDepartment
+		}
+		return true, s.Tickets.ChangeDepartment(ctx, ticketID, id, causer)
 	}
 	return false, nil
 }

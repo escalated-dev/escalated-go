@@ -91,6 +91,24 @@ point your `route()` names at these paths under your `RoutePrefix`.
 | `Admin/SlaPolicies/Index` | `GET /admin/sla-policies` |
 | `Admin/Tickets/Index` | `GET /admin/tickets` |
 | `Admin/Tickets/Show` | `GET /admin/tickets/{reference}` |
+| `Admin/SlaPolicies/Form` | `GET /admin/sla-policies/create`, `/{id}/edit` |
+| `Admin/EscalationRules/Index`, `Form` | `GET /admin/escalation-rules`, `/create`, `/{id}/edit` |
+| `Admin/Macros/Index` | `GET /admin/macros` |
+| `Admin/CannedResponses/Index` | `GET /admin/canned-responses` |
+| `Admin/Webhooks/Index`, `Form`, `DeliveryLog` | `GET /admin/webhooks`, `/create`, `/{id}/edit`, `/{id}/deliveries` |
+
+The admin config lists (escalation rules, macros, canned responses, webhooks
+and the delivery log) answer the same URL two ways: the page for a page visit
+(`X-Inertia`) or a browser asking for HTML, and the JSON they always returned
+for anyone else. Their writes (`store`, `update` as `PUT` or `PATCH`,
+`destroy`, delivery `retry`) answer a page visit with a 303 to the list (or
+back, for a retry), or the page again with an `errors` prop; API clients get
+the answers they always had.
+
+Macros created in the shared editor use its action names (`status`,
+`priority`, `assign`, `tags`, `department`, `reply`, `note`), which now run
+alongside this package's own (`change_status`, `add_note`, ...). Tags and
+departments are taken by id or by name.
 
 The others this package renders are the departments, tags, skills, users, audit
 log and newsletter screens. `notYetRendered` in `page_name_parity_test.go` lists

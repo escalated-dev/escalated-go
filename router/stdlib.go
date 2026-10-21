@@ -98,9 +98,12 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 	macroH := handlers.NewMacroHandler(cfg.DB, macroSvc)
 	cannedSvc := services.NewCannedResponseService(cfg.DB, nil)
 	cannedH := handlers.NewCannedResponseHandler(cfg.DB, cannedSvc)
-	wireUIPages(esc, agentH, customerH, adminH, uiPageDeps{subjects: subjectSvc, macros: macroSvc, canned: cannedSvc})
 	articleH := handlers.NewArticleHandler(cfg.DB, services.NewArticleService(cfg.DB, nil))
 	webhookH := handlers.NewWebhookHandler(cfg.DB, webhookDispatcher)
+	wireUIPages(esc, agentH, customerH, adminH, uiPageDeps{
+		subjects: subjectSvc, macros: macroSvc, canned: cannedSvc,
+		escalations: escH, macroAdmin: macroH, cannedAdmin: cannedH, webhooks: webhookH,
+	})
 	workflowH := handlers.NewWorkflowHandler(cfg.DB)
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
@@ -227,6 +230,10 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 		mountTicketPanels(adminTickets, s, subjectH, linkH, scH)
 		mux.Handle("GET "+prefix+"/admin/sla-policies", adminMW(http.HandlerFunc(adminH.ListSLAPolicies)))
 		mux.Handle("POST "+prefix+"/admin/sla-policies", adminMW(http.HandlerFunc(adminH.CreateSLAPolicy)))
+		mux.Handle("GET "+prefix+"/admin/sla-policies/create", adminMW(http.HandlerFunc(adminH.CreateSLAPolicyForm)))
+		mux.Handle("GET "+prefix+"/admin/sla-policies/{id}/edit", adminMW(http.HandlerFunc(adminH.EditSLAPolicyForm)))
+		mux.Handle("PUT "+prefix+"/admin/sla-policies/{id}", adminMW(http.HandlerFunc(adminH.UpdateSLAPolicy)))
+		mux.Handle("PATCH "+prefix+"/admin/sla-policies/{id}", adminMW(http.HandlerFunc(adminH.UpdateSLAPolicy)))
 		mux.Handle("DELETE "+prefix+"/admin/sla-policies/{id}", adminMW(http.HandlerFunc(adminH.DeleteSLAPolicy)))
 		mux.Handle("POST "+prefix+"/admin/data-retention/purge", adminMW(http.HandlerFunc(retentionH.Purge)))
 
@@ -248,6 +255,9 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 		mux.Handle("GET "+prefix+"/admin/escalation-rules", adminMW(http.HandlerFunc(escH.List)))
 		mux.Handle("POST "+prefix+"/admin/escalation-rules", adminMW(http.HandlerFunc(escH.Create)))
 		mux.Handle("PATCH "+prefix+"/admin/escalation-rules/{id}", adminMW(http.HandlerFunc(escH.Update)))
+		mux.Handle("PUT "+prefix+"/admin/escalation-rules/{id}", adminMW(http.HandlerFunc(escH.Update)))
+		mux.Handle("GET "+prefix+"/admin/escalation-rules/create", adminMW(http.HandlerFunc(escH.CreateForm)))
+		mux.Handle("GET "+prefix+"/admin/escalation-rules/{id}/edit", adminMW(http.HandlerFunc(escH.EditForm)))
 		mux.Handle("DELETE "+prefix+"/admin/escalation-rules/{id}", adminMW(http.HandlerFunc(escH.Delete)))
 		mux.Handle("POST "+prefix+"/admin/escalation-rules/run", adminMW(http.HandlerFunc(escH.Run)))
 
@@ -259,12 +269,14 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 		mux.Handle("GET "+prefix+"/admin/macros", adminMW(http.HandlerFunc(macroH.AdminList)))
 		mux.Handle("POST "+prefix+"/admin/macros", adminMW(http.HandlerFunc(macroH.Create)))
 		mux.Handle("PATCH "+prefix+"/admin/macros/{id}", adminMW(http.HandlerFunc(macroH.Update)))
+		mux.Handle("PUT "+prefix+"/admin/macros/{id}", adminMW(http.HandlerFunc(macroH.Update)))
 		mux.Handle("DELETE "+prefix+"/admin/macros/{id}", adminMW(http.HandlerFunc(macroH.Delete)))
 
 		// Canned responses admin CRUD.
 		mux.Handle("GET "+prefix+"/admin/canned-responses", adminMW(http.HandlerFunc(cannedH.AdminList)))
 		mux.Handle("POST "+prefix+"/admin/canned-responses", adminMW(http.HandlerFunc(cannedH.Create)))
 		mux.Handle("PATCH "+prefix+"/admin/canned-responses/{id}", adminMW(http.HandlerFunc(cannedH.Update)))
+		mux.Handle("PUT "+prefix+"/admin/canned-responses/{id}", adminMW(http.HandlerFunc(cannedH.Update)))
 		mux.Handle("DELETE "+prefix+"/admin/canned-responses/{id}", adminMW(http.HandlerFunc(cannedH.Delete)))
 
 		// Knowledge-base authoring admin CRUD (articles + categories). The
@@ -284,6 +296,9 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 		mux.Handle("GET "+prefix+"/admin/webhooks", adminMW(http.HandlerFunc(webhookH.List)))
 		mux.Handle("POST "+prefix+"/admin/webhooks", adminMW(http.HandlerFunc(webhookH.Create)))
 		mux.Handle("PATCH "+prefix+"/admin/webhooks/{id}", adminMW(http.HandlerFunc(webhookH.Update)))
+		mux.Handle("PUT "+prefix+"/admin/webhooks/{id}", adminMW(http.HandlerFunc(webhookH.Update)))
+		mux.Handle("GET "+prefix+"/admin/webhooks/create", adminMW(http.HandlerFunc(webhookH.CreateForm)))
+		mux.Handle("GET "+prefix+"/admin/webhooks/{id}/edit", adminMW(http.HandlerFunc(webhookH.EditForm)))
 		mux.Handle("DELETE "+prefix+"/admin/webhooks/{id}", adminMW(http.HandlerFunc(webhookH.Delete)))
 		mux.Handle("GET "+prefix+"/admin/webhooks/{id}/deliveries", adminMW(http.HandlerFunc(webhookH.Deliveries)))
 		mux.Handle("POST "+prefix+"/admin/webhooks/deliveries/{id}/retry", adminMW(http.HandlerFunc(webhookH.Retry)))

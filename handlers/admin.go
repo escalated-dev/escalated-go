@@ -28,6 +28,203 @@ type AdminHandler struct {
 	// Optional; the router sets them.
 	DB          *sql.DB
 	TablePrefix string
+
+	// RoutePrefix builds the pages' redirects; TargetedSLAs is the SLA form's
+	// targeted switch (Config.TargetedSLAs). Set by the router.
+	RoutePrefix  string
+	TargetedSLAs bool
+}
+
+func (h *AdminHandler) slaIndexURL() string {
+	prefix := h.RoutePrefix
+	if prefix == "" {
+		prefix = "/escalated"
+	}
+	return prefix + "/admin/sla-policies"
+}
+
+// slaFormProps are the SLA form's options (Laravel SlaPolicyController::
+// formOptions): priorities, targeted, departments and ticketTypes.
+func (h *AdminHandler) slaFormProps(r *http.Request, policy *models.SLAPolicy) map[string]any {
+	props := map[string]any{
+		"priorities":  uiPriorities(),
+		"targeted":    h.TargetedSLAs,
+		"departments": uiDepartments(r.Context(), h.store),
+		"ticketTypes": models.TicketTypes,
+	}
+	if policy != nil {
+		props["policy"] = slaPolicyProps(policy, 0)
+	}
+	return props
+}
+
+func (h *AdminHandler) renderSLAForm(w http.ResponseWriter, r *http.Request, policy *models.SLAPolicy, errs map[string]string) {
+	props := h.slaFormProps(r, policy)
+	if errs != nil {
+		props["errors"] = pageErrors(errs)
+	}
+	_ = h.renderer.Render(w, r, "Escalated/Admin/SlaPolicies/Form", props)
+}
+
+// CreateSLAPolicyForm renders Escalated/Admin/SlaPolicies/Form for a new
+// policy (GET /admin/sla-policies/create).
+func (h *AdminHandler) CreateSLAPolicyForm(w http.ResponseWriter, r *http.Request) {
+	h.renderSLAForm(w, r, nil, nil)
+}
+
+// EditSLAPolicyForm renders Escalated/Admin/SlaPolicies/Form with the policy
+// (GET /admin/sla-policies/{id}/edit).
+func (h *AdminHandler) EditSLAPolicyForm(w http.ResponseWriter, r *http.Request) {
+	policy, ok := h.slaPolicyFromPath(w, r)
+	if !ok {
+		return
+	}
+	h.renderSLAForm(w, r, policy, nil)
+}
+
+func (h *AdminHandler) slaPolicyFromPath(w http.ResponseWriter, r *http.Request) (*models.SLAPolicy, bool) {
+	id, err := idFromPath(r)
+	if err != nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return nil, false
+	}
+	policy, err := h.store.GetSLAPolicy(r.Context(), id)
+	if err != nil {
+		http.Error(w, "could not load the policy", http.StatusInternalServerError)
+		return nil, false
+	}
+	if policy == nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return nil, false
+	}
+	return policy, true
+}
+
+// slaPolicyInput is what the SLA form and API clients send.
+type slaPolicyInput struct {
+	Name               *string         `json:"name"`
+	Description        *string         `json:"description"`
+	IsDefault          *bool           `json:"is_default"`
+	IsActive           *bool           `json:"is_active"`
+	FirstResponseHours models.JSONText `json:"first_response_hours"`
+	ResolutionHours    models.JSONText `json:"resolution_hours"`
+	DepartmentID       *int64          `json:"department_id"`
+	TicketType         *string         `json:"ticket_type"`
+}
+
+// apply copies the fields that were sent onto p.
+func (in slaPolicyInput) apply(p *models.SLAPolicy) map[string]string {
+	errs := map[string]string{}
+	if in.Name != nil {
+		p.Name = strings.TrimSpace(*in.Name)
+	}
+	if p.Name == "" {
+		errs["name"] = requiredMessage("name")
+	}
+	if in.Description != nil {
+		desc := strings.TrimSpace(*in.Description)
+		p.Description = &desc
+		if desc == "" {
+			p.Description = nil
+		}
+	}
+	if in.IsDefault != nil {
+		p.IsDefault = *in.IsDefault
+	}
+	if in.IsActive != nil {
+		p.IsActive = *in.IsActive
+	}
+	for field, raw := range map[string]models.JSONText{"first_response_hours": in.FirstResponseHours, "resolution_hours": in.ResolutionHours} {
+		if len(raw) == 0 || string(raw) == "null" {
+			continue
+		}
+		hours, ok := parseHours(raw)
+		if !ok {
+			errs[field] = "The " + strings.ReplaceAll(field, "_", " ") + " must be hours for each priority."
+			continue
+		}
+		clean, _ := json.Marshal(hours)
+		if field == "first_response_hours" {
+			p.FirstResponseHours = clean
+		} else {
+			p.ResolutionHours = clean
+		}
+	}
+	if in.DepartmentID != nil {
+		p.DepartmentID = in.DepartmentID
+		if *in.DepartmentID == 0 {
+			p.DepartmentID = nil
+		}
+	}
+	if in.TicketType != nil {
+		p.TicketType = in.TicketType
+		if *in.TicketType == "" {
+			p.TicketType = nil
+		}
+	}
+	return errs
+}
+
+// parseHours reads {priority: hours}. The form's inputs send numbers as
+// strings and leave unset priorities empty; those are dropped.
+func parseHours(raw models.JSONText) (map[string]float64, bool) {
+	var in map[string]any
+	if err := json.Unmarshal(raw, &in); err != nil {
+		return nil, false
+	}
+	out := map[string]float64{}
+	for priority, v := range in {
+		switch val := v.(type) {
+		case nil:
+		case float64:
+			out[priority] = val
+		case string:
+			if strings.TrimSpace(val) == "" {
+				continue
+			}
+			n, err := strconv.ParseFloat(strings.TrimSpace(val), 64)
+			if err != nil || n < 0 {
+				return nil, false
+			}
+			out[priority] = n
+		default:
+			return nil, false
+		}
+	}
+	return out, true
+}
+
+// UpdateSLAPolicy handles PUT/PATCH /admin/sla-policies/{id}
+// (escalated.admin.sla-policies.update).
+func (h *AdminHandler) UpdateSLAPolicy(w http.ResponseWriter, r *http.Request) {
+	policy, ok := h.slaPolicyFromPath(w, r)
+	if !ok {
+		return
+	}
+	old := *policy
+	var in slaPolicyInput
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		http.Error(w, "invalid input", http.StatusBadRequest)
+		return
+	}
+	if errs := in.apply(policy); len(errs) > 0 {
+		if isInertia(r) {
+			h.renderSLAForm(w, r, &old, errs)
+			return
+		}
+		validationErrors(w, r, errs, nil)
+		return
+	}
+	if err := h.store.UpdateSLAPolicy(r.Context(), policy); err != nil {
+		http.Error(w, "could not update the policy", http.StatusInternalServerError)
+		return
+	}
+	h.audit(r, "updated", "sla_policy", policy.ID, old, policy)
+	if isInertia(r) {
+		seeOther(w, r, h.slaIndexURL())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"sla_policy": policy})
 }
 
 // slaPolicyProps is an SLA policy as the admin pages read it, with Laravel's
@@ -261,13 +458,27 @@ func (h *AdminHandler) ListSLAPolicies(w http.ResponseWriter, r *http.Request) {
 }
 
 // CreateSLAPolicy handles POST /admin/sla-policies
+// (escalated.admin.sla-policies.store). A new policy is active unless
+// is_active is false.
 func (h *AdminHandler) CreateSLAPolicy(w http.ResponseWriter, r *http.Request) {
-	var in models.SLAPolicy
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || in.Name == "" {
+	var raw slaPolicyInput
+	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
 		http.Error(w, "name is required", http.StatusBadRequest)
 		return
 	}
-	in.IsActive = true
+	in := models.SLAPolicy{IsActive: true, FirstResponseHours: models.JSONText(`{}`), ResolutionHours: models.JSONText(`{}`)}
+	if errs := raw.apply(&in); len(errs) > 0 {
+		if isInertia(r) {
+			h.renderSLAForm(w, r, nil, errs)
+			return
+		}
+		if _, missing := errs["name"]; missing {
+			http.Error(w, "name is required", http.StatusBadRequest)
+			return
+		}
+		validationErrors(w, r, errs, nil)
+		return
+	}
 
 	if err := h.store.CreateSLAPolicy(r.Context(), &in); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -275,6 +486,10 @@ func (h *AdminHandler) CreateSLAPolicy(w http.ResponseWriter, r *http.Request) {
 	}
 	h.audit(r, "created", "sla_policy", in.ID, nil, in)
 
+	if isInertia(r) {
+		seeOther(w, r, h.slaIndexURL())
+		return
+	}
 	writeJSON(w, http.StatusCreated, map[string]any{"sla_policy": in})
 }
 
@@ -292,6 +507,10 @@ func (h *AdminHandler) DeleteSLAPolicy(w http.ResponseWriter, r *http.Request) {
 	}
 	if old != nil {
 		h.audit(r, "deleted", "sla_policy", id, old, nil)
+	}
+	if isInertia(r) {
+		seeOther(w, r, h.slaIndexURL())
+		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
