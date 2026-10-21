@@ -28,6 +28,10 @@ type TicketService struct {
 	// ProcessWorkflows listener. Left nil in tests and hosts that do not enable
 	// workflows, in which case the run is a no-op.
 	Workflows *WorkflowRunner
+
+	// Notifications, when set, emails requesters and agents about the
+	// ticket lifecycle (see Notifier). Nil sends nothing.
+	Notifications *Notifier
 }
 
 // NewTicketService creates a new TicketService.
@@ -116,6 +120,9 @@ func (ts *TicketService) Create(ctx context.Context, in CreateTicketInput) (*mod
 
 	ts.dispatchWebhook("ticket.created", ticketWebhookPayload(t))
 	ts.runWorkflows("ticket.created", t)
+	if ts.Notifications != nil {
+		ts.Notifications.TicketCreated(t)
+	}
 
 	return t, nil
 }
@@ -175,13 +182,21 @@ func (ts *TicketService) Assign(ctx context.Context, ticketID int64, agentID mod
 		CauserID:   causerID,
 	})
 
+	ts.announceAssigned(t, agentID, causerID)
+	return nil
+}
+
+// announceAssigned fires ticket.assigned (webhooks, workflows, the assignee's
+// email) and ticket.updated for an assignment already saved.
+func (ts *TicketService) announceAssigned(t *models.Ticket, agentID models.UserID, causerID *models.UserID) {
 	payload := ticketWebhookPayload(t)
 	payload["agent_id"] = string(agentID)
 	ts.dispatchWebhook("ticket.assigned", payload)
 	ts.runWorkflows("ticket.assigned", t)
+	if ts.Notifications != nil {
+		ts.Notifications.TicketAssigned(t, agentID, causerID)
+	}
 	ts.emitUpdated(t)
-
-	return nil
 }
 
 // ChangeStatus updates a ticket's status and records the activity.
@@ -234,6 +249,12 @@ func (ts *TicketService) ChangeStatus(ctx context.Context, ticketID int64, newSt
 	if event := statusLifecycleEvent(oldStatus, newStatus); event != "" {
 		ts.dispatchWebhook(event, payload)
 		ts.runWorkflows(event, t)
+	}
+	if ts.Notifications != nil {
+		ts.Notifications.StatusChanged(t, oldStatus, newStatus, causerID)
+		if newStatus == models.StatusEscalated && oldStatus != newStatus {
+			ts.Notifications.Escalated(t)
+		}
 	}
 	ts.emitUpdated(t)
 
@@ -298,6 +319,9 @@ func (ts *TicketService) AddReply(ctx context.Context, ticketID int64, body stri
 		},
 	})
 	ts.runWorkflows(replyEvent, t)
+	if ts.Notifications != nil && !internal {
+		ts.Notifications.ReplyCreated(t, r)
+	}
 
 	return r, nil
 }

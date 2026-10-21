@@ -41,6 +41,7 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 	// event-driven Workflows (see Escalated.NewTicketService).
 	ticketSvc := esc.NewTicketService()
 	assignSvc := services.NewAssignmentService(s)
+	assignSvc.Tickets = ticketSvc
 	subjectSvc := services.NewTicketSubjectService(s, cfg.TicketSubjectTypes, cfg.TicketSubjectResolver)
 
 	// The dispatcher is shared between the ticket service and the admin CRUD

@@ -28,6 +28,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/escalated-dev/escalated-go/ticketaccess"
@@ -54,6 +56,9 @@ type Escalated struct {
 	// guest API and the widget (docs/guest-access.md). Host code can call
 	// GuestAccess.Revoke after changing a ticket's guest email.
 	GuestAccess *services.GuestAccess
+	// Notifier sends the ticket notification emails; nil while Config.Mailer
+	// is nil or Config.Notifications.Disabled is set.
+	Notifier *services.Notifier
 }
 
 type newsletterMailerBridge struct {
@@ -132,6 +137,7 @@ func New(cfg Config) (*Escalated, error) {
 		Store:       s,
 		Renderer:    rend,
 		GuestAccess: newGuestAccess(cfg),
+		Notifier:    newNotifier(cfg, access),
 	}, nil
 }
 
@@ -165,6 +171,7 @@ func NewSQLite(cfg Config) (*Escalated, error) {
 		Store:       s,
 		Renderer:    rend,
 		GuestAccess: newGuestAccess(cfg),
+		Notifier:    newNotifier(cfg, access),
 	}, nil
 }
 
@@ -275,6 +282,7 @@ func (e *Escalated) NewTicketService() *services.TicketService {
 	ts.Webhooks = services.NewWebhookDispatcher(e.Config.DB, nil)
 	ts.Workflows = services.NewWorkflowRunner(e.Config.DB, nil, e.Access)
 	ts.Workflows.Tickets = ts
+	ts.Notifications = e.Notifier
 	return ts
 }
 
@@ -315,4 +323,54 @@ func (e *Escalated) StartSLAChecker(ctx context.Context, interval time.Duration)
 
 func newGuestAccess(cfg Config) *services.GuestAccess {
 	return services.NewGuestAccess(cfg.DB, cfg.TablePrefix, cfg.GuestAccess, cfg.Mailer, cfg.MailFrom, cfg.GuestRateLimit.Store, nil)
+}
+
+func newNotifier(cfg Config, access *ticketaccess.Access) *services.Notifier {
+	if cfg.Mailer == nil || cfg.Notifications.Disabled {
+		return nil
+	}
+	n := cfg.Notifications
+	branding := n.Branding
+	def := services.DefaultEmailBranding()
+	if branding.AccentColor == "" {
+		branding.AccentColor = def.AccentColor
+	}
+	if branding.FooterText == "" {
+		branding.FooterText = def.FooterText
+	}
+	if branding.CompanyName == "" {
+		branding.CompanyName = def.CompanyName
+	}
+	domain := n.Domain
+	base := strings.TrimRight(n.BaseURL, "/")
+	if domain == "" && base != "" {
+		if u, err := url.Parse(base); err == nil {
+			domain = u.Hostname()
+		}
+	}
+	var ticketURL func(t *models.Ticket, agent bool) string
+	if base != "" {
+		prefix := base + cfg.RoutePrefix
+		ticketURL = func(t *models.Ticket, agent bool) string {
+			if agent {
+				return fmt.Sprintf("%s/agent/tickets/%d", prefix, t.ID)
+			}
+			if t.RequesterID != nil && !t.RequesterID.Empty() {
+				return fmt.Sprintf("%s/tickets/%d", prefix, t.ID)
+			}
+			return ""
+		}
+	}
+	return &services.Notifier{
+		Mailer:        cfg.Mailer,
+		From:          cfg.MailFrom,
+		Domain:        domain,
+		InboundSecret: n.InboundSecret,
+		Branding:      branding,
+		UserEmail:     cfg.UserEmail,
+		TicketURL:     ticketURL,
+		DB:            cfg.DB,
+		Access:        access,
+		Sync:          n.Sync,
+	}
 }

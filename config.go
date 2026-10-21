@@ -57,6 +57,33 @@ type NewsletterConfig struct {
 	BrandPhysicalAddress string
 }
 
+// NotificationConfig configures the ticket notification emails.
+type NotificationConfig struct {
+	// Disabled turns the notification emails off while keeping Mailer for
+	// guest verification codes.
+	Disabled bool
+
+	// Domain is used in Message-IDs (<ticket-{id}@Domain>) and the signed
+	// Reply-To. Defaults to the host of BaseURL, else "escalated.dev".
+	Domain string
+
+	// InboundSecret, when set, gives every email a signed Reply-To
+	// (reply+{id}.{hmac}@Domain) that the inbound email routes verify.
+	InboundSecret string
+
+	// BaseURL is the public origin of the app (https://support.example.com).
+	// When set, emails link agents to {BaseURL}{RoutePrefix}/agent/tickets/{id}
+	// and signed-in requesters to {BaseURL}{RoutePrefix}/tickets/{id}.
+	BaseURL string
+
+	// Branding styles the HTML emails. Zero values use
+	// services.DefaultEmailBranding.
+	Branding services.EmailBranding
+
+	// Sync sends inline instead of in the background (tests).
+	Sync bool
+}
+
 // Config holds the configuration for the Escalated support ticket system.
 type Config struct {
 	Visibility               string
@@ -179,6 +206,16 @@ type Config struct {
 	// MailFrom is the From address on Escalated's email. Empty leaves it to
 	// the Mailer.
 	MailFrom string
+
+	// UserEmail returns a host user's email address. Notification emails to
+	// agents, followers and signed-in requesters use it; nil means those are
+	// not emailed (guest requesters still are). Escalated owns no users table.
+	UserEmail func(ctx context.Context, id models.UserID) (string, error)
+
+	// Notifications configures the ticket notification emails, sent through
+	// Mailer. Nothing is sent while Mailer is nil. See
+	// docs/notification-emails.md.
+	Notifications NotificationConfig
 
 	// GuestAccess configures verified guest access: email codes, expiring
 	// grants and the legacy-token transition. Set Secret in production. See

@@ -11,6 +11,11 @@ import (
 // AssignmentService handles ticket assignment logic.
 type AssignmentService struct {
 	store store.Store
+
+	// Tickets, when set, announces a reassignment like TicketService.Assign
+	// does (ticket.assigned to webhooks and workflows, the assignee's email,
+	// ticket.updated). The routers set it.
+	Tickets *TicketService
 }
 
 // NewAssignmentService creates a new AssignmentService.
@@ -77,5 +82,8 @@ func (as *AssignmentService) Reassign(ctx context.Context, ticketID int64, newAg
 		CauserType: causerType,
 		CauserID:   causerID,
 	})
+	if as.Tickets != nil {
+		as.Tickets.announceAssigned(t, agentID, causerID)
+	}
 	return nil
 }
