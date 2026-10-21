@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Upgrading
+- Automation `change_status` / `change_priority` actions and `status` /
+  `priority` conditions read slugs (`closed`, `urgent`), as the shared editor
+  sends them. Actions stored 0 for a slug; conditions compared the slug with
+  the integer column and never matched (an error on PostgreSQL).
+- Department, tag and public-ticket settings writes from a page visit
+  (`X-Inertia`) now get a 303 instead of JSON.
 - Workflow `change_status` and `change_priority` actions now read the slug the
   shared builder sends (`resolved`, `high`); they used to store 0 for a slug,
   silently reopening tickets or dropping them to low priority. An unknown
@@ -40,6 +46,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for a page visit), and redirects a page visit to the new ticket.
 
 ### Added
+- `Admin/Departments/Form`, `Admin/Automations/Index` and `Form`,
+  `Admin/Capacity/Index` and `Admin/Settings/PublicTickets`, and the
+  departments and tags lists now carry `tickets_count`. Departments, tags,
+  automations and capacity accept `PUT` (Laravel's routes) and tags gain an
+  update. Their writes answer a page visit with a 303 or the page again with
+  errors; API clients keep their JSON. Automations run the editor's
+  `set_ticket_type`.
 - Report pages: `Admin/Reports` and `Reports/Dashboard`, `AgentMetrics`,
   `SlaReport`, `CsatReport`, `SlaTrends`, `ResponseTimes`, `ResolutionTimes`,
   `AgentRanking`, `Cohorts` and `Comparison`, at Laravel's

@@ -286,19 +286,99 @@ func (h *AdminHandler) ListDepartments(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	counts := uiQueries{DB: h.DB, Prefix: h.TablePrefix}.groupCounts(r.Context(), "tickets", "department_id")
+	rows := make([]map[string]any, 0, len(depts))
+	for _, d := range depts {
+		rows = append(rows, departmentProps(d, counts[d.ID]))
+	}
 	_ = h.renderer.Render(w, r, "Escalated/Admin/Departments/Index", map[string]any{
-		"departments": depts,
+		"departments": rows,
 	})
+}
+
+// departmentProps is a department as the admin pages read it, with Laravel's
+// tickets_count. Departments here have no agent membership, so agents_count
+// is null.
+func departmentProps(d *models.Department, tickets int) map[string]any {
+	return map[string]any{
+		"id":            d.ID,
+		"name":          d.Name,
+		"slug":          d.Slug,
+		"description":   d.Description,
+		"email":         d.Email,
+		"is_active":     d.IsActive,
+		"tickets_count": tickets,
+		"agents_count":  nil,
+		"created_at":    uiTimeValue(d.CreatedAt),
+		"updated_at":    uiTimeValue(d.UpdatedAt),
+	}
+}
+
+func (h *AdminHandler) adminURL(suffix string) string {
+	prefix := h.RoutePrefix
+	if prefix == "" {
+		prefix = "/escalated"
+	}
+	return prefix + "/admin" + suffix
+}
+
+// pageDone ends a successful admin write: a 303 to location for a page
+// visit, the JSON body otherwise.
+func (h *AdminHandler) pageDone(w http.ResponseWriter, r *http.Request, location string, code int, body any) {
+	if isInertia(r) {
+		seeOther(w, r, location)
+		return
+	}
+	writeJSON(w, code, body)
+}
+
+func (h *AdminHandler) renderDepartmentForm(w http.ResponseWriter, r *http.Request, d *models.Department, errs map[string]string) {
+	props := map[string]any{"department": nil}
+	if d != nil {
+		props["department"] = departmentProps(d, 0)
+	}
+	if errs != nil {
+		props["errors"] = pageErrors(errs)
+	}
+	_ = h.renderer.Render(w, r, "Escalated/Admin/Departments/Form", props)
+}
+
+// CreateDepartmentForm renders Escalated/Admin/Departments/Form for a new
+// department (GET /admin/departments/create).
+func (h *AdminHandler) CreateDepartmentForm(w http.ResponseWriter, r *http.Request) {
+	h.renderDepartmentForm(w, r, nil, nil)
+}
+
+// EditDepartmentForm renders the form with the department
+// (GET /admin/departments/{id}/edit).
+func (h *AdminHandler) EditDepartmentForm(w http.ResponseWriter, r *http.Request) {
+	id, err := idFromPath(r)
+	if err != nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	d, err := h.store.GetDepartment(r.Context(), id)
+	if err != nil || d == nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	h.renderDepartmentForm(w, r, d, nil)
 }
 
 // CreateDepartment handles POST /admin/departments
 func (h *AdminHandler) CreateDepartment(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Name        string  `json:"name"`
+		Slug        string  `json:"slug"`
 		Description *string `json:"description"`
 		Email       *string `json:"email"`
+		IsActive    *bool   `json:"is_active"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || in.Name == "" {
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || strings.TrimSpace(in.Name) == "" {
+		if isInertia(r) {
+			h.renderDepartmentForm(w, r, nil, map[string]string{"name": requiredMessage("name")})
+			return
+		}
 		http.Error(w, "name is required", http.StatusBadRequest)
 		return
 	}
@@ -310,6 +390,12 @@ func (h *AdminHandler) CreateDepartment(w http.ResponseWriter, r *http.Request) 
 		Email:       in.Email,
 		IsActive:    true,
 	}
+	if s := slugify(in.Slug); s != "" {
+		d.Slug = s
+	}
+	if in.IsActive != nil {
+		d.IsActive = *in.IsActive
+	}
 
 	if err := h.store.CreateDepartment(r.Context(), d); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -317,7 +403,7 @@ func (h *AdminHandler) CreateDepartment(w http.ResponseWriter, r *http.Request) 
 	}
 	h.audit(r, "created", "department", d.ID, nil, d)
 
-	writeJSON(w, http.StatusCreated, map[string]any{"department": d})
+	h.pageDone(w, r, h.adminURL("/departments"), http.StatusCreated, map[string]any{"department": d})
 }
 
 // UpdateDepartment handles PATCH /admin/departments/{id}
@@ -346,6 +432,29 @@ func (h *AdminHandler) UpdateDepartment(w http.ResponseWriter, r *http.Request) 
 		d.Name = v
 		d.Slug = slugify(v)
 	}
+	if v, ok := updates["name"].(string); ok && strings.TrimSpace(v) == "" {
+		if isInertia(r) {
+			h.renderDepartmentForm(w, r, d, map[string]string{"name": requiredMessage("name")})
+			return
+		}
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	if v, ok := updates["slug"].(string); ok && slugify(v) != "" && slugify(v) != d.Slug {
+		oldValues["slug"], newValues["slug"] = d.Slug, slugify(v)
+		d.Slug = slugify(v)
+	}
+	if v, ok := updates["description"].(string); ok {
+		current := ""
+		if d.Description != nil {
+			current = *d.Description
+		}
+		if v != current {
+			oldValues["description"], newValues["description"] = current, v
+			desc := v
+			d.Description = &desc
+		}
+	}
 	if v, ok := updates["is_active"].(bool); ok && v != d.IsActive {
 		oldValues["is_active"], newValues["is_active"] = d.IsActive, v
 		d.IsActive = v
@@ -359,7 +468,7 @@ func (h *AdminHandler) UpdateDepartment(w http.ResponseWriter, r *http.Request) 
 		h.audit(r, "updated", "department", d.ID, oldValues, newValues)
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"department": d})
+	h.pageDone(w, r, h.adminURL("/departments"), http.StatusOK, map[string]any{"department": d})
 }
 
 // DeleteDepartment handles DELETE /admin/departments/{id}
@@ -377,7 +486,7 @@ func (h *AdminHandler) DeleteDepartment(w http.ResponseWriter, r *http.Request) 
 	if old != nil {
 		h.audit(r, "deleted", "department", id, old, nil)
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+	h.pageDone(w, r, h.adminURL("/departments"), http.StatusOK, map[string]string{"status": "deleted"})
 }
 
 // --- Tags ---
@@ -389,9 +498,73 @@ func (h *AdminHandler) ListTags(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	counts := uiQueries{DB: h.DB, Prefix: h.TablePrefix}.groupCounts(r.Context(), "ticket_tags", "tag_id")
+	rows := make([]map[string]any, 0, len(tags))
+	for _, t := range tags {
+		rows = append(rows, map[string]any{
+			"id": t.ID, "name": t.Name, "slug": t.Slug, "color": t.Color, "description": t.Description,
+			"tickets_count": counts[t.ID], "created_at": uiTimeValue(t.CreatedAt), "updated_at": uiTimeValue(t.UpdatedAt),
+		})
+	}
 	_ = h.renderer.Render(w, r, "Escalated/Admin/Tags/Index", map[string]any{
-		"tags": tags,
+		"tags": rows,
 	})
+}
+
+// renderTagsWithErrors shows the tags page again with errors (the page's
+// form lives on the list).
+func (h *AdminHandler) renderTagsWithErrors(w http.ResponseWriter, r *http.Request, errs map[string]string) {
+	tags, _ := h.store.ListTags(r.Context())
+	rows := []map[string]any{}
+	for _, t := range tags {
+		rows = append(rows, map[string]any{"id": t.ID, "name": t.Name, "slug": t.Slug, "color": t.Color})
+	}
+	_ = h.renderer.Render(w, r, "Escalated/Admin/Tags/Index", map[string]any{"tags": rows, "errors": pageErrors(errs)})
+}
+
+// UpdateTag handles PUT/PATCH /admin/tags/{id} (escalated.admin.tags.update):
+// name and color.
+func (h *AdminHandler) UpdateTag(w http.ResponseWriter, r *http.Request) {
+	id, err := idFromPath(r)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	t, err := h.store.GetTag(r.Context(), id)
+	if err != nil || t == nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	var in struct {
+		Name  *string `json:"name"`
+		Color *string `json:"color"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		http.Error(w, "invalid input", http.StatusBadRequest)
+		return
+	}
+	old := *t
+	if in.Name != nil {
+		if strings.TrimSpace(*in.Name) == "" {
+			if isInertia(r) {
+				h.renderTagsWithErrors(w, r, map[string]string{"name": requiredMessage("name")})
+				return
+			}
+			http.Error(w, "name is required", http.StatusBadRequest)
+			return
+		}
+		t.Name = *in.Name
+		t.Slug = slugify(*in.Name)
+	}
+	if in.Color != nil {
+		t.Color = in.Color
+	}
+	if err := h.store.UpdateTag(r.Context(), t); err != nil {
+		http.Error(w, "could not update the tag", http.StatusInternalServerError)
+		return
+	}
+	h.audit(r, "updated", "tag", t.ID, old, t)
+	h.pageDone(w, r, h.adminURL("/tags"), http.StatusOK, map[string]any{"tag": t})
 }
 
 // CreateTag handles POST /admin/tags
@@ -400,7 +573,11 @@ func (h *AdminHandler) CreateTag(w http.ResponseWriter, r *http.Request) {
 		Name  string  `json:"name"`
 		Color *string `json:"color"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || in.Name == "" {
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || strings.TrimSpace(in.Name) == "" {
+		if isInertia(r) {
+			h.renderTagsWithErrors(w, r, map[string]string{"name": requiredMessage("name")})
+			return
+		}
 		http.Error(w, "name is required", http.StatusBadRequest)
 		return
 	}
@@ -417,7 +594,7 @@ func (h *AdminHandler) CreateTag(w http.ResponseWriter, r *http.Request) {
 	}
 	h.audit(r, "created", "tag", t.ID, nil, t)
 
-	writeJSON(w, http.StatusCreated, map[string]any{"tag": t})
+	h.pageDone(w, r, h.adminURL("/tags"), http.StatusCreated, map[string]any{"tag": t})
 }
 
 // DeleteTag handles DELETE /admin/tags/{id}
@@ -435,7 +612,7 @@ func (h *AdminHandler) DeleteTag(w http.ResponseWriter, r *http.Request) {
 	if old != nil {
 		h.audit(r, "deleted", "tag", id, old, nil)
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+	h.pageDone(w, r, h.adminURL("/tags"), http.StatusOK, map[string]string{"status": "deleted"})
 }
 
 // --- SLA Policies ---
@@ -536,6 +713,12 @@ var validGuestPolicyModes = map[string]struct{}{
 // and returns the three guest-policy fields as JSON. Missing keys fall
 // back to the shipped defaults (unassigned / no user / empty template).
 func (h *AdminHandler) GetPublicTicketsSettings(w http.ResponseWriter, r *http.Request) {
+	h.publicTicketsSettings(w, r, PageSupport{Renderer: h.renderer}.wantsPage(r), nil)
+}
+
+// publicTicketsSettings answers the settings as JSON, or renders
+// Escalated/Admin/Settings/PublicTickets with them (and errs).
+func (h *AdminHandler) publicTicketsSettings(w http.ResponseWriter, r *http.Request, page bool, errs map[string]string) {
 	ctx := r.Context()
 	mode, err := h.store.GetSetting(ctx, "guest_policy_mode")
 	if err != nil {
@@ -561,6 +744,14 @@ func (h *AdminHandler) GetPublicTicketsSettings(w http.ResponseWriter, r *http.R
 		"guest_policy_user_id":             parseOptionalPositiveInt(userIDRaw),
 		"guest_policy_signup_url_template": template,
 	}
+	if page {
+		props := map[string]any{"settings": payload}
+		if errs != nil {
+			props["errors"] = pageErrors(errs)
+		}
+		_ = h.renderer.Render(w, r, "Escalated/Admin/Settings/PublicTickets", props)
+		return
+	}
 	writeJSON(w, http.StatusOK, payload)
 }
 
@@ -581,6 +772,20 @@ func (h *AdminHandler) UpdatePublicTicketsSettings(w http.ResponseWriter, r *htt
 	}
 
 	mode := in.GuestPolicyMode
+	if isInertia(r) {
+		// The page gets Laravel's validation instead of the API's fallbacks.
+		errs := map[string]string{}
+		if _, ok := validGuestPolicyModes[mode]; !ok {
+			errs["guest_policy_mode"] = "The selected guest policy mode is invalid."
+		}
+		if mode == "guest_user" && (in.GuestPolicyUserID == nil || in.GuestPolicyUserID.Empty()) {
+			errs["guest_policy_user_id"] = "Choose the user guest tickets are filed under."
+		}
+		if len(errs) > 0 {
+			h.publicTicketsSettings(w, r, true, errs)
+			return
+		}
+	}
 	if _, ok := validGuestPolicyModes[mode]; !ok {
 		mode = "unassigned"
 	}
@@ -612,7 +817,11 @@ func (h *AdminHandler) UpdatePublicTicketsSettings(w http.ResponseWriter, r *htt
 		return
 	}
 
-	h.GetPublicTicketsSettings(w, r)
+	if isInertia(r) {
+		backTo(w, r, h.adminURL("/settings/public-tickets"))
+		return
+	}
+	h.publicTicketsSettings(w, r, false, nil)
 }
 
 // --- Widget embedding settings ---

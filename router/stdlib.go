@@ -109,7 +109,7 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 	wireUIPages(esc, agentH, customerH, adminH, uiPageDeps{
 		subjects: subjectSvc, macros: macroSvc, canned: cannedSvc,
 		escalations: escH, macroAdmin: macroH, cannedAdmin: cannedH, webhooks: webhookH,
-		articles: articleH, kbPages: kbPages, guestPages: guestPages, workflows: workflowH, reports: reportH,
+		articles: articleH, kbPages: kbPages, guestPages: guestPages, workflows: workflowH, reports: reportH, automations: autoH, capacity: capH,
 	})
 	var newsletterH *handlers.NewsletterHandler
 	if cfg.EnableNewsletters {
@@ -230,10 +230,15 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 		mux.Handle("GET "+prefix+"/admin/departments", adminMW(http.HandlerFunc(adminH.ListDepartments)))
 		mux.Handle("POST "+prefix+"/admin/departments", adminMW(http.HandlerFunc(adminH.CreateDepartment)))
 		mux.Handle("PATCH "+prefix+"/admin/departments/{id}", adminMW(http.HandlerFunc(adminH.UpdateDepartment)))
+		mux.Handle("PUT "+prefix+"/admin/departments/{id}", adminMW(http.HandlerFunc(adminH.UpdateDepartment)))
+		mux.Handle("GET "+prefix+"/admin/departments/create", adminMW(http.HandlerFunc(adminH.CreateDepartmentForm)))
+		mux.Handle("GET "+prefix+"/admin/departments/{id}/edit", adminMW(http.HandlerFunc(adminH.EditDepartmentForm)))
 		mux.Handle("DELETE "+prefix+"/admin/departments/{id}", adminMW(http.HandlerFunc(adminH.DeleteDepartment)))
 		mux.Handle("GET "+prefix+"/admin/tags", adminMW(http.HandlerFunc(adminH.ListTags)))
 		mux.Handle("POST "+prefix+"/admin/tags", adminMW(http.HandlerFunc(adminH.CreateTag)))
 		mux.Handle("DELETE "+prefix+"/admin/tags/{id}", adminMW(http.HandlerFunc(adminH.DeleteTag)))
+		mux.Handle("PUT "+prefix+"/admin/tags/{id}", adminMW(http.HandlerFunc(adminH.UpdateTag)))
+		mux.Handle("PATCH "+prefix+"/admin/tags/{id}", adminMW(http.HandlerFunc(adminH.UpdateTag)))
 		// Ticket merge (Laravel TicketMergeController).
 		mux.Handle("GET "+prefix+"/admin/tickets/merge-search", adminMW(http.HandlerFunc(mergeH.Search)))
 		mux.Handle("POST "+prefix+"/admin/tickets/{id}/merge", adminMW(http.HandlerFunc(mergeH.Merge)))
@@ -271,6 +276,9 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 		mux.Handle("GET "+prefix+"/admin/automations", adminMW(http.HandlerFunc(autoH.List)))
 		mux.Handle("POST "+prefix+"/admin/automations", adminMW(http.HandlerFunc(autoH.Create)))
 		mux.Handle("PATCH "+prefix+"/admin/automations/{id}", adminMW(http.HandlerFunc(autoH.Update)))
+		mux.Handle("PUT "+prefix+"/admin/automations/{id}", adminMW(http.HandlerFunc(autoH.Update)))
+		mux.Handle("GET "+prefix+"/admin/automations/create", adminMW(http.HandlerFunc(autoH.CreateForm)))
+		mux.Handle("GET "+prefix+"/admin/automations/{id}/edit", adminMW(http.HandlerFunc(autoH.EditForm)))
 		mux.Handle("DELETE "+prefix+"/admin/automations/{id}", adminMW(http.HandlerFunc(autoH.Delete)))
 		mux.Handle("POST "+prefix+"/admin/automations/run", adminMW(http.HandlerFunc(autoH.Run)))
 
@@ -287,6 +295,7 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 		// Per-agent ticket capacity (load-aware assignment).
 		mux.Handle("GET "+prefix+"/admin/capacity", adminMW(http.HandlerFunc(capH.List)))
 		mux.Handle("PATCH "+prefix+"/admin/capacity/{id}", adminMW(http.HandlerFunc(capH.Update)))
+		mux.Handle("PUT "+prefix+"/admin/capacity/{id}", adminMW(http.HandlerFunc(capH.Update)))
 
 		// Macros admin CRUD.
 		mux.Handle("GET "+prefix+"/admin/macros", adminMW(http.HandlerFunc(macroH.AdminList)))

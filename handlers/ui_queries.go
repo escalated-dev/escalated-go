@@ -132,6 +132,29 @@ func (q uiQueries) requesterTicketCount(ctx context.Context, t *models.Ticket) i
 	return 1
 }
 
+// groupCounts counts the rows of table per column value (withCount), keyed
+// by that value.
+func (q uiQueries) groupCounts(ctx context.Context, table, column string) map[int64]int {
+	out := map[int64]int{}
+	if q.DB == nil {
+		return out
+	}
+	rows, err := ticketaccess.QueryContext(ctx, q.DB, fmt.Sprintf(
+		`SELECT %[2]s, COUNT(1) FROM %[1]s WHERE %[2]s IS NOT NULL GROUP BY %[2]s`, q.t(table), column))
+	if err != nil {
+		return out
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var id int64
+		var n int
+		if rows.Scan(&id, &n) == nil {
+			out[id] = n
+		}
+	}
+	return out
+}
+
 // slaTicketCounts is SlaPolicy::withCount('tickets'), keyed by policy id.
 func (q uiQueries) slaTicketCounts(ctx context.Context) map[int64]int {
 	out := map[int64]int{}
