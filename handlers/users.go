@@ -121,11 +121,42 @@ func (h *UserHandler) Index(w http.ResponseWriter, r *http.Request) {
 		currentUserID = uid
 	}
 
-	_ = h.renderer.Render(w, r, "Escalated/Admin/Users/Index", map[string]any{
-		"users":         users,
+	h.render(w, r, users, search, currentUserID, nil)
+}
+
+// render renders Escalated/Admin/Users/Index. users is Laravel's paginator,
+// links included (the page draws its pager from users.links).
+func (h *UserHandler) render(w http.ResponseWriter, r *http.Request, users UserPage, search string, currentUserID any, errs map[string]string) {
+	rows := make([]map[string]any, 0, len(users.Data))
+	for _, u := range users.Data {
+		rows = append(rows, map[string]any{
+			"id": u.ID, "name": u.Name, "email": u.Email, "is_admin": u.IsAdmin, "is_agent": u.IsAgent,
+		})
+	}
+	paginator := uiPaginator(rows, users.Total, uiPage{Page: users.CurrentPage, PerPage: users.PerPage}, r.URL.Path)
+	if users.LastPage > 0 {
+		// The directory's own count of pages wins over the one derived from
+		// total, should a host page differently.
+		paginator["last_page"] = users.LastPage
+	}
+	props := map[string]any{
+		"users":         paginator,
 		"filters":       map[string]any{"search": search},
 		"currentUserId": currentUserID,
-	})
+	}
+	if errs != nil {
+		props["errors"] = pageErrors(errs)
+	}
+	_ = h.renderer.Render(w, r, "Escalated/Admin/Users/Index", props)
+}
+
+// back answers a role change from the page: a 303 back to the users list.
+func (h *UserHandler) back(w http.ResponseWriter, r *http.Request) {
+	fallback := strings.TrimSuffix(r.URL.Path, "/role")
+	if i := strings.LastIndex(fallback, "/"); i > 0 {
+		fallback = fallback[:i]
+	}
+	backTo(w, r, fallback)
 }
 
 // UpdateRole handles PATCH /admin/users/{user}/role. Body: {role, value}.
@@ -183,6 +214,18 @@ func (h *UserHandler) UpdateRole(w http.ResponseWriter, r *http.Request) {
 	// have) — the test must be against the request's current user.
 	if in.Role == "admin" && !value {
 		if currentID := h.currentID(r); !currentID.Empty() && currentID == models.UserID(strconv.FormatInt(target.ID, 10)) {
+			if isInertia(r) {
+				// The page again, with the refusal where useForm shows it.
+				users, _ := h.directory.ListUsers(r.Context(), "", 1, 20)
+				if users.PerPage == 0 {
+					users.PerPage = 20
+				}
+				if users.CurrentPage == 0 {
+					users.CurrentPage = 1
+				}
+				h.render(w, r, users, "", currentID, map[string]string{"role": "You cannot remove your own admin role."})
+				return
+			}
 			writeJSON(w, http.StatusUnprocessableEntity, map[string]any{
 				"error": "You cannot remove your own admin role.",
 			})
@@ -213,6 +256,10 @@ func (h *UserHandler) UpdateRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if isInertia(r) {
+		h.back(w, r)
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"status": "updated"})
 }
 

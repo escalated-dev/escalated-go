@@ -34,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for a page visit), and redirects a page visit to the new ticket.
 
 ### Added
+- `Admin/Users/Index` gets Laravel's full paginator (`users.links`, `from`,
+  `to`, page URLs), which its pager reads; a role change from the page
+  answers with a 303 back, and demoting yourself shows the refusal as
+  `errors.role`. API clients get the same JSON as before.
 - The admin config pages: `Admin/SlaPolicies/Form` (with `PUT`/`PATCH`
   update, which SLA policies lacked), `Admin/EscalationRules/Index` and
   `Form`, `Admin/Macros/Index`, `Admin/CannedResponses/Index`,
