@@ -36,7 +36,7 @@ type uiFixture struct {
 	slaPolicy int64
 }
 
-func newUIFixture(t *testing.T) *uiFixture {
+func newUIFixture(t *testing.T, configure ...func(*escalated.Config)) *uiFixture {
 	t.Helper()
 	db := testdb.Open(t)
 
@@ -57,6 +57,9 @@ func newUIFixture(t *testing.T) *uiFixture {
 	}
 
 	cfg.SkillAgentDirectory = uiAgents{}
+	for _, c := range configure {
+		c(&cfg)
+	}
 
 	esc, err := escalated.New(cfg)
 	if err != nil {

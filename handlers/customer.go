@@ -212,20 +212,31 @@ func (h *CustomerHandler) Show(w http.ResponseWriter, r *http.Request) {
 
 // customerPayload is Laravel's CustomerTicketPayload::customerWeb.
 func (h *CustomerHandler) customerPayload(r *http.Request, t *models.Ticket) map[string]any {
+	return webTicketPayload(r, h.store, h.presenter(), uiQueries{DB: h.DB, Prefix: h.TablePrefix}, t, true)
+}
+
+// webTicketPayload is Laravel's CustomerTicketPayload::customerWeb (and, with
+// files false, guestWeb without its grant expiry): public replies only, staff
+// by display name. Guests get no file list: this package has no guest
+// attachment access.
+func webTicketPayload(r *http.Request, s store.Store, p *uiPresenter, q uiQueries, t *models.Ticket, files bool) map[string]any {
 	ctx := r.Context()
-	p := h.presenter()
 	var department any
 	if d := p.department(ctx, t.DepartmentID); d != nil {
 		department = map[string]any{"name": d["name"]}
 	}
 
 	public := false
-	replies, _ := h.store.ListReplies(ctx, models.ReplyFilters{TicketID: t.ID, Internal: &public})
+	replies, _ := s.ListReplies(ctx, models.ReplyFilters{TicketID: t.ID, Internal: &public})
 	sortNewestFirst(replies)
 	thread := []map[string]any{}
 	for _, rpl := range replies {
 		if rpl.IsInternal {
 			continue
+		}
+		attachments := []map[string]any{}
+		if files {
+			attachments = p.replyAttachments(ctx, rpl.ID)
 		}
 		thread = append(thread, map[string]any{
 			"id":               rpl.ID,
@@ -233,14 +244,18 @@ func (h *CustomerHandler) customerPayload(r *http.Request, t *models.Ticket) map
 			"is_internal_note": false,
 			"is_pinned":        rpl.IsPinned,
 			"author":           map[string]any{"name": customerReplyAuthor(ctx, p, t, rpl)},
-			"attachments":      p.replyAttachments(ctx, rpl.ID),
+			"attachments":      attachments,
 			"created_at":       uiTimeValue(rpl.CreatedAt),
 		})
 	}
 
 	var rating any
-	if got := (uiQueries{DB: h.DB, Prefix: h.TablePrefix}).rating(ctx, t.ID); got != nil {
+	if got := q.rating(ctx, t.ID); got != nil {
 		rating = map[string]any{"rating": got.Rating, "comment": got.Comment}
+	}
+	attachments := []map[string]any{}
+	if files {
+		attachments = p.ticketAttachments(ctx, t.ID)
 	}
 
 	return map[string]any{
@@ -252,7 +267,7 @@ func (h *CustomerHandler) customerPayload(r *http.Request, t *models.Ticket) map
 		"priority":            uiPriority(t.Priority),
 		"channel":             uiChannel(t),
 		"department":          department,
-		"attachments":         p.ticketAttachments(ctx, t.ID),
+		"attachments":         attachments,
 		"replies":             thread,
 		"satisfaction_rating": rating,
 		"resolved_at":         uiTime(t.ResolvedAt),
