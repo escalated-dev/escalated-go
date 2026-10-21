@@ -40,6 +40,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for a page visit), and redirects a page visit to the new ticket.
 
 ### Added
+- Report pages: `Admin/Reports` and `Reports/Dashboard`, `AgentMetrics`,
+  `SlaReport`, `CsatReport`, `SlaTrends`, `ResponseTimes`, `ResolutionTimes`,
+  `AgentRanking`, `Cohorts` and `Comparison`, at Laravel's
+  `/admin/reports/...` paths. The existing JSON report endpoints keep
+  answering API clients.
 - Workflow pages per the workflow admin contract: `Admin/Workflows/Index`,
   `Form` (create at `/admin/workflows/create`, edit at `GET
   /admin/workflows/{id}`, with `trigger_events`, `action_types` and
