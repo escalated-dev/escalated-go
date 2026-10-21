@@ -2,10 +2,12 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"testing"
 
 	"github.com/escalated-dev/escalated-go/internal/testdb"
@@ -15,18 +17,38 @@ import (
 	"github.com/escalated-dev/escalated-go/services"
 )
 
+type lastCodeMailer struct{ text string }
+
+func (m *lastCodeMailer) SendMail(_ context.Context, msg services.Mail) error {
+	m.text = msg.Text
+	return nil
+}
+
 func guestHandlerFixture(t *testing.T) (*GuestTicketHandler, *sql.DB) {
 	t.Helper()
 	db := testdb.Open(t)
 	s := testdb.Store(t, db)
-	return NewGuestTicketHandler(s, services.NewTicketService(s)), db
+	h := NewGuestTicketHandler(s, services.NewTicketService(s))
+	h.Access = services.NewGuestAccess(db, testdb.Prefix, services.GuestAccessConfig{Secret: "test"}, &lastCodeMailer{}, "", nil, nil)
+	return h, db
+}
+
+// guestCode requests a ticket code for email and returns the proof fields.
+func guestCode(t *testing.T, h *GuestTicketHandler, email string) string {
+	t.Helper()
+	id, err := h.Access.Challenge(context.Background(), email, services.GuestPurposeTicket, "198.51.100.9")
+	if err != nil {
+		t.Fatal(err)
+	}
+	code := regexp.MustCompile(`[0-9]{8}`).FindString(h.Access.Mailer.(*lastCodeMailer).text)
+	return `"verification_id":"` + id + `","verification_code":"` + code + `"`
 }
 
 func TestGuestTicketCreateAndLookup(t *testing.T) {
 	h, db := guestHandlerFixture(t)
 	defer db.Close()
 
-	body := `{"guest_name":"Pat","guest_email":"pat@example.com","subject":"Help","description":"Please assist"}`
+	body := `{"guest_name":"Pat","guest_email":"pat@example.com","subject":"Help","description":"Please assist",` + guestCode(t, h, "pat@example.com") + `}`
 	rec := httptest.NewRecorder()
 	h.Create(rec, httptest.NewRequest(http.MethodPost, "/api/guest/tickets", bytes.NewBufferString(body)))
 

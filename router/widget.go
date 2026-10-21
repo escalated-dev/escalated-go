@@ -45,6 +45,16 @@ func newWidgetStack(esc *escalated.Escalated, ticketSvc *services.TicketService)
 	limiter := middleware.NewGuestRateLimiter(cfg.GuestRateLimit).WithRequestsPerMinute(cfg.Widget.RateLimitPerMin)
 	widget.Limiter = limiter
 	chat.Limiter = limiter
+	widget.Access = esc.GuestAccess
+	chat.Access = esc.GuestAccess
+	verify := &handlers.GuestVerificationHandler{
+		Access:   esc.GuestAccess,
+		ClientIP: limiter.ClientIP,
+		Enabled:  func() bool { return cfg.Widget.Enabled },
+		Allow: func(w http.ResponseWriter, r *http.Request, scope middleware.GuestScope) bool {
+			return limiter.Allow(w, r, middleware.GuestRequestScope, scope)
+		},
+	}
 
 	cors := handlers.WidgetCORS(cfg.Widget, s)
 	return widgetStack{
@@ -56,7 +66,11 @@ func newWidgetStack(esc *escalated.Escalated, ticketSvc *services.TicketService)
 			{http.MethodGet, "/articles", widget.SearchArticles},
 			{http.MethodGet, "/articles/{slug}", widget.ShowArticle},
 			{http.MethodPost, "/tickets", widget.CreateTicket},
+			// Verified guest access: email codes, lookup, grant-read status.
+			{http.MethodPost, "/verification", verify.Request},
+			{http.MethodPost, "/lookup", verify.Lookup},
 			{http.MethodGet, "/tickets/lookup", widget.LookupTicket},
+			{http.MethodGet, "/tickets/{reference}", widget.TicketStatus},
 			{http.MethodGet, "/chat/availability", chat.Availability},
 			{http.MethodPost, "/chat/start", chat.StartChat},
 			// Chats are addressed by the unguessable id /chat/start returns.

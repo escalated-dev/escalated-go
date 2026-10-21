@@ -17,9 +17,9 @@ func TestWidgetAcceptsADepartmentIDSentAsAString(t *testing.T) {
 	dept := strconv.FormatInt(f.department, 10)
 	for name, h := range f.mounts() {
 		t.Run(name, func(t *testing.T) {
-			rec, out := widgetCall(t, h, http.MethodPost, "/tickets", map[string]any{
+			rec, out := widgetCall(t, h, http.MethodPost, "/tickets", withProof(t, f.esc, "ticket", map[string]any{
 				"name": "Ada", "email": "ada@example.com", "subject": "S", "description": "D", "department_id": dept,
-			})
+			}))
 			if rec.Code != http.StatusCreated {
 				t.Fatalf("ticket with department_id %q: %d %s", dept, rec.Code, rec.Body.String())
 			}
@@ -28,17 +28,17 @@ func TestWidgetAcceptsADepartmentIDSentAsAString(t *testing.T) {
 				t.Fatalf("department not stored: %#v %v", tk, err)
 			}
 
-			rec, _ = widgetCall(t, h, http.MethodPost, "/chat/start", map[string]any{
+			rec, _ = widgetCall(t, h, http.MethodPost, "/chat/start", withProof(t, f.esc, "chat", map[string]any{
 				"name": "Grace", "email": "grace@example.com", "department_id": dept,
-			})
+			}))
 			if rec.Code != http.StatusCreated {
 				t.Fatalf("chat with department_id %q: %d %s", dept, rec.Code, rec.Body.String())
 			}
 
 			// The widget's empty preset is "", which means none.
-			rec, _ = widgetCall(t, h, http.MethodPost, "/tickets", map[string]any{
+			rec, _ = widgetCall(t, h, http.MethodPost, "/tickets", withProof(t, f.esc, "ticket", map[string]any{
 				"name": "Ada", "email": "ada@example.com", "subject": "S", "description": "D", "department_id": "",
-			})
+			}))
 			if rec.Code != http.StatusCreated {
 				t.Fatalf("ticket with empty department_id: %d %s", rec.Code, rec.Body.String())
 			}
@@ -66,9 +66,9 @@ func TestWidgetRoutesUseTheGuestRateLimits(t *testing.T) {
 	for name, h := range f.mounts() {
 		t.Run(name, func(t *testing.T) {
 			ticket := func(ip string) int {
-				rec, _ := widgetCall(t, h, http.MethodPost, "/tickets", map[string]any{
+				rec, _ := widgetCall(t, h, http.MethodPost, "/tickets", withProof(t, f.esc, "ticket", map[string]any{
 					"name": "Ada", "email": "ada@example.com", "subject": "S", "description": "D",
-				}, "X-Test-Client-IP", ip)
+				}), "X-Test-Client-IP", ip)
 				return rec.Code
 			}
 			for i := 0; i < 5; i++ {
@@ -84,9 +84,9 @@ func TestWidgetRoutesUseTheGuestRateLimits(t *testing.T) {
 				t.Fatalf("another client behind the same proxy: got %d, want 201", code)
 			}
 
-			rec, out := widgetCall(t, h, http.MethodPost, "/chat/start", map[string]any{
+			rec, out := widgetCall(t, h, http.MethodPost, "/chat/start", withProof(t, f.esc, "chat", map[string]any{
 				"name": "Grace", "email": "grace@example.com",
-			}, "X-Test-Client-IP", "198.51.100.3")
+			}), "X-Test-Client-IP", "198.51.100.3")
 			if rec.Code != http.StatusCreated {
 				t.Fatalf("chat start: %d %s", rec.Code, rec.Body.String())
 			}
@@ -128,9 +128,9 @@ func TestWidgetRateLimitsCanBeDisabled(t *testing.T) {
 	for name, h := range f.mounts() {
 		t.Run(name, func(t *testing.T) {
 			for i := 0; i < 8; i++ {
-				rec, _ := widgetCall(t, h, http.MethodPost, "/tickets", map[string]any{
+				rec, _ := widgetCall(t, h, http.MethodPost, "/tickets", withProof(t, f.esc, "ticket", map[string]any{
 					"name": "Ada", "email": "ada@example.com", "subject": "S", "description": "D",
-				})
+				}))
 				if rec.Code != http.StatusCreated {
 					t.Fatalf("ticket %d with limits disabled: got %d", i+1, rec.Code)
 				}

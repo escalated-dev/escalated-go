@@ -34,6 +34,10 @@ type WidgetChatHandler struct {
 	// WidgetHandler.Limiter.
 	Limiter *middleware.GuestRateLimiter
 
+	// Access checks guest email codes. The routers set it; with it, starting
+	// a chat needs a "chat" code for the visitor's email (docs/guest-access.md).
+	Access *services.GuestAccess
+
 	// AgentName, when set, returns the display name of an agent for the
 	// widget's chat transcript. When nil (or it returns ""), agents show as
 	// "Support".
@@ -103,7 +107,9 @@ func (h *WidgetChatHandler) StartChat(w http.ResponseWriter, r *http.Request) {
 		PageURL      string           `json:"page_url"`
 		DepartmentID widgetOptionalID `json:"department_id"`
 		Metadata     json.RawMessage  `json:"metadata"`
+		guestProof
 	}
+	setGuestPrivacyHeaders(w)
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body", "message": "Invalid request body."})
 		return
@@ -112,6 +118,12 @@ func (h *WidgetChatHandler) StartChat(w http.ResponseWriter, r *http.Request) {
 	if missing := requiredWidgetFields(map[string]string{"name": in.Name, "email": in.Email}); len(missing) > 0 {
 		writeWidgetValidation(w, "name and email are required", missing)
 		return
+	}
+	if h.Access != nil {
+		if errs := in.validate(); len(errs) > 0 {
+			writeGuestValidation(w, errs)
+			return
+		}
 	}
 	if !widgetDepartmentValid(r, h.store, in.DepartmentID.Ptr()) {
 		writeWidgetValidation(w, "the selected department is invalid", map[string][]string{
@@ -125,6 +137,11 @@ func (h *WidgetChatHandler) StartChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.Access != nil {
+		if !writeGuestAccessError(w, h.Access.Consume(r.Context(), in.VerificationID, in.VerificationCode, in.Email, services.GuestPurposeChat)) {
+			return
+		}
+	}
 	ticket, session, err := h.sessions.StartSession(r.Context(), services.StartSessionInput{
 		GuestName:    in.Name,
 		GuestEmail:   in.Email,
@@ -137,7 +154,10 @@ func (h *WidgetChatHandler) StartChat(w http.ResponseWriter, r *http.Request) {
 		Metadata:     metadata,
 	})
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		if h.Access != nil {
+			h.Access.Release(r.Context(), in.VerificationID)
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not start the chat", "message": "Could not start the chat."})
 		return
 	}
 

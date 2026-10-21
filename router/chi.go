@@ -63,6 +63,9 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	guestH := handlers.NewGuestTicketHandler(s, ticketSvc)
 	// Per-client-IP limits on the unauthenticated guest endpoints.
 	guestLimit := middleware.NewGuestRateLimiter(cfg.GuestRateLimit)
+	guestH.Access = esc.GuestAccess
+	satH.GuestTicketID = esc.GuestAccess.ResolveTicketID
+	guestVerifyH := &handlers.GuestVerificationHandler{Access: esc.GuestAccess, ClientIP: guestLimit.ClientIP}
 	kbH := handlers.NewKBHandler(cfg.DB)
 	kbGuard := kbPublicGuard(esc)
 	retentionH := handlers.NewRetentionHandler(services.NewRetentionService(cfg.DB, s))
@@ -144,9 +147,14 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 			r.Post("/auth/validate", authH.Validate)
 
 			// Anonymous (guest) ticket submission + lookup by token.
+			// Creating a ticket needs an email code from /guest/verification;
+			// {token} is the expiring grant it returns (docs/guest-access.md).
+			r.With(guestLimit.Middleware(middleware.GuestTicketScope)).Post("/guest/verification", guestVerifyH.Request)
+			r.With(guestLimit.Middleware(middleware.GuestReplyScope)).Post("/guest/lookup", guestVerifyH.Lookup)
 			r.With(guestLimit.Middleware(middleware.GuestTicketScope)).Post("/guest/tickets", guestH.Create)
-			r.Get("/guest/tickets/{token}", guestH.Show)
-			r.Post("/guest/tickets/{token}/rate", satH.GuestRate)
+			r.With(guestLimit.Middleware(middleware.GuestRequestScope)).Get("/guest/tickets/{token}", guestH.Show)
+			r.With(guestLimit.Middleware(middleware.GuestReplyScope)).Post("/guest/tickets/{token}/replies", guestH.Reply)
+			r.With(guestLimit.Middleware(middleware.GuestReplyScope)).Post("/guest/tickets/{token}/rate", satH.GuestRate)
 
 			// Public knowledge base (published only), behind the KB enabled
 			// and public settings.
