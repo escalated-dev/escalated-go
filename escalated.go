@@ -26,13 +26,16 @@ package escalated
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
+	"time"
 
 	"github.com/escalated-dev/escalated-go/ticketaccess"
 
 	"github.com/escalated-dev/escalated-go/handlers"
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/renderer"
+	"github.com/escalated-dev/escalated-go/services"
 	"github.com/escalated-dev/escalated-go/services/newsletter"
 	"github.com/escalated-dev/escalated-go/store"
 )
@@ -256,4 +259,50 @@ func (e *Escalated) TicketAccessMiddleware(next http.Handler) http.Handler {
 			return userID(r)
 		},
 	)(next)
+}
+
+// NewTicketService returns a ticket service wired to fire its events to
+// outbound webhooks and event-driven Workflows, the way the mounted routes use
+// it. Workflow tag actions go back through it, so they are announced too.
+func (e *Escalated) NewTicketService() *services.TicketService {
+	ts := services.NewTicketService(e.Store)
+	ts.Webhooks = services.NewWebhookDispatcher(e.Config.DB, nil)
+	ts.Workflows = services.NewWorkflowRunner(e.Config.DB, nil, e.Access)
+	ts.Workflows.Tickets = ts
+	return ts
+}
+
+// CheckSLA marks tickets whose SLA deadline has passed and fires sla.breached
+// for each, then fires sla.warning for deadlines in the next warningMinutes
+// (30 when <= 0), to webhooks and workflows. Call it from the host's
+// scheduler, every minute being the convention, or use StartSLAChecker.
+func (e *Escalated) CheckSLA(ctx context.Context, warningMinutes int) (breaches, warnings int, err error) {
+	sla := services.NewSLAService(e.Store)
+	sla.Tickets = e.NewTicketService()
+	return sla.Check(ctx, warningMinutes)
+}
+
+// StartSLAChecker runs CheckSLA every interval (one minute when <= 0) with
+// the default warning window until ctx is done or the returned function is
+// called. Errors are logged and the next tick runs as usual.
+func (e *Escalated) StartSLAChecker(ctx context.Context, interval time.Duration) func() {
+	if interval <= 0 {
+		interval = time.Minute
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if _, _, err := e.CheckSLA(ctx, 0); err != nil {
+					log.Printf("escalated: SLA check: %v", err)
+				}
+			}
+		}
+	}()
+	return cancel
 }

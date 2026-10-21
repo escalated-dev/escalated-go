@@ -19,19 +19,15 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	s := esc.Store
 	rend := esc.Renderer
 
-	ticketSvc := services.NewTicketService(s)
+	// The ticket service fires lifecycle events to outbound webhooks and
+	// event-driven Workflows (see Escalated.NewTicketService).
+	ticketSvc := esc.NewTicketService()
 	assignSvc := services.NewAssignmentService(s)
 	subjectSvc := services.NewTicketSubjectService(s, cfg.TicketSubjectTypes, cfg.TicketSubjectResolver)
 
-	// Outbound webhooks: the dispatcher is shared between the ticket service
-	// (which fires lifecycle events) and the admin CRUD handler.
-	webhookDispatcher := services.NewWebhookDispatcher(cfg.DB, nil)
-	ticketSvc.Webhooks = webhookDispatcher
-
-	// Event-driven Workflows: the runner fires active workflows on the ticket
-	// lifecycle (created/replied/status-changed/assigned) off the request path,
-	// mirroring the webhook dispatcher. The admin CRUD handler manages the rows.
-	ticketSvc.Workflows = services.NewWorkflowRunner(cfg.DB, nil, esc.Access)
+	// The dispatcher is shared between the ticket service and the admin CRUD
+	// handler.
+	webhookDispatcher := ticketSvc.Webhooks
 
 	actionRegistry := actions.NewRegistry(cfg.TicketActions)
 
@@ -52,7 +48,9 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	attachH.AgentCheck = cfg.AgentCheck
 	attachH.AdminCheck = cfg.AdminCheck
 	attachH.UserID = cfg.UserIDFunc
-	autoH := handlers.NewAutomationHandler(cfg.DB, services.NewAutomationRunner(cfg.DB, nil, esc.Access))
+	autoRunner := services.NewAutomationRunner(cfg.DB, nil, esc.Access)
+	autoRunner.Tickets = ticketSvc
+	autoH := handlers.NewAutomationHandler(cfg.DB, autoRunner)
 	escSvc := services.NewEscalationService(cfg.DB, nil, esc.Access)
 	escSvc.Tickets = ticketSvc
 	escH := handlers.NewEscalationHandler(cfg.DB, escSvc)

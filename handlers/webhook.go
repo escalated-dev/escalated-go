@@ -58,6 +58,7 @@ func (h *WebhookHandler) List(w http.ResponseWriter, r *http.Request) {
 		if secret.Valid {
 			wh.Secret = &secret.String
 		}
+		wh.Events = canonicalEventsJSON(wh.Events)
 		out = append(out, wh)
 	}
 
@@ -88,7 +89,7 @@ func (h *WebhookHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	events := defaultJSONArray(models.JSONText(in.Events))
+	events := canonicalEventsJSON(defaultJSONArray(models.JSONText(in.Events)))
 	active := true
 	if in.Active != nil {
 		active = *in.Active
@@ -139,7 +140,7 @@ func (h *WebhookHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(in.Events) > 0 {
 		sets = append(sets, "events = ?")
-		args = append(args, []byte(in.Events))
+		args = append(args, []byte(canonicalEventsJSON(models.JSONText(in.Events))))
 	}
 	if in.Secret != nil {
 		sets = append(sets, "secret = ?")
@@ -269,4 +270,20 @@ func (h *WebhookHandler) Retry(w http.ResponseWriter, r *http.Request) {
 	go h.Dispatcher.RetryDelivery(dlv)
 
 	writeJSON(w, http.StatusAccepted, map[string]any{"retried": dlv.ID})
+}
+
+// canonicalEventsJSON rewrites a JSON array of event names to their canonical
+// names (ADR 2026-10-21-event-vocabulary), so a legacy name posted by an older
+// client is stored, and a stored one shown, as the event it means. Anything
+// that is not an array of strings is returned unchanged.
+func canonicalEventsJSON(raw models.JSONText) models.JSONText {
+	var names []string
+	if len(raw) == 0 || json.Unmarshal(raw, &names) != nil {
+		return raw
+	}
+	out, err := json.Marshal(models.CanonicalEventNames(names))
+	if err != nil {
+		return raw
+	}
+	return models.JSONText(out)
 }

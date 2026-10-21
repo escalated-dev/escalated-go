@@ -21,8 +21,10 @@ type Workflow struct {
 	UpdatedAt    time.Time `json:"updated_at"`
 }
 
-// ComputeTrigger populates the Trigger alias from TriggerEvent.
+// ComputeTrigger populates the Trigger alias from TriggerEvent, showing a
+// legacy trigger name as the canonical event it means.
 func (w *Workflow) ComputeTrigger() {
+	w.TriggerEvent = CanonicalEventName(w.TriggerEvent)
 	w.Trigger = w.TriggerEvent
 }
 

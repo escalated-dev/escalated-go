@@ -42,11 +42,18 @@ var ActionTypes = []string{
 	"add_follower", "send_notification",
 }
 
-// TriggerEvents supported by the workflow engine
+// TriggerEvents are the events workflows run on, under the canonical names of
+// ADR 2026-10-21-event-vocabulary. The builder offers exactly this list, so an
+// event that is not fired must not appear here. Workflows saved under a legacy
+// name (models.LegacyEventNames) still run.
 var TriggerEvents = []string{
-	"ticket.created", "ticket.updated", "ticket.status_changed", "ticket.assigned",
-	"ticket.priority_changed", "ticket.tagged", "ticket.department_changed",
-	"reply.created", "reply.agent_reply", "sla.warning", "sla.breached", "ticket.reopened",
+	"ticket.created", "ticket.updated", "ticket.status_changed",
+	"ticket.resolved", "ticket.closed", "ticket.reopened", "ticket.escalated",
+	"ticket.assigned", "ticket.unassigned",
+	"ticket.priority_changed", "ticket.department_changed",
+	"ticket.tag_added", "ticket.tag_removed",
+	"reply.created", "note.created",
+	"sla.warning", "sla.breached",
 }
 
 // TicketData holds ticket fields for condition evaluation

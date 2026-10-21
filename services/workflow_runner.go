@@ -38,6 +38,10 @@ type WorkflowRunner struct {
 	Access *ticketaccess.Access
 	DB     *sql.DB
 	Logger *log.Logger
+	// Tickets, when set, carries tag actions through the ticket service so
+	// they record activity and announce ticket.tag_added / ticket.tag_removed.
+	// Without it the runner writes the join row directly and announces nothing.
+	Tickets *TicketService
 }
 
 // NewWorkflowRunner constructs a runner with the given DB and a logger (a
@@ -67,6 +71,7 @@ func (r *WorkflowRunner) RunForEvent(event string, t *models.Ticket) {
 		}
 	}()
 
+	event = models.CanonicalEventName(event)
 	workflows, err := r.activeForEvent(event)
 	if err != nil {
 		r.logger().Printf("escalated workflow: list active for %s: %v", event, err)
@@ -86,13 +91,23 @@ func (r *WorkflowRunner) RunForEvent(event string, t *models.Ticket) {
 
 // activeForEvent loads the active workflows subscribed to event, ordered the way
 // the reference engines order them (position ASC, then id ASC).
+//
+// A workflow saved under a legacy name of the event (ticket.replied for
+// reply.created, ticket.tagged for ticket.tag_added, ...) matches too.
 func (r *WorkflowRunner) activeForEvent(event string) ([]models.Workflow, error) {
+	names := models.EventNamesFor(event)
+	args := make([]any, len(names))
+	marks := make([]string, len(names))
+	for i, n := range names {
+		args[i] = n
+		marks[i] = "?"
+	}
 	rows, err := r.DB.Query(
 		r.query(`SELECT id, name, description, trigger_event, conditions, actions, position, is_active, stop_on_match
 		   FROM escalated_workflows
-		  WHERE is_active = TRUE AND trigger_event = ?
+		  WHERE is_active = TRUE AND trigger_event IN (`+strings.Join(marks, ", ")+`)
 		  ORDER BY position ASC, id ASC`),
-		event,
+		args...,
 	)
 	if err != nil {
 		return nil, err
@@ -270,6 +285,12 @@ func (r *WorkflowRunner) tagAction(ticketID int64, name string, add bool) error 
 	}
 	if err != nil {
 		return err
+	}
+	if r.Tickets != nil {
+		if add {
+			return r.Tickets.AddTag(context.Background(), ticketID, tagID, nil)
+		}
+		return r.Tickets.RemoveTag(context.Background(), ticketID, tagID, nil)
 	}
 	if add {
 		_, err = r.DB.Exec(

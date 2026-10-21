@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Event vocabulary (escalated-developer-context ADR 2026-10-21): tag changes
+  fire `ticket.tag_added` / `ticket.tag_removed` (payload carries `tag`), from
+  the new `TicketService.AddTag` / `RemoveTag` and from workflow, automation
+  and macro tag actions.
+- `Escalated.CheckSLA(ctx, warningMinutes)` and
+  `Escalated.StartSLAChecker(ctx, interval)`: mark SLA breaches and fire
+  `sla.breached`, then fire `sla.warning` for deadlines in the next 30 minutes,
+  to webhooks and workflows. `SLAService.CheckBreaches` had no caller and
+  announced nothing. `Escalated.NewTicketService` returns the wired ticket
+  service the routers use.
+
+### Changed
+- Webhooks and workflows saved under a legacy event name keep firing:
+  `ticket.replied`, `internal_note.added`/`created`, `tag.added`,
+  `ticket.tagged`, `tag.removed`, `ticket.untagged`, `chat.session_started`
+  and `chat.session_ended` are read as their canonical names. The admin
+  endpoints store and list canonical names only.
+- The workflow builder offers exactly the events workflows run on. Removed:
+  `ticket.tagged` (now `ticket.tag_added`) and `reply.agent_reply` (never
+  fired). Added: `ticket.resolved`, `ticket.closed`, `ticket.escalated`,
+  `ticket.unassigned`, `ticket.tag_added`, `ticket.tag_removed`,
+  `note.created`.
+
+### Upgrade notes
+- Nothing runs the SLA check for you. Call `esc.StartSLAChecker(ctx, time.Minute)`
+  once at startup, or `esc.CheckSLA` from your own scheduler. Like Laravel,
+  `sla.warning` repeats on every run while a deadline is inside the window.
+- A workflow stored as `ticket.tagged` now runs on tag additions only, as
+  `ticket.tag_added`. No migration is needed.
+
 ## [0.2.2] - 2026-10-20
 
 ### Changed

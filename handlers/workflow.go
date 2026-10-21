@@ -107,7 +107,7 @@ func (h *WorkflowHandler) Create(w http.ResponseWriter, r *http.Request) {
 	res, err := ticketaccess.ExecInsertContext(r.Context(), h.DB, `INSERT INTO escalated_workflows
 			(name, description, trigger_event, conditions, actions, position, is_active, stop_on_match, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		in.Name, in.Description, in.TriggerEvent,
+		in.Name, in.Description, models.CanonicalEventName(in.TriggerEvent),
 		workflowDefaultConditions(models.JSONText(in.Conditions)), defaultJSONArray(models.JSONText(in.Actions)),
 		position, isActive, stopOnMatch, time.Now(), time.Now(),
 	)
@@ -155,7 +155,7 @@ func (h *WorkflowHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	if in.TriggerEvent != nil {
 		sets = append(sets, "trigger_event = ?")
-		args = append(args, *in.TriggerEvent)
+		args = append(args, models.CanonicalEventName(*in.TriggerEvent))
 	}
 	if len(in.Conditions) > 0 {
 		sets = append(sets, "conditions = ?")

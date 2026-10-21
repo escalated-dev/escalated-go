@@ -24,10 +24,13 @@ type Webhook struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// SubscribedTo reports whether this webhook is registered for the event.
+// SubscribedTo reports whether this webhook is registered for the event. A
+// subscription stored under a legacy name (ticket.tagged, internal_note.added,
+// ...) counts as the canonical event it names.
 func (w Webhook) SubscribedTo(event string) bool {
+	event = CanonicalEventName(event)
 	for _, e := range w.EventNames() {
-		if e == event {
+		if CanonicalEventName(e) == event {
 			return true
 		}
 	}

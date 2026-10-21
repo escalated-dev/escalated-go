@@ -19,6 +19,10 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version: "1.26"
+          # Scan with the newest 1.26 patch release, not the runner's cached
+          # one: a standard-library fix is otherwise reported until the image
+          # catches up.
+          check-latest: true
 
       - name: Verify module checksums
         run: go mod verify
