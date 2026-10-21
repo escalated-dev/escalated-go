@@ -32,7 +32,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `References`) with an optional signed `Reply-To`. New `Config.UserEmail`
   (host user addresses) and `Config.Notifications` (`BaseURL`, `Domain`,
   `InboundSecret`, `Branding`, `Disabled`). See docs/notification-emails.md.
-
 - Ticket merge, as escalated-laravel's `TicketMergeService`:
   `POST /admin/tickets/{ticket}/merge` with `{target_reference}` moves every
   reply to the target, adds an internal system note to both tickets and
