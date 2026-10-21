@@ -16,6 +16,12 @@ type ChatSessionService struct {
 	store       store.Store
 	routing     *ChatRoutingService
 	broadcaster *Broadcaster
+
+	// Tickets announces chat.started, chat.assigned, chat.message and
+	// chat.ended to outbound webhooks and workflows (ADR 2026-10-21). The
+	// mounted routes set it; nil announces nothing. There is no chat transfer
+	// here, so chat.transferred is never sent.
+	Tickets *TicketService
 }
 
 // NewChatSessionService creates a new ChatSessionService.
@@ -108,6 +114,7 @@ func (cs *ChatSessionService) StartSession(ctx context.Context, in StartSessionI
 	if err := cs.store.CreateChatSession(ctx, session); err != nil {
 		return nil, nil, fmt.Errorf("creating chat session: %w", err)
 	}
+	cs.announce(ctx, "chat.started", session, t, nil)
 
 	// Attempt auto-routing
 	if agentID, err := cs.routing.FindAvailableAgentForTicket(ctx, t); err == nil && agentID != nil {
@@ -149,6 +156,7 @@ func (cs *ChatSessionService) AssignAgent(ctx context.Context, session *models.C
 		t.AssignedTo = &aid
 		_ = cs.store.UpdateTicket(ctx, t)
 	}
+	cs.announce(ctx, "chat.assigned", session, t, nil)
 
 	if cs.broadcaster != nil {
 		_, _ = cs.broadcaster.Publish(TicketChannel(session.TicketID), "chat.agent_joined", map[string]any{
@@ -179,6 +187,11 @@ func (cs *ChatSessionService) SendMessage(ctx context.Context, session *models.C
 	_ = cs.store.UpdateChatSession(ctx, session)
 
 	isAgent := authorType != nil
+	author := "visitor"
+	if isAgent {
+		author = "agent"
+	}
+	cs.announce(ctx, "chat.message", session, nil, map[string]any{"reply_id": r.ID, "author_type": author})
 	if cs.broadcaster != nil {
 		_, _ = cs.broadcaster.Publish(TicketChannel(session.TicketID), "chat.message", map[string]any{
 			"session_id": session.ID,
@@ -192,8 +205,17 @@ func (cs *ChatSessionService) SendMessage(ctx context.Context, session *models.C
 	return nil
 }
 
-// EndSession ends a chat session and transitions the ticket to open.
+// EndSession ends a chat session and transitions the ticket to open. A nil
+// causerID means the visitor ended it.
 func (cs *ChatSessionService) EndSession(ctx context.Context, session *models.ChatSession, causerID *models.UserID) error {
+	endedBy := "customer"
+	if causerID != nil {
+		endedBy = "agent"
+	}
+	return cs.endSession(ctx, session, causerID, endedBy)
+}
+
+func (cs *ChatSessionService) endSession(ctx context.Context, session *models.ChatSession, causerID *models.UserID, endedBy string) error {
 	now := time.Now()
 	session.Status = models.ChatStatusEnded
 	session.EndedAt = &now
@@ -221,6 +243,7 @@ func (cs *ChatSessionService) EndSession(ctx context.Context, session *models.Ch
 		t.ChatMetadata, _ = json.Marshal(chatMeta)
 		_ = cs.store.UpdateTicket(ctx, t)
 	}
+	cs.announce(ctx, "chat.ended", session, t, map[string]any{"ended_by": endedBy})
 
 	if cs.broadcaster != nil {
 		_, _ = cs.broadcaster.Publish(TicketChannel(session.TicketID), "chat.session_ended", map[string]any{
@@ -244,7 +267,7 @@ func (cs *ChatSessionService) CloseIdleSessions(ctx context.Context, idleMinutes
 	count := 0
 	for _, s := range sessions {
 		if s.LastActivityAt != nil && s.LastActivityAt.Before(threshold) {
-			if err := cs.EndSession(ctx, s, nil); err == nil {
+			if err := cs.endSession(ctx, s, nil, "system"); err == nil {
 				count++
 			}
 		}
@@ -339,4 +362,40 @@ func (cs *ChatSessionService) RateChat(ctx context.Context, session *models.Chat
 		return err
 	}
 	return cs.store.UpdateTicket(ctx, t)
+}
+
+// announce sends a chat event to webhooks and workflows through Tickets. The
+// payload is {"chat": {session_id, ticket_id, status, agent_id,
+// department_id, ...extra}}: it never carries the visitor's chat token, the
+// visitor's email or a message body. t may be nil; it is then loaded.
+func (cs *ChatSessionService) announce(ctx context.Context, event string, session *models.ChatSession, t *models.Ticket, extra map[string]any) {
+	if cs.Tickets == nil || session == nil {
+		return
+	}
+	if t == nil {
+		loaded, err := cs.store.GetTicket(ctx, session.TicketID)
+		if err != nil || loaded == nil {
+			return
+		}
+		t = loaded
+	}
+	var agentID any
+	if session.AgentID != nil {
+		agentID = *session.AgentID
+	}
+	var departmentID any
+	if t.DepartmentID != nil {
+		departmentID = *t.DepartmentID
+	}
+	chat := map[string]any{
+		"session_id":    session.ID,
+		"ticket_id":     session.TicketID,
+		"status":        session.StatusString(),
+		"agent_id":      agentID,
+		"department_id": departmentID,
+	}
+	for k, v := range extra {
+		chat[k] = v
+	}
+	cs.Tickets.emit(event, map[string]any{"chat": chat}, t)
 }

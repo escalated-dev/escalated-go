@@ -38,6 +38,10 @@ var SupportedWebhookEvents = []string{
 	"sla.warning",
 	"ticket.tag_added",
 	"ticket.tag_removed",
+	"chat.started",
+	"chat.assigned",
+	"chat.message",
+	"chat.ended",
 }
 
 // WebhookDispatcher delivers domain events to active outbound webhooks.
