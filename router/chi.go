@@ -91,9 +91,11 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	cannedH := handlers.NewCannedResponseHandler(cfg.DB, cannedSvc)
 	articleH := handlers.NewArticleHandler(cfg.DB, services.NewArticleService(cfg.DB, nil))
 	webhookH := handlers.NewWebhookHandler(cfg.DB, webhookDispatcher)
+	kbPages := &handlers.KBPages{DB: cfg.DB, Store: s}
 	wireUIPages(esc, agentH, customerH, adminH, uiPageDeps{
 		subjects: subjectSvc, macros: macroSvc, canned: cannedSvc,
 		escalations: escH, macroAdmin: macroH, cannedAdmin: cannedH, webhooks: webhookH,
+		articles: articleH, kbPages: kbPages,
 	})
 	workflowH := handlers.NewWorkflowHandler(cfg.DB)
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
@@ -221,6 +223,15 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Post("/{id}/reopen", customerH.Reopen)
 			})
 
+			// The knowledge base reader pages (escalated.customer.kb.*), behind
+			// the knowledge base enabled and public settings.
+			r.Group(func(r chi.Router) {
+				r.Use(kbGuard)
+				r.Get("/kb", kbPages.Index)
+				r.Get("/kb/{slug}", kbPages.Article)
+				r.Post("/kb/{slug}/feedback", kbPages.Feedback)
+			})
+
 			// Agent routes
 			r.Route("/agent", func(r chi.Router) {
 				r.Use(middleware.RequireAgent(cfg.AgentCheck))
@@ -331,6 +342,20 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				// Knowledge-base authoring admin CRUD (articles + categories).
 				// The public read path is /api/kb/... (published only); this is
 				// the admin authoring counterpart.
+				// Laravel's resource paths for the knowledge base pages
+				// (escalated.admin.kb-articles.*, kb-categories.*).
+				r.Get("/kb-articles", articleH.AdminList)
+				r.Get("/kb-articles/create", articleH.CreateForm)
+				r.Post("/kb-articles", articleH.Create)
+				r.Get("/kb-articles/{id}/edit", articleH.EditForm)
+				r.Put("/kb-articles/{id}", articleH.Update)
+				r.Patch("/kb-articles/{id}", articleH.Update)
+				r.Delete("/kb-articles/{id}", articleH.Delete)
+				r.Get("/kb-categories", articleH.ListCategories)
+				r.Post("/kb-categories", articleH.CreateCategory)
+				r.Put("/kb-categories/{id}", articleH.UpdateCategory)
+				r.Patch("/kb-categories/{id}", articleH.UpdateCategory)
+				r.Delete("/kb-categories/{id}", articleH.DeleteCategory)
 				r.Get("/kb/articles", articleH.AdminList)
 				r.Post("/kb/articles", articleH.Create)
 				r.Get("/kb/articles/{id}", articleH.Show)

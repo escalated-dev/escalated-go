@@ -100,9 +100,11 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 	cannedH := handlers.NewCannedResponseHandler(cfg.DB, cannedSvc)
 	articleH := handlers.NewArticleHandler(cfg.DB, services.NewArticleService(cfg.DB, nil))
 	webhookH := handlers.NewWebhookHandler(cfg.DB, webhookDispatcher)
+	kbPages := &handlers.KBPages{DB: cfg.DB, Store: s}
 	wireUIPages(esc, agentH, customerH, adminH, uiPageDeps{
 		subjects: subjectSvc, macros: macroSvc, canned: cannedSvc,
 		escalations: escH, macroAdmin: macroH, cannedAdmin: cannedH, webhooks: webhookH,
+		articles: articleH, kbPages: kbPages,
 	})
 	workflowH := handlers.NewWorkflowHandler(cfg.DB)
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
@@ -183,6 +185,12 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 		mux.Handle("POST "+prefix+"/tickets/{id}/reply", userMW(http.HandlerFunc(customerH.Reply)))
 		mux.Handle("POST "+prefix+"/tickets/{id}/close", userMW(http.HandlerFunc(customerH.Close)))
 		mux.Handle("POST "+prefix+"/tickets/{id}/reopen", userMW(http.HandlerFunc(customerH.Reopen)))
+
+		// The knowledge base reader pages (escalated.customer.kb.*), behind the
+		// knowledge base enabled and public settings.
+		mux.Handle("GET "+prefix+"/kb", kbGuard(http.HandlerFunc(kbPages.Index)))
+		mux.Handle("GET "+prefix+"/kb/{slug}", kbGuard(http.HandlerFunc(kbPages.Article)))
+		mux.Handle("POST "+prefix+"/kb/{slug}/feedback", kbGuard(http.HandlerFunc(kbPages.Feedback)))
 
 		// Agent routes (wrapped with agent middleware)
 		agentMW := middleware.RequireAgent(cfg.AgentCheck)
@@ -282,6 +290,18 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 		// Knowledge-base authoring admin CRUD (articles + categories). The
 		// public read path is /api/kb/... (published only); this is the admin
 		// authoring counterpart.
+		mux.Handle("GET "+prefix+"/admin/kb-articles", adminMW(http.HandlerFunc(articleH.AdminList)))
+		mux.Handle("GET "+prefix+"/admin/kb-articles/create", adminMW(http.HandlerFunc(articleH.CreateForm)))
+		mux.Handle("POST "+prefix+"/admin/kb-articles", adminMW(http.HandlerFunc(articleH.Create)))
+		mux.Handle("GET "+prefix+"/admin/kb-articles/{id}/edit", adminMW(http.HandlerFunc(articleH.EditForm)))
+		mux.Handle("PUT "+prefix+"/admin/kb-articles/{id}", adminMW(http.HandlerFunc(articleH.Update)))
+		mux.Handle("PATCH "+prefix+"/admin/kb-articles/{id}", adminMW(http.HandlerFunc(articleH.Update)))
+		mux.Handle("DELETE "+prefix+"/admin/kb-articles/{id}", adminMW(http.HandlerFunc(articleH.Delete)))
+		mux.Handle("GET "+prefix+"/admin/kb-categories", adminMW(http.HandlerFunc(articleH.ListCategories)))
+		mux.Handle("POST "+prefix+"/admin/kb-categories", adminMW(http.HandlerFunc(articleH.CreateCategory)))
+		mux.Handle("PUT "+prefix+"/admin/kb-categories/{id}", adminMW(http.HandlerFunc(articleH.UpdateCategory)))
+		mux.Handle("PATCH "+prefix+"/admin/kb-categories/{id}", adminMW(http.HandlerFunc(articleH.UpdateCategory)))
+		mux.Handle("DELETE "+prefix+"/admin/kb-categories/{id}", adminMW(http.HandlerFunc(articleH.DeleteCategory)))
 		mux.Handle("GET "+prefix+"/admin/kb/articles", adminMW(http.HandlerFunc(articleH.AdminList)))
 		mux.Handle("POST "+prefix+"/admin/kb/articles", adminMW(http.HandlerFunc(articleH.Create)))
 		mux.Handle("GET "+prefix+"/admin/kb/articles/{id}", adminMW(http.HandlerFunc(articleH.Show)))

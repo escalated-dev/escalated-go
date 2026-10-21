@@ -34,6 +34,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for a page visit), and redirects a page visit to the new ticket.
 
 ### Added
+- Knowledge base pages: `Admin/KnowledgeBase/Articles/Index` and `Form` and
+  `Categories/Index` at Laravel's `/admin/kb-articles` and
+  `/admin/kb-categories` resource routes (the `/admin/kb/...` JSON routes
+  keep working and render the pages for a page visit), and the reader pages
+  `Customer/KnowledgeBase/Index` and `Article` at `/kb` and `/kb/{slug}`, with
+  the helpfulness vote at `POST /kb/{slug}/feedback`
+  (`knowledge_base_feedback_enabled`, on by default).
+- Article and category writes take `category_id` / `parent_id` as a number, a
+  numeric string or `""` (none), as the forms send them.
 - `Admin/Users/Index` gets Laravel's full paginator (`users.links`, `from`,
   `to`, page URLs), which its pager reads; a role change from the page
   answers with a 303 back, and demoting yourself shows the refusal as
