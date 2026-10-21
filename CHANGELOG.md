@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Upgrading
+- Workflow `change_status` and `change_priority` actions now read the slug the
+  shared builder sends (`resolved`, `high`); they used to store 0 for a slug,
+  silently reopening tickets or dropping them to low priority. An unknown
+  value now fails the run (logged) instead. Workflows stored with a flat list
+  of conditions are evaluated as `all` instead of never matching. New
+  workflows go to the end of the list.
 - The agent and customer ticket writes now answer a page visit
   (`X-Inertia`) with a 303 back to the page, or the page again with an
   `errors` prop, instead of JSON. API clients (no `X-Inertia`) still get JSON,
@@ -34,6 +40,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for a page visit), and redirects a page visit to the new ticket.
 
 ### Added
+- Workflow pages per the workflow admin contract: `Admin/Workflows/Index`,
+  `Form` (create at `/admin/workflows/create`, edit at `GET
+  /admin/workflows/{id}`, with `trigger_events`, `action_types` and
+  `operators`) and `Logs` (`/admin/workflows/logs`, `?workflow=`), plus
+  `PUT /admin/workflows/{id}`, `POST /{id}/toggle` and `POST /reorder`. The
+  JSON list and `/{id}/logs` keep answering API clients.
+- Workflow conditions on `tags`, `hours_since_created` and
+  `hours_since_updated`, and the `insert_canned_reply` action, from the
+  contract's core catalog.
 - Guest pages on the verified guest flow: `Escalated/Guest/Create` at
   `GET /guest/create` (with `verification_url` and `lookup_url`) posting to
   `POST /guest` with the email code, and `Escalated/Guest/Show` at

@@ -93,12 +93,12 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	webhookH := handlers.NewWebhookHandler(cfg.DB, webhookDispatcher)
 	kbPages := &handlers.KBPages{DB: cfg.DB, Store: s}
 	guestPages := &handlers.GuestPages{Store: s, Tickets: ticketSvc, Access: esc.GuestAccess, DB: cfg.DB, Prefix: cfg.TablePrefix}
+	workflowH := handlers.NewWorkflowHandler(cfg.DB)
 	wireUIPages(esc, agentH, customerH, adminH, uiPageDeps{
 		subjects: subjectSvc, macros: macroSvc, canned: cannedSvc,
 		escalations: escH, macroAdmin: macroH, cannedAdmin: cannedH, webhooks: webhookH,
-		articles: articleH, kbPages: kbPages, guestPages: guestPages,
+		articles: articleH, kbPages: kbPages, guestPages: guestPages, workflows: workflowH,
 	})
-	workflowH := handlers.NewWorkflowHandler(cfg.DB)
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
 	reportH := handlers.NewReportHandler(cfg.DB, cfg.TablePrefix)
@@ -308,9 +308,15 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				// distinct from time-based Automations and agent-applied Macros —
 				// see escalated-developer-context).
 				r.Get("/workflows", workflowH.List)
+				r.Get("/workflows/create", workflowH.CreateForm)
+				r.Get("/workflows/logs", workflowH.LogsPage)
 				r.Post("/workflows", workflowH.Create)
+				r.Post("/workflows/reorder", workflowH.Reorder)
+				r.Get("/workflows/{id}", workflowH.Edit)
+				r.Put("/workflows/{id}", workflowH.Update)
 				r.Patch("/workflows/{id}", workflowH.Update)
 				r.Delete("/workflows/{id}", workflowH.Delete)
+				r.Post("/workflows/{id}/toggle", workflowH.Toggle)
 				r.Get("/workflows/{id}/logs", workflowH.Logs)
 
 				// Time-based admin Automations (distinct from event-driven

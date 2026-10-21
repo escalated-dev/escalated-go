@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/escalated-dev/escalated-go/ticketaccess"
@@ -26,6 +27,10 @@ import (
 // rows surfaced by Logs.
 type WorkflowHandler struct {
 	DB *sql.DB
+
+	// Pages serves Escalated/Admin/Workflows/Index, Form and Logs and answers
+	// the builder's writes the Inertia way. Set by the router.
+	Pages PageSupport
 }
 
 // NewWorkflowHandler constructs the handler.
@@ -68,6 +73,10 @@ func (h *WorkflowHandler) List(w http.ResponseWriter, r *http.Request) {
 		out = append(out, wf)
 	}
 
+	if h.Pages.wantsPage(r) {
+		h.renderIndex(w, r, out)
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"workflows":        out,
 		"available_events": services.TriggerEvents,
@@ -86,8 +95,20 @@ func (h *WorkflowHandler) Create(w http.ResponseWriter, r *http.Request) {
 		StopOnMatch  *bool           `json:"stop_on_match"`
 		Position     *int            `json:"position"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || in.Name == "" || in.TriggerEvent == "" {
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		http.Error(w, "name and trigger_event are required", http.StatusBadRequest)
+		return
+	}
+	if errs := validateWorkflow(&in.Name, &in.TriggerEvent, in.Actions, false, isInertia(r)); len(errs) > 0 {
+		if in.Name == "" || in.TriggerEvent == "" {
+			h.Pages.fail(w, r, http.StatusBadRequest, "name and trigger_event are required", errs, func(errs map[string]string) { h.renderForm(w, r, nil, errs) })
+			return
+		}
+		if isInertia(r) && h.Pages.Renderer != nil {
+			h.renderForm(w, r, nil, errs)
+			return
+		}
+		validationErrors(w, r, errs, nil)
 		return
 	}
 
@@ -99,7 +120,8 @@ func (h *WorkflowHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if in.StopOnMatch != nil {
 		stopOnMatch = *in.StopOnMatch
 	}
-	position := 0
+	// A new workflow goes last, as Laravel's store() places it.
+	position := h.nextPosition(r)
 	if in.Position != nil {
 		position = *in.Position
 	}
@@ -116,7 +138,17 @@ func (h *WorkflowHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id, _ := res.LastInsertId()
-	writeJSON(w, http.StatusCreated, map[string]any{"id": id})
+	h.Pages.succeed(w, r, h.Pages.path("/admin/workflows"), http.StatusCreated, map[string]any{"id": id})
+}
+
+// nextPosition is one past the highest position.
+func (h *WorkflowHandler) nextPosition(r *http.Request) int {
+	var max sql.NullInt64
+	if err := ticketaccess.QueryRowContext(r.Context(), h.DB, sqldialect.Rebind(h.DB,
+		`SELECT MAX(position) FROM escalated_workflows`)).Scan(&max); err != nil || !max.Valid {
+		return 0
+	}
+	return int(max.Int64) + 1
 }
 
 // Update handles PATCH /admin/workflows/{id}. Only supplied fields are changed.
@@ -141,6 +173,16 @@ func (h *WorkflowHandler) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid body", http.StatusBadRequest)
 		return
 	}
+	// PUT is the builder's full save (contract); PATCH may send some fields.
+	if errs := validateWorkflow(in.Name, in.TriggerEvent, in.Actions, r.Method == http.MethodPatch || !isInertia(r), isInertia(r)); len(errs) > 0 {
+		if isInertia(r) && h.Pages.Renderer != nil {
+			wf, _ := h.find(r, id)
+			h.renderForm(w, r, wf, errs)
+			return
+		}
+		validationErrors(w, r, errs, nil)
+		return
+	}
 
 	sets := []string{}
 	args := []any{}
@@ -159,7 +201,7 @@ func (h *WorkflowHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(in.Conditions) > 0 {
 		sets = append(sets, "conditions = ?")
-		args = append(args, []byte(in.Conditions))
+		args = append(args, workflowDefaultConditions(models.JSONText(in.Conditions)))
 	}
 	if len(in.Actions) > 0 {
 		sets = append(sets, "actions = ?")
@@ -179,7 +221,7 @@ func (h *WorkflowHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(sets) == 0 {
-		writeJSON(w, http.StatusOK, map[string]any{"id": id})
+		h.Pages.succeed(w, r, h.Pages.path("/admin/workflows"), http.StatusOK, map[string]any{"id": id})
 		return
 	}
 
@@ -192,7 +234,7 @@ func (h *WorkflowHandler) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"id": id})
+	h.Pages.succeed(w, r, h.Pages.path("/admin/workflows"), http.StatusOK, map[string]any{"id": id})
 }
 
 // Delete handles DELETE /admin/workflows/{id}. Its execution logs are removed too.
@@ -211,7 +253,7 @@ func (h *WorkflowHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	h.Pages.succeed(w, r, h.Pages.path("/admin/workflows"), http.StatusNoContent, nil)
 }
 
 // workflowLogRow is the serialized shape of one escalated_workflow_logs row.
@@ -230,10 +272,16 @@ type workflowLogRow struct {
 }
 
 // Logs handles GET /admin/workflows/{id}/logs — the workflow's run history.
+// A page visit goes to the shared Logs page filtered to the workflow, as
+// Laravel's workflowLogs() does.
 func (h *WorkflowHandler) Logs(w http.ResponseWriter, r *http.Request) {
 	id, err := idFromPath(r)
 	if err != nil {
 		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	if h.Pages.wantsPage(r) {
+		http.Redirect(w, r, h.Pages.path("/admin/workflows/logs?workflow="+strconv.FormatInt(id, 10)), http.StatusFound)
 		return
 	}
 

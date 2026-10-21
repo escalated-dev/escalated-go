@@ -102,12 +102,12 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 	webhookH := handlers.NewWebhookHandler(cfg.DB, webhookDispatcher)
 	kbPages := &handlers.KBPages{DB: cfg.DB, Store: s}
 	guestPages := &handlers.GuestPages{Store: s, Tickets: ticketSvc, Access: esc.GuestAccess, DB: cfg.DB, Prefix: cfg.TablePrefix}
+	workflowH := handlers.NewWorkflowHandler(cfg.DB)
 	wireUIPages(esc, agentH, customerH, adminH, uiPageDeps{
 		subjects: subjectSvc, macros: macroSvc, canned: cannedSvc,
 		escalations: escH, macroAdmin: macroH, cannedAdmin: cannedH, webhooks: webhookH,
-		articles: articleH, kbPages: kbPages, guestPages: guestPages,
+		articles: articleH, kbPages: kbPages, guestPages: guestPages, workflows: workflowH,
 	})
-	workflowH := handlers.NewWorkflowHandler(cfg.DB)
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
 	reportH := handlers.NewReportHandler(cfg.DB, cfg.TablePrefix)
@@ -256,7 +256,13 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 
 		// Event-driven admin Workflows (fire on ticket lifecycle events).
 		mux.Handle("GET "+prefix+"/admin/workflows", adminMW(http.HandlerFunc(workflowH.List)))
+		mux.Handle("GET "+prefix+"/admin/workflows/create", adminMW(http.HandlerFunc(workflowH.CreateForm)))
+		mux.Handle("GET "+prefix+"/admin/workflows/logs", adminMW(http.HandlerFunc(workflowH.LogsPage)))
 		mux.Handle("POST "+prefix+"/admin/workflows", adminMW(http.HandlerFunc(workflowH.Create)))
+		mux.Handle("POST "+prefix+"/admin/workflows/reorder", adminMW(http.HandlerFunc(workflowH.Reorder)))
+		mux.Handle("GET "+prefix+"/admin/workflows/{id}", adminMW(http.HandlerFunc(workflowH.Edit)))
+		mux.Handle("PUT "+prefix+"/admin/workflows/{id}", adminMW(http.HandlerFunc(workflowH.Update)))
+		mux.Handle("POST "+prefix+"/admin/workflows/{id}/toggle", adminMW(http.HandlerFunc(workflowH.Toggle)))
 		mux.Handle("PATCH "+prefix+"/admin/workflows/{id}", adminMW(http.HandlerFunc(workflowH.Update)))
 		mux.Handle("DELETE "+prefix+"/admin/workflows/{id}", adminMW(http.HandlerFunc(workflowH.Delete)))
 		mux.Handle("GET "+prefix+"/admin/workflows/{id}/logs", adminMW(http.HandlerFunc(workflowH.Logs)))
