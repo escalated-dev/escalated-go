@@ -65,7 +65,9 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 	adminH.UserID = cfg.UserIDFunc
 	auditH := &handlers.AuditLogHandler{Store: auditStore, Renderer: rend, Users: cfg.UserDirectory}
 	// Agent live-chat console (accept, message, end).
-	chatH := handlers.NewChatHandler(s, services.NewChatSessionService(s, services.NewChatRoutingService(s), nil), cfg.UserIDFunc)
+	chatSvc := services.NewChatSessionService(s, services.NewChatRoutingService(s), nil)
+	chatSvc.Tickets = ticketSvc
+	chatH := handlers.NewChatHandler(s, chatSvc, cfg.UserIDFunc)
 	attachH := handlers.NewAttachmentHandler(s, cfg.RoutePrefix)
 	attachH.AgentCheck = cfg.AgentCheck
 	attachH.AdminCheck = cfg.AdminCheck

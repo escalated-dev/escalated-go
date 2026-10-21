@@ -37,9 +37,9 @@ func newWidgetStack(esc *escalated.Escalated, ticketSvc *services.TicketService)
 	}
 	availability := services.NewChatAvailabilityService(s)
 	availability.AgentOnline = cfg.ChatAgentOnline
-	chat := handlers.NewWidgetChatHandler(cfg.Widget, s,
-		services.NewChatSessionService(s, services.NewChatRoutingService(s), nil),
-		availability)
+	chatSvc := services.NewChatSessionService(s, services.NewChatRoutingService(s), nil)
+	chatSvc.Tickets = ticketSvc
+	chat := handlers.NewWidgetChatHandler(cfg.Widget, s, chatSvc, availability)
 	chat.AgentName = cfg.ChatAgentName
 
 	// Every widget route is throttled per client IP with the guest limiter

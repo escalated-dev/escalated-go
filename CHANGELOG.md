@@ -23,6 +23,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reply author ids.
 
 ### Added
+- Live chat events (ADR 2026-10-21): `chat.started`, `chat.assigned`,
+  `chat.message` and `chat.ended` are now sent to outbound webhooks and run
+  workflows (they only reached the realtime channel), and the webhook form and
+  the workflow builder offer them. There is no chat transfer in this package,
+  so `chat.transferred` is neither offered nor sent. The webhook payload is
+  `{"chat": {"session_id", "ticket_id", "status", "agent_id",
+  "department_id"}}`, plus `reply_id`/`author_type` (`agent` or `visitor`) for
+  a message and `ended_by` (`agent`, `customer` or `system` for an idle
+  close) for an end. It never carries the visitor's chat token, the visitor's
+  email or the message body. Workflows on chat events run against the chat's
+  ticket. The mounted routes wire this up; a host that builds its own
+  `ChatSessionService` sets `ChatSessionService.Tickets` (for example to
+  `esc.NewTicketService()`). Webhooks and workflows saved under
+  `chat.session_started` / `chat.session_ended` receive `chat.started` /
+  `chat.ended`. The realtime channel event names are unchanged.
 - The agent live-chat console is mounted: `GET /agent/chat/sessions`,
   `POST /agent/chat/sessions/{id}/accept`, `/message` and `/end` ({id} is the
   chat ticket). Visitors' chats could not be taken through the package routes.
