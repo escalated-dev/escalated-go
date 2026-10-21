@@ -50,6 +50,13 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	agentH.RoutePrefix = cfg.RoutePrefix
 	customerH := handlers.NewCustomerHandler(s, ticketSvc, rend, cfg.UserIDFunc)
 	adminH := handlers.NewAdminHandler(s, rend)
+	// Audit log: admin changes are recorded and listed at /admin/audit-log.
+	auditStore := &services.SQLAuditLogStore{DB: cfg.DB, Prefix: cfg.TablePrefix}
+	adminH.Audit = services.NewAuditLogService(auditStore)
+	adminH.UserID = cfg.UserIDFunc
+	auditH := &handlers.AuditLogHandler{Store: auditStore, Renderer: rend, Users: cfg.UserDirectory}
+	// Agent live-chat console (accept, message, end).
+	chatH := handlers.NewChatHandler(s, services.NewChatSessionService(s, services.NewChatRoutingService(s), nil), cfg.UserIDFunc)
 	attachH := handlers.NewAttachmentHandler(s, cfg.RoutePrefix)
 	attachH.AgentCheck = cfg.AgentCheck
 	attachH.AdminCheck = cfg.AdminCheck
@@ -231,6 +238,12 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 
 				// Canned responses visible to this agent (shared + own).
 				r.Get("/canned-responses", cannedH.AgentList)
+
+				// Live chat console: {id} is the chat ticket's id.
+				r.Get("/chat/sessions", chatH.ListSessions)
+				r.Post("/chat/sessions/{id}/accept", chatH.AcceptSession)
+				r.Post("/chat/sessions/{id}/message", chatH.SendMessage)
+				r.Post("/chat/sessions/{id}/end", chatH.EndSession)
 			})
 
 			// Admin routes
@@ -342,6 +355,9 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Put("/settings/widget", adminH.UpdateWidgetSettings)
 
 				// Users (host User table: list + grant/revoke admin/agent).
+				// Audit log of admin changes (Laravel AuditLogController).
+				r.Get("/audit-log", auditH.Index)
+
 				r.Get("/users", userH.Index)
 				r.Patch("/users/{user}/role", userH.UpdateRole)
 

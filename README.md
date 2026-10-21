@@ -407,6 +407,8 @@ internal notes. Anyone else gets 401 or 403.
 | `POST` | `/agent/tickets/{id}/subjects` | Attach a ticket subject |
 | `DELETE` | `/agent/tickets/{id}/subjects/{subject}` | Detach a ticket subject |
 
+Live chat console (agents): `GET /agent/chat/sessions`, `POST /agent/chat/sessions/{id}/accept`, `/message`, `/end`, where `{id}` is the chat ticket. Set `Config.ChatAgentOnline` (presence) and `Config.ChatAgentName` for the widget.
+
 ### Admin UI (requires `AdminCheck`)
 
 | Method | Path | Description |
@@ -414,6 +416,7 @@ internal notes. Anyone else gets 401 or 403.
 | `GET/POST/PATCH/DELETE` | `/admin/departments` | Manage departments |
 | `GET/POST/DELETE` | `/admin/tags` | Manage tags |
 | `GET/POST/DELETE` | `/admin/sla-policies` | Manage SLA policies |
+| `GET` | `/admin/audit-log` | Audit log of department, tag and SLA policy changes (filters: `user_id`, `action`, `auditable_type`, `date_from`, `date_to`) |
 | `GET` | `/admin/tickets/merge-search?q=` | Unmerged tickets to merge into (reference or subject, at most 10) |
 | `POST` | `/admin/tickets/{ticket}/merge` | Merge `{ticket}` (id or reference) into `{target_reference}`: replies move to the target, both get a system note, the source is closed with `merged_into_id` |
 | `GET/PUT` | `/admin/settings/public-tickets` | Runtime guest-policy mode (unassigned / guest_user / prompt_signup). See [docs.escalated.dev/public-tickets](https://docs.escalated.dev/public-tickets). |

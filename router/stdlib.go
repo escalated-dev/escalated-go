@@ -59,6 +59,13 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 	agentH := handlers.NewAgentHandler(s, ticketSvc, assignSvc, rend, cfg.UserIDFunc)
 	customerH := handlers.NewCustomerHandler(s, ticketSvc, rend, cfg.UserIDFunc)
 	adminH := handlers.NewAdminHandler(s, rend)
+	// Audit log: admin changes are recorded and listed at /admin/audit-log.
+	auditStore := &services.SQLAuditLogStore{DB: cfg.DB, Prefix: cfg.TablePrefix}
+	adminH.Audit = services.NewAuditLogService(auditStore)
+	adminH.UserID = cfg.UserIDFunc
+	auditH := &handlers.AuditLogHandler{Store: auditStore, Renderer: rend, Users: cfg.UserDirectory}
+	// Agent live-chat console (accept, message, end).
+	chatH := handlers.NewChatHandler(s, services.NewChatSessionService(s, services.NewChatRoutingService(s), nil), cfg.UserIDFunc)
 	attachH := handlers.NewAttachmentHandler(s, cfg.RoutePrefix)
 	attachH.AgentCheck = cfg.AgentCheck
 	attachH.AdminCheck = cfg.AdminCheck
@@ -191,6 +198,12 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 		// Canned responses visible to this agent (shared + own).
 		mux.Handle("GET "+prefix+"/agent/canned-responses", agentMW(http.HandlerFunc(cannedH.AgentList)))
 
+		// Live chat console: {id} is the chat ticket's id.
+		mux.Handle("GET "+prefix+"/agent/chat/sessions", agentMW(http.HandlerFunc(chatH.ListSessions)))
+		mux.Handle("POST "+prefix+"/agent/chat/sessions/{id}/accept", agentMW(http.HandlerFunc(chatH.AcceptSession)))
+		mux.Handle("POST "+prefix+"/agent/chat/sessions/{id}/message", agentMW(http.HandlerFunc(chatH.SendMessage)))
+		mux.Handle("POST "+prefix+"/agent/chat/sessions/{id}/end", agentMW(http.HandlerFunc(chatH.EndSession)))
+
 		// Admin routes (wrapped with admin middleware)
 		adminMW := middleware.RequireAdmin(cfg.AdminCheck)
 		mux.Handle("GET "+prefix+"/admin/departments", adminMW(http.HandlerFunc(adminH.ListDepartments)))
@@ -293,6 +306,8 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 		mux.Handle("PUT "+prefix+"/admin/settings/widget", adminMW(http.HandlerFunc(adminH.UpdateWidgetSettings)))
 
 		// Users (host User table: list + grant/revoke admin/agent).
+		// Audit log of admin changes (Laravel AuditLogController).
+		mux.Handle("GET "+prefix+"/admin/audit-log", adminMW(http.HandlerFunc(auditH.Index)))
 		mux.Handle("GET "+prefix+"/admin/users", adminMW(http.HandlerFunc(userH.Index)))
 		mux.Handle("PATCH "+prefix+"/admin/users/{user}/role", adminMW(http.HandlerFunc(userH.UpdateRole)))
 

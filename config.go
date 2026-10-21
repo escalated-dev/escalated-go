@@ -207,6 +207,15 @@ type Config struct {
 	// the Mailer.
 	MailFrom string
 
+	// ChatAgentOnline reports whether an agent is online and taking chats.
+	// The widget's chat availability uses it; nil counts every agent in the
+	// chat department as online.
+	ChatAgentOnline func(ctx context.Context, agentID models.UserID) (bool, error)
+
+	// ChatAgentName returns an agent's display name for the widget's chat
+	// transcript. Nil (or "") shows "Support".
+	ChatAgentName func(ctx context.Context, agentID models.UserID) string
+
 	// UserEmail returns a host user's email address. Notification emails to
 	// agents, followers and signed-in requesters use it; nil means those are
 	// not emailed (guest requesters still are). Escalated owns no users table.

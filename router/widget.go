@@ -35,9 +35,12 @@ func newWidgetStack(esc *escalated.Escalated, ticketSvc *services.TicketService)
 	widget.SignedIn = func(r *http.Request) bool {
 		return handlers.WidgetCrossOrigin(r.Context()) == "" && !cfg.UserIDFunc(r).Empty()
 	}
+	availability := services.NewChatAvailabilityService(s)
+	availability.AgentOnline = cfg.ChatAgentOnline
 	chat := handlers.NewWidgetChatHandler(cfg.Widget, s,
 		services.NewChatSessionService(s, services.NewChatRoutingService(s), nil),
-		services.NewChatAvailabilityService(s))
+		availability)
+	chat.AgentName = cfg.ChatAgentName
 
 	// Every widget route is throttled per client IP with the guest limiter
 	// config (ClientIP, Store, Disabled), so behind a trusted proxy each

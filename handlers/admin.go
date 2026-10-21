@@ -2,12 +2,14 @@ package handlers
 
 import (
 	"encoding/json"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/renderer"
+	"github.com/escalated-dev/escalated-go/services"
 	"github.com/escalated-dev/escalated-go/store"
 )
 
@@ -15,6 +17,27 @@ import (
 type AdminHandler struct {
 	store    store.Store
 	renderer renderer.Renderer
+
+	// Audit records department, tag and SLA policy changes in the audit log
+	// (Laravel's Auditable models). The routers set it with UserID.
+	Audit  *services.AuditLogService
+	UserID func(r *http.Request) models.UserID
+}
+
+// audit records one admin change; failures never fail the request.
+func (h *AdminHandler) audit(r *http.Request, action, entityType string, id int64, oldValues, newValues any) {
+	if h.Audit == nil {
+		return
+	}
+	var uid models.UserID
+	if h.UserID != nil {
+		uid = h.UserID(r)
+	}
+	ip := r.RemoteAddr
+	if host, _, err := net.SplitHostPort(ip); err == nil {
+		ip = host
+	}
+	_ = h.Audit.Record(action, entityType, id, uid, ip, r.UserAgent(), oldValues, newValues)
 }
 
 // NewAdminHandler creates a new AdminHandler.
@@ -60,6 +83,7 @@ func (h *AdminHandler) CreateDepartment(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	h.audit(r, "created", "department", d.ID, nil, d)
 
 	writeJSON(w, http.StatusCreated, map[string]any{"department": d})
 }
@@ -84,17 +108,23 @@ func (h *AdminHandler) UpdateDepartment(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if v, ok := updates["name"].(string); ok {
+	oldValues, newValues := map[string]any{}, map[string]any{}
+	if v, ok := updates["name"].(string); ok && v != d.Name {
+		oldValues["name"], newValues["name"] = d.Name, v
 		d.Name = v
 		d.Slug = slugify(v)
 	}
-	if v, ok := updates["is_active"].(bool); ok {
+	if v, ok := updates["is_active"].(bool); ok && v != d.IsActive {
+		oldValues["is_active"], newValues["is_active"] = d.IsActive, v
 		d.IsActive = v
 	}
 
 	if err := h.store.UpdateDepartment(r.Context(), d); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	if len(newValues) > 0 {
+		h.audit(r, "updated", "department", d.ID, oldValues, newValues)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"department": d})
@@ -107,9 +137,13 @@ func (h *AdminHandler) DeleteDepartment(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "invalid id", http.StatusBadRequest)
 		return
 	}
+	old, _ := h.store.GetDepartment(r.Context(), id)
 	if err := h.store.DeleteDepartment(r.Context(), id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	if old != nil {
+		h.audit(r, "deleted", "department", id, old, nil)
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
@@ -149,6 +183,7 @@ func (h *AdminHandler) CreateTag(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	h.audit(r, "created", "tag", t.ID, nil, t)
 
 	writeJSON(w, http.StatusCreated, map[string]any{"tag": t})
 }
@@ -160,9 +195,13 @@ func (h *AdminHandler) DeleteTag(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid id", http.StatusBadRequest)
 		return
 	}
+	old, _ := h.store.GetTag(r.Context(), id)
 	if err := h.store.DeleteTag(r.Context(), id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	if old != nil {
+		h.audit(r, "deleted", "tag", id, old, nil)
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
@@ -195,6 +234,7 @@ func (h *AdminHandler) CreateSLAPolicy(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	h.audit(r, "created", "sla_policy", in.ID, nil, in)
 
 	writeJSON(w, http.StatusCreated, map[string]any{"sla_policy": in})
 }
@@ -206,9 +246,13 @@ func (h *AdminHandler) DeleteSLAPolicy(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid id", http.StatusBadRequest)
 		return
 	}
+	old, _ := h.store.GetSLAPolicy(r.Context(), id)
 	if err := h.store.DeleteSLAPolicy(r.Context(), id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	if old != nil {
+		h.audit(r, "deleted", "sla_policy", id, old, nil)
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
