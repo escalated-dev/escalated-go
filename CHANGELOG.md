@@ -7,21 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- Ticket notification emails through `Config.Mailer`, with the recipients of
-  escalated-laravel's notification listeners: ticket created (requester,
-  assignee), public reply (requester, assignee, followers, never the author),
-  assigned (the assignee), status changed (requester and followers except the
-  causer), escalated and SLA breached (the assignee). Internal notes and chat
-  messages email nobody. Threaded (`Message-ID` anchor, `In-Reply-To`,
-  `References`) with an optional signed `Reply-To`. New `Config.UserEmail`
-  (host user addresses) and `Config.Notifications` (`BaseURL`, `Domain`,
-  `InboundSecret`, `Branding`, `Disabled`). See docs/notification-emails.md.
-
-### Fixed
-- `POST /agent/tickets/{id}/assign` saved the assignee without firing
-  `ticket.assigned` / `ticket.updated` to webhooks and workflows.
-
 ### Security
 - Verified guest access (escalated-laravel `docs/guest-access.md`): guests
   prove their email with a one-time code before creating a ticket
@@ -38,6 +23,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reply author ids.
 
 ### Added
+- Ticket notification emails through `Config.Mailer`, with the recipients of
+  escalated-laravel's notification listeners: ticket created (requester,
+  assignee), public reply (requester, assignee, followers, never the author),
+  assigned (the assignee), status changed (requester and followers except the
+  causer), escalated and SLA breached (the assignee). Internal notes and chat
+  messages email nobody. Threaded (`Message-ID` anchor, `In-Reply-To`,
+  `References`) with an optional signed `Reply-To`. New `Config.UserEmail`
+  (host user addresses) and `Config.Notifications` (`BaseURL`, `Domain`,
+  `InboundSecret`, `Branding`, `Disabled`). See docs/notification-emails.md.
+- Ticket merge, as escalated-laravel's `TicketMergeService`:
+  `POST /admin/tickets/{ticket}/merge` with `{target_reference}` moves every
+  reply to the target, adds an internal system note to both tickets and
+  closes the source with `merged_into_id`, in one transaction, then records
+  the activity and fires `ticket.updated` for both. `GET
+  /admin/tickets/merge-search?q=` lists unmerged targets. Admin only.
 - `POST /api/guest/verification`, `POST /api/guest/lookup`,
   `POST /api/guest/tickets/{token}/replies`, and on the widget
   `POST /verification`, `POST /lookup` and
@@ -69,6 +69,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fired). Added: `ticket.resolved`, `ticket.closed`, `ticket.escalated`,
   `ticket.unassigned`, `ticket.tag_added`, `ticket.tag_removed`,
   `note.created`.
+
+### Fixed
+- `POST /agent/tickets/{id}/assign` saved the assignee without firing
+  `ticket.assigned` / `ticket.updated` to webhooks and workflows.
 
 ### Upgrade notes
 - Hosts that set `Config.Mailer` (for guest verification) now also send

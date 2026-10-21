@@ -414,6 +414,8 @@ internal notes. Anyone else gets 401 or 403.
 | `GET/POST/PATCH/DELETE` | `/admin/departments` | Manage departments |
 | `GET/POST/DELETE` | `/admin/tags` | Manage tags |
 | `GET/POST/DELETE` | `/admin/sla-policies` | Manage SLA policies |
+| `GET` | `/admin/tickets/merge-search?q=` | Unmerged tickets to merge into (reference or subject, at most 10) |
+| `POST` | `/admin/tickets/{ticket}/merge` | Merge `{ticket}` (id or reference) into `{target_reference}`: replies move to the target, both get a system note, the source is closed with `merged_into_id` |
 | `GET/PUT` | `/admin/settings/public-tickets` | Runtime guest-policy mode (unassigned / guest_user / prompt_signup). See [docs.escalated.dev/public-tickets](https://docs.escalated.dev/public-tickets). |
 | `GET/PUT` | `/admin/settings/widget` | Sites allowed to embed the widget (`widget_allowed_origins`). See [embedding the widget](docs/embedding-the-widget.md). |
 
