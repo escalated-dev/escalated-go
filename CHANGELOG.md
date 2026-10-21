@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Ticket notification emails through `Config.Mailer`, with the recipients of
+  escalated-laravel's notification listeners: ticket created (requester,
+  assignee), public reply (requester, assignee, followers, never the author),
+  assigned (the assignee), status changed (requester and followers except the
+  causer), escalated and SLA breached (the assignee). Internal notes and chat
+  messages email nobody. Threaded (`Message-ID` anchor, `In-Reply-To`,
+  `References`) with an optional signed `Reply-To`. New `Config.UserEmail`
+  (host user addresses) and `Config.Notifications` (`BaseURL`, `Domain`,
+  `InboundSecret`, `Branding`, `Disabled`). See docs/notification-emails.md.
+
+### Fixed
+- `POST /agent/tickets/{id}/assign` saved the assignee without firing
+  `ticket.assigned` / `ticket.updated` to webhooks and workflows.
+
 ### Security
 - Verified guest access (escalated-laravel `docs/guest-access.md`): guests
   prove their email with a one-time code before creating a ticket
@@ -56,6 +71,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `note.created`.
 
 ### Upgrade notes
+- Hosts that set `Config.Mailer` (for guest verification) now also send
+  ticket notification emails. Set `Config.UserEmail` so agents and signed-in
+  requesters are reached, or `Config.Notifications.Disabled` to keep them off.
 - Guest ticket creation and widget chat start now need the email-code step.
   Set `Config.Mailer`, `Config.MailFrom` and `Config.GuestAccess.Secret`
   (the same on every instance), run the migrations (new

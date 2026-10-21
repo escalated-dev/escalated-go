@@ -107,6 +107,9 @@ func (ss *SLAService) CheckBreaches(ctx context.Context) (int, error) {
 			payload := ticketWebhookPayload(t)
 			payload["type"] = breachType
 			ss.Tickets.emit("sla.breached", payload, t)
+			if ss.Tickets.Notifications != nil {
+				ss.Tickets.Notifications.SLABreached(t, breachType)
+			}
 		}
 		breached++
 		return nil
