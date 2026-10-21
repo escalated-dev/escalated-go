@@ -125,7 +125,7 @@ func (h *UserHandler) Index(w http.ResponseWriter, r *http.Request) {
 }
 
 // render renders Escalated/Admin/Users/Index. users is Laravel's paginator,
-// links included (the page draws its pager from users.links).
+// links included: the page builds its pager out of users.links.
 func (h *UserHandler) render(w http.ResponseWriter, r *http.Request, users UserPage, search string, currentUserID any, errs map[string]string) {
 	rows := make([]map[string]any, 0, len(users.Data))
 	for _, u := range users.Data {

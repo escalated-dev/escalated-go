@@ -17,8 +17,8 @@ import (
 // usersDir is a host user table with three users, 2 a page.
 type usersDir struct{ users []handlers.AdminUser }
 
-func (d *usersDir) ListUsers(_ context.Context, _ string, page, perPage int) (handlers.UserPage, error) {
-	perPage = 2
+func (d *usersDir) ListUsers(_ context.Context, _ string, page, _ int) (handlers.UserPage, error) {
+	perPage := 2
 	start := (page - 1) * perPage
 	end := start + perPage
 	if start > len(d.users) {
