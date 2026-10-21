@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"net/http"
 	"net/url"
 	"slices"
@@ -181,13 +180,7 @@ func (h *CustomerHandler) renderCreate(w http.ResponseWriter, r *http.Request, e
 		"priorities":  uiPriorities(),
 	}
 	if errs != nil {
-		// The renderer merges an "errors" prop only when it is a
-		// map[string]any.
-		pageErrors := map[string]any{}
-		for k, v := range errs {
-			pageErrors[k] = v
-		}
-		props["errors"] = pageErrors
+		props["errors"] = pageErrors(errs)
 	}
 	_ = h.renderer.Render(w, r, "Escalated/Customer/Create", props)
 }
@@ -347,43 +340,142 @@ func (h *CustomerHandler) Create(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]any{"ticket": t})
 }
 
-// Reply handles a customer adding a reply to a ticket they requested.
-func (h *CustomerHandler) Reply(w http.ResponseWriter, r *http.Request) {
-	id, err := idFromPath(r)
+// ownTicket loads the ticket the path names (reference or id) when the
+// signed-in user requested it: 404 when there is none, 403 when it is
+// someone else's.
+func (h *CustomerHandler) ownTicket(w http.ResponseWriter, r *http.Request) (*models.Ticket, bool) {
+	t, err := resolveTicket(r.Context(), h.store, pathParam(r, "id"))
 	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
+		http.Error(w, "could not load ticket", http.StatusInternalServerError)
+		return nil, false
+	}
+	if t == nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return nil, false
+	}
+	if !requestedBy(t, h.userID(r)) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return nil, false
+	}
+	return t, true
+}
+
+func (h *CustomerHandler) showURL(t *models.Ticket) string {
+	return h.routePrefix() + "/tickets/" + url.PathEscape(t.Reference)
+}
+
+// done ends a successful write: back to the page for a page visit, JSON
+// otherwise.
+func (h *CustomerHandler) done(w http.ResponseWriter, r *http.Request, t *models.Ticket, code int, body any) {
+	if isInertia(r) {
+		backTo(w, r, h.showURL(t))
+		return
+	}
+	writeJSON(w, code, body)
+}
+
+func (h *CustomerHandler) invalid(w http.ResponseWriter, r *http.Request, t *models.Ticket, errs map[string]string) {
+	validationErrors(w, r, errs, func(errs map[string]string) {
+		_ = h.renderer.Render(w, r, "Escalated/Customer/Show", map[string]any{
+			"ticket": h.customerPayload(r, t),
+			"errors": pageErrors(errs),
+		})
+	})
+}
+
+// Reply handles a customer replying to a ticket they requested, at
+// POST /tickets/{id}/replies and /tickets/{id}/reply
+// (escalated.customer.tickets.reply).
+func (h *CustomerHandler) Reply(w http.ResponseWriter, r *http.Request) {
+	t, ok := h.ownTicket(w, r)
+	if !ok {
+		return
+	}
+	in, err := readInput(r)
+	if err != nil {
+		http.Error(w, "invalid input", http.StatusBadRequest)
+		return
+	}
+	if errs := rejectUploads(r); errs != nil {
+		h.invalid(w, r, t, errs)
+		return
+	}
+	body := strings.TrimSpace(in.Get("body"))
+	if body == "" {
+		h.invalid(w, r, t, map[string]string{"body": requiredMessage("body")})
 		return
 	}
 
 	uid := h.userID(r)
+	authorType := "User"
+	reply, err := h.tickets.AddReply(r.Context(), t.ID, body, &authorType, &uid, false)
+	if err != nil {
+		http.Error(w, "could not add the reply", http.StatusInternalServerError)
+		return
+	}
+	h.done(w, r, t, http.StatusCreated, map[string]any{"reply": reply})
+}
 
-	t, err := h.tickets.Get(r.Context(), id)
-	if err != nil || t == nil {
+// Close handles POST /tickets/{id}/close: the requester closes their ticket
+// (Laravel allows it by default, tickets.allow_customer_close).
+func (h *CustomerHandler) Close(w http.ResponseWriter, r *http.Request) {
+	h.changeStatus(w, r, models.StatusClosed)
+}
+
+// Reopen handles POST /tickets/{id}/reopen: the requester reopens their
+// ticket.
+func (h *CustomerHandler) Reopen(w http.ResponseWriter, r *http.Request) {
+	h.changeStatus(w, r, models.StatusReopened)
+}
+
+func (h *CustomerHandler) changeStatus(w http.ResponseWriter, r *http.Request, status int) {
+	t, ok := h.ownTicket(w, r)
+	if !ok {
+		return
+	}
+	uid := h.userID(r)
+	if err := h.tickets.ChangeStatus(r.Context(), t.ID, status, &uid); err != nil {
+		http.Error(w, "could not change the status", http.StatusInternalServerError)
+		return
+	}
+	h.done(w, r, t, http.StatusOK, map[string]any{"status": uiStatus(status)})
+}
+
+// Rate handles POST /tickets/{id}/rate (escalated.customer.tickets.rate): the
+// requester rates their resolved or closed ticket, once, 1 to 5.
+func (h *CustomerHandler) Rate(w http.ResponseWriter, r *http.Request) {
+	t, ok := h.ownTicket(w, r)
+	if !ok {
+		return
+	}
+	in, err := readInput(r)
+	if err != nil {
+		http.Error(w, "invalid input", http.StatusBadRequest)
+		return
+	}
+	rating, err := strconv.Atoi(strings.TrimSpace(in.Get("rating")))
+	if err != nil || !ratingValid(rating) {
+		h.invalid(w, r, t, map[string]string{"rating": "The rating must be between 1 and 5."})
+		return
+	}
+	var comment *string
+	if v := strings.TrimSpace(in.Get("comment")); v != "" {
+		comment = &v
+	}
+	if h.DB == nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
-	if !requestedBy(t, uid) {
-		http.Error(w, "Forbidden", http.StatusForbidden)
-		return
+	uid := h.userID(r)
+	code, msg := recordRating(r.Context(), h.DB, t.ID, rating, comment, t.RequesterType, &uid)
+	switch code {
+	case http.StatusCreated:
+		h.done(w, r, t, http.StatusCreated, map[string]any{"ok": true})
+	case http.StatusUnprocessableEntity:
+		h.invalid(w, r, t, map[string]string{"rating": msg})
+	default:
+		http.Error(w, msg, code)
 	}
-
-	var in struct {
-		Body string `json:"body"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || in.Body == "" {
-		http.Error(w, "body is required", http.StatusBadRequest)
-		return
-	}
-
-	authorType := "User"
-
-	reply, err := h.tickets.AddReply(r.Context(), id, in.Body, &authorType, &uid, false)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	writeJSON(w, http.StatusCreated, map[string]any{"reply": reply})
 }
 
 // requestedBy reports whether uid is the ticket's requester. A ticket with no

@@ -140,6 +140,24 @@ func send(h http.Handler, method, path, user, role, body string) *httptest.Respo
 	return rec
 }
 
+// sendAPI is send without X-Inertia: an API client, which gets JSON from a
+// write where a page visit gets a redirect.
+func sendAPI(h http.Handler, method, path, user, role, body string) *httptest.ResponseRecorder {
+	r := httptest.NewRequest(method, path, strings.NewReader(body))
+	if body != "" {
+		r.Header.Set("Content-Type", "application/json")
+	}
+	if user != "" {
+		r.Header.Set(headerUser, user)
+	}
+	if role != "" {
+		r.Header.Set(headerRole, role)
+	}
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, r)
+	return rec
+}
+
 func denied(code int) bool {
 	return code == http.StatusUnauthorized || code == http.StatusForbidden
 }
@@ -274,7 +292,7 @@ func TestCustomerTicketRoutesRequireTheRequester(t *testing.T) {
 			} else if strings.Contains(rec.Body.String(), "internal note for agents") {
 				t.Errorf("customer view exposes the internal note: %s", rec.Body.String())
 			}
-			if rec := send(h, http.MethodPost, replies, customerB, "", `{"body":"reply from B via `+name+`"}`); rec.Code != http.StatusCreated {
+			if rec := sendAPI(h, http.MethodPost, replies, customerB, "", `{"body":"reply from B via `+name+`"}`); rec.Code != http.StatusCreated {
 				t.Errorf("customer B POST %s: got %d, want 201: %s", replies, rec.Code, rec.Body.String())
 			}
 		})

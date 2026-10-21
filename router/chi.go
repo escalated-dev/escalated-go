@@ -210,7 +210,12 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Get("/create", customerH.CreateForm)
 				r.Get("/{id}", customerH.Show)
 				r.Post("/{id}/replies", customerH.Reply)
-				r.Post("/{id}/rate", satH.Rate)
+				r.Post("/{id}/rate", customerH.Rate)
+				// The customer ticket screen's writes (Laravel route names
+				// escalated.customer.tickets.reply / close / reopen).
+				r.Post("/{id}/reply", customerH.Reply)
+				r.Post("/{id}/close", customerH.Close)
+				r.Post("/{id}/reopen", customerH.Reopen)
 			})
 
 			// Agent routes
@@ -222,6 +227,17 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Post("/tickets/{id}/assign", agentH.AssignTicket)
 				r.Post("/tickets/{id}/replies", agentH.Reply)
 				r.Post("/tickets/{id}/status", agentH.ChangeStatus)
+				// The ticket screen's writes (Laravel route names
+				// escalated.agent.tickets.*).
+				r.Put("/tickets/{id}", agentH.UpdateTicket)
+				r.Post("/tickets/{id}/reply", agentH.PageReply)
+				r.Post("/tickets/{id}/note", agentH.PageNote)
+				r.Post("/tickets/{id}/priority", agentH.ChangePriority)
+				r.Post("/tickets/{id}/tags", agentH.UpdateTags)
+				r.Post("/tickets/{id}/department", agentH.ChangeDepartment)
+				r.Post("/tickets/{id}/macro", agentH.ApplyMacro)
+				r.Post("/tickets/{id}/follow", agentH.ToggleFollow)
+				r.Post("/tickets/{id}/replies/{reply}/pin", agentH.TogglePin)
 				r.Post("/tickets/{id}/subjects", subjectH.AttachSubject)
 				r.Delete("/tickets/{id}/subjects/{subject}", subjectH.DetachSubject)
 				r.Post("/tickets/{id}/actions/{action}", agentH.CustomAction)

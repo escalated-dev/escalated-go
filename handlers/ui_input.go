@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 )
 
 // isInertia reports whether the request is an Inertia visit, as the shared
@@ -106,4 +107,45 @@ func validationErrors(w http.ResponseWriter, r *http.Request, errs map[string]st
 
 func requiredMessage(field string) string {
 	return fmt.Sprintf("The %s field is required.", field)
+}
+
+// pageErrors is a page's errors prop. The renderer merges "errors" only when
+// it is a map[string]any.
+func pageErrors(errs map[string]string) map[string]any {
+	out := map[string]any{}
+	for k, v := range errs {
+		out[k] = v
+	}
+	return out
+}
+
+// backTo answers a page's write the way Laravel's back() does: a 303 to the
+// page it came from (the Referer, same host only), else to fallback.
+func backTo(w http.ResponseWriter, r *http.Request, fallback string) {
+	if ref := r.Header.Get("Referer"); ref != "" {
+		if u, err := url.Parse(ref); err == nil && (u.Host == "" || u.Host == r.Host) && strings.HasPrefix(u.Path, "/") {
+			seeOther(w, r, u.RequestURI())
+			return
+		}
+	}
+	seeOther(w, r, fallback)
+}
+
+// rejectUploads reports a validation error when a page sent files: this
+// package stores no uploads yet, and dropping them silently would lose them.
+func rejectUploads(r *http.Request) map[string]string {
+	if r.MultipartForm != nil && len(r.MultipartForm.File) > 0 {
+		return map[string]string{"attachments": "File attachments are not supported here yet."}
+	}
+	return nil
+}
+
+// decodePayload reads a JSON object sent as one field (a nested object in a
+// JSON body arrives here re-encoded).
+func decodePayload(v string) map[string]any {
+	var out map[string]any
+	if err := json.Unmarshal([]byte(v), &out); err != nil {
+		return nil
+	}
+	return out
 }

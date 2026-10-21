@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Upgrading
+- The agent and customer ticket writes now answer a page visit
+  (`X-Inertia`) with a 303 back to the page, or the page again with an
+  `errors` prop, instead of JSON. API clients (no `X-Inertia`) still get JSON,
+  now with `422 {message, errors}` for validation errors where some answered
+  400 before. The agent status write validates the status.
+- `POST /tickets/{id}/rate` is served by the customer handler: the same
+  requester-only rule, with JSON errors.
 - The agent dashboard, ticket queue and ticket screen, the customer ticket
   list and ticket screen, and the SLA policy list now render the props the
   shared Vue pages read (escalated-laravel's shapes) instead of raw models:
@@ -23,6 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for a page visit), and redirects a page visit to the new ticket.
 
 ### Added
+- The ticket screens' writes at escalated-laravel's routes: agent `reply`,
+  `note`, `priority`, `tags`, `department`, `macro`, `follow`,
+  `replies/{reply}/pin` and `PUT /agent/tickets/{ticket}`; customer `reply`,
+  `close` and `reopen`. All take the reference or the id, JSON or a form, and
+  status and priority as slugs.
 - `Escalated/Customer/Create` at `GET /tickets/create`, with the active
   departments and the priority slugs.
 - Ticket page paths take the ticket's reference as well as its id.

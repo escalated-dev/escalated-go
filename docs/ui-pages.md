@@ -39,11 +39,33 @@ staff member's email or id, only a display name.
 
 ## Writes from the pages
 
-The pages post with Inertia (`X-Inertia: true`), as JSON or a form. The ticket
-form (`POST /tickets`) answers a page the Inertia way: a `303` to the new
-ticket, or the form again with an `errors` prop when validation fails. A client
-without `X-Inertia` keeps getting JSON (`201` with the ticket, or
-`422 {message, errors}`). It takes `priority` as a slug or the integer.
+The pages post with Inertia (`X-Inertia: true`), as JSON or a form, to the
+routes escalated-laravel names. A page visit is answered the Inertia way: a
+`303` back to the page it came from (the `Referer`, same host only), or the
+page again with an `errors` prop when validation fails. A client without
+`X-Inertia` keeps getting JSON (`422 {message, errors}` on validation errors).
+Status and priority are taken as slugs or integers. File uploads are refused
+with an `attachments` error: this package stores no uploads yet.
+
+| Laravel route name | Route |
+|---|---|
+| `escalated.agent.tickets.update` | `PUT /agent/tickets/{ticket}` (subject, description, ticket_type) |
+| `escalated.agent.tickets.reply` / `.note` | `POST /agent/tickets/{ticket}/reply`, `/note` |
+| `escalated.agent.tickets.assign` | `POST /agent/tickets/{ticket}/assign` |
+| `escalated.agent.tickets.status` / `.priority` | `POST /agent/tickets/{ticket}/status`, `/priority` |
+| `escalated.agent.tickets.tags` | `POST /agent/tickets/{ticket}/tags` (`tag_ids` is the whole set) |
+| `escalated.agent.tickets.department` | `POST /agent/tickets/{ticket}/department` |
+| `escalated.agent.tickets.macro` | `POST /agent/tickets/{ticket}/macro` |
+| `escalated.agent.tickets.follow` | `POST /agent/tickets/{ticket}/follow` (toggles) |
+| `escalated.agent.tickets.pin` | `POST /agent/tickets/{ticket}/replies/{reply}/pin` (internal notes) |
+| `escalated.agent.tickets.custom-action` | `POST /agent/tickets/{ticket}/actions/{action}` |
+| `escalated.customer.tickets.store` | `POST /tickets` (303 to the new ticket) |
+| `escalated.customer.tickets.reply` | `POST /tickets/{ticket}/reply` |
+| `escalated.customer.tickets.close` / `.reopen` | `POST /tickets/{ticket}/close`, `/reopen` |
+| `escalated.customer.tickets.rate` | `POST /tickets/{ticket}/rate` |
+
+`{ticket}` is the reference or the id. Escalated ships no Ziggy route list;
+point your `route()` names at these paths under your `RoutePrefix`.
 
 ## Pages rendered
 
@@ -73,3 +95,5 @@ every shipped page not rendered yet.
   `false`.
 - Shared props (`auth.user`, `escalated.*`) and Ziggy's `route()` come from the
   host's Inertia setup.
+- Presence (`escalated.agent.tickets.presence`) and typing indicators, and the
+  queue's bulk actions, are not served yet.
