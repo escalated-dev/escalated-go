@@ -23,6 +23,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reply author ids.
 
 ### Added
+- The agent live-chat console is mounted: `GET /agent/chat/sessions`,
+  `POST /agent/chat/sessions/{id}/accept`, `/message` and `/end` ({id} is the
+  chat ticket). Visitors' chats could not be taken through the package routes.
+- `Config.ChatAgentOnline` and `Config.ChatAgentName` reach the widget's chat
+  availability and transcript. Without a presence hook the widget reported
+  chat as available around the clock, and agents always showed as "Support".
+- Audit log: department, tag and SLA policy changes made through the admin
+  routes are recorded (who, IP, user agent, old and new values with secrets
+  redacted) in `escalated_audit_logs`, and `GET /admin/audit-log` renders
+  `Escalated/Admin/AuditLog/Index` with Laravel's filters (`user_id`,
+  `action`, `auditable_type`, `date_from`, `date_to`), 50 a page.
+  `services.SQLAuditLogStore` backs `AuditLogService`.
 - Ticket notification emails through `Config.Mailer`, with the recipients of
   escalated-laravel's notification listeners: ticket created (requester,
   assignee), public reply (requester, assignee, followers, never the author),

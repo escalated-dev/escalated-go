@@ -59,6 +59,38 @@ func (s *AuditLogService) Log(action, entityType string, entityID *int64, perfor
 	return s.store.CreateAuditLog(entry)
 }
 
+// Record logs an admin change made through a request (Laravel's Auditable
+// trait): who made it, from which address and client, and the old and new
+// values (sensitive keys redacted). performerID may be empty for system
+// changes.
+func (s *AuditLogService) Record(action, entityType string, entityID int64, performerID models.UserID, ip, userAgent string, oldValues, newValues interface{}) error {
+	if s == nil || s.store == nil {
+		return nil
+	}
+	entry := &models.AuditLog{Action: action, EntityType: entityType, EntityID: &entityID}
+	if !performerID.Empty() {
+		pt := "user"
+		entry.PerformerType = &pt
+		entry.PerformerID = &performerID
+	}
+	if ip != "" {
+		entry.IPAddress = &ip
+	}
+	if userAgent != "" {
+		if len(userAgent) > 255 {
+			userAgent = userAgent[:255]
+		}
+		entry.UserAgent = &userAgent
+	}
+	if oldValues != nil {
+		entry.OldValues, _ = marshalAuditValues(oldValues)
+	}
+	if newValues != nil {
+		entry.NewValues, _ = marshalAuditValues(newValues)
+	}
+	return s.store.CreateAuditLog(entry)
+}
+
 // LogsForEntity returns audit entries for a specific entity.
 func (s *AuditLogService) LogsForEntity(entityType string, entityID int64, limit int) ([]*models.AuditLog, error) {
 	if limit <= 0 {
