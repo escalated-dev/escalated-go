@@ -21,6 +21,8 @@ type uiPageDeps struct {
 	macroAdmin  *handlers.MacroHandler
 	cannedAdmin *handlers.CannedResponseHandler
 	webhooks    *handlers.WebhookHandler
+	articles    *handlers.ArticleHandler
+	kbPages     *handlers.KBPages
 }
 
 // wireUIPages gives the page handlers what they need to build the props the
@@ -62,6 +64,12 @@ func wireUIPages(esc *escalated.Escalated, agentH *handlers.AgentHandler, custom
 	}
 	if deps.webhooks != nil {
 		deps.webhooks.Pages = pages
+	}
+	if deps.articles != nil {
+		deps.articles.Pages = pages
+	}
+	if deps.kbPages != nil {
+		deps.kbPages.Pages = pages
 	}
 }
 

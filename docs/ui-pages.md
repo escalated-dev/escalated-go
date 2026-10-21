@@ -93,6 +93,9 @@ point your `route()` names at these paths under your `RoutePrefix`.
 | `Admin/Tickets/Show` | `GET /admin/tickets/{reference}` |
 | `Admin/SlaPolicies/Form` | `GET /admin/sla-policies/create`, `/{id}/edit` |
 | `Admin/EscalationRules/Index`, `Form` | `GET /admin/escalation-rules`, `/create`, `/{id}/edit` |
+| `Admin/KnowledgeBase/Articles/Index`, `Form` | `GET /admin/kb-articles`, `/create`, `/{id}/edit` |
+| `Admin/KnowledgeBase/Categories/Index` | `GET /admin/kb-categories` |
+| `Customer/KnowledgeBase/Index`, `Article` | `GET /kb`, `/kb/{slug}` (and `POST /kb/{slug}/feedback`) |
 | `Admin/Users/Index` | `GET /admin/users` (needs `Config.UserDirectory`) |
 | `Admin/Macros/Index` | `GET /admin/macros` |
 | `Admin/CannedResponses/Index` | `GET /admin/canned-responses` |
@@ -105,6 +108,13 @@ for anyone else. Their writes (`store`, `update` as `PUT` or `PATCH`,
 `destroy`, delivery `retry`) answer a page visit with a 303 to the list (or
 back, for a retry), or the page again with an `errors` prop; API clients get
 the answers they always had.
+
+The knowledge base admin pages are at Laravel's resource paths
+(`/admin/kb-articles`, `/admin/kb-categories`); the older `/admin/kb/...` JSON
+routes stay. Their forms send ids as `""` when unset, which is read as none.
+The reader pages follow the `knowledge_base_enabled` (404 when off) and
+`knowledge_base_public` (403 for a visitor when off) settings, and
+`knowledge_base_feedback_enabled` switches the helpfulness vote.
 
 Macros created in the shared editor use its action names (`status`,
 `priority`, `assign`, `tags`, `department`, `reply`, `note`), which now run
