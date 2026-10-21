@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-10-21
+
+### Upgrading
+- Hosts that set `Config.Mailer` (for guest verification) now also send
+  ticket notification emails. Set `Config.UserEmail` so agents and signed-in
+  requesters are reached, or `Config.Notifications.Disabled` to keep them off.
+- Guest ticket creation and widget chat start now need the email-code step.
+  Set `Config.Mailer`, `Config.MailFrom` and `Config.GuestAccess.Secret`
+  (the same on every instance), run the migrations (new
+  `guest_verifications` table and four nullable ticket columns), and use a
+  client that runs the code step (the bundled widget does). Guest API clients
+  read `data.guest_access_token`; `data.guest_token` carries the same grant.
+- Permanent guest tokens on existing tickets keep working until a grant is
+  issued for the ticket, or until you set
+  `GuestAccess.RejectLegacyTokens = true`.
+- Nothing runs the SLA check for you. Call `esc.StartSLAChecker(ctx, time.Minute)`
+  once at startup, or `esc.CheckSLA` from your own scheduler. Like Laravel,
+  `sla.warning` repeats on every run while a deadline is inside the window.
+- A workflow stored as `ticket.tagged` now runs on tag additions only, as
+  `ticket.tag_added`. No migration is needed.
+
 ### Security
 - Verified guest access (escalated-laravel `docs/guest-access.md`): guests
   prove their email with a one-time code before creating a ticket
@@ -100,25 +121,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `POST /agent/tickets/{id}/assign` saved the assignee without firing
   `ticket.assigned` / `ticket.updated` to webhooks and workflows.
-
-### Upgrade notes
-- Hosts that set `Config.Mailer` (for guest verification) now also send
-  ticket notification emails. Set `Config.UserEmail` so agents and signed-in
-  requesters are reached, or `Config.Notifications.Disabled` to keep them off.
-- Guest ticket creation and widget chat start now need the email-code step.
-  Set `Config.Mailer`, `Config.MailFrom` and `Config.GuestAccess.Secret`
-  (the same on every instance), run the migrations (new
-  `guest_verifications` table and four nullable ticket columns), and use a
-  client that runs the code step (the bundled widget does). Guest API clients
-  read `data.guest_access_token`; `data.guest_token` carries the same grant.
-- Permanent guest tokens on existing tickets keep working until a grant is
-  issued for the ticket, or until you set
-  `GuestAccess.RejectLegacyTokens = true`.
-- Nothing runs the SLA check for you. Call `esc.StartSLAChecker(ctx, time.Minute)`
-  once at startup, or `esc.CheckSLA` from your own scheduler. Like Laravel,
-  `sla.warning` repeats on every run while a deadline is inside the window.
-- A workflow stored as `ticket.tagged` now runs on tag additions only, as
-  `ticket.tag_added`. No migration is needed.
 
 ## [0.2.2] - 2026-10-20
 
