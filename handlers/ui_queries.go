@@ -74,6 +74,26 @@ func (q uiQueries) isFollowing(ctx context.Context, ticketID int64, uid models.U
 	return q.count(ctx, fmt.Sprintf("SELECT COUNT(1) FROM %s WHERE ticket_id = ? AND user_id = ?", q.t("ticket_followers")), ticketID, string(uid)) > 0
 }
 
+// follow records the user as a follower of the ticket (once).
+func (q uiQueries) follow(ctx context.Context, ticketID int64, uid models.UserID) error {
+	if q.DB == nil {
+		return fmt.Errorf("no database")
+	}
+	_, err := ticketaccess.ExecContext(ctx, q.DB, sqldialect.Rebind(q.DB, fmt.Sprintf(
+		`INSERT INTO %s (ticket_id, user_id) VALUES (?, ?) ON CONFLICT DO NOTHING`, q.t("ticket_followers"))), ticketID, uid)
+	return err
+}
+
+// unfollow removes the user from the ticket's followers.
+func (q uiQueries) unfollow(ctx context.Context, ticketID int64, uid models.UserID) error {
+	if q.DB == nil {
+		return fmt.Errorf("no database")
+	}
+	_, err := ticketaccess.ExecContext(ctx, q.DB, sqldialect.Rebind(q.DB, fmt.Sprintf(
+		`DELETE FROM %s WHERE ticket_id = ? AND user_id = ?`, q.t("ticket_followers"))), ticketID, uid)
+	return err
+}
+
 // rating is the CSAT rating the requester gave, or nil when there is none.
 func (q uiQueries) rating(ctx context.Context, ticketID int64) *models.SatisfactionRating {
 	if q.DB == nil {

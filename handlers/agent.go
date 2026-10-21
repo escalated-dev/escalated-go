@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -204,16 +203,32 @@ func (h *AgentHandler) ListTickets(w http.ResponseWriter, r *http.Request) {
 // (its reference, or its id), with the props of Laravel's
 // Agent\TicketController::show.
 func (h *AgentHandler) ShowTicket(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	t, err := resolveTicket(ctx, h.store, pathParam(r, "id"))
+	t, ok := h.pageTicket(w, r)
+	if !ok {
+		return
+	}
+	h.renderShow(w, r, t, nil)
+}
+
+// pageTicket loads the ticket the path names (reference or id), answering 404
+// when there is none.
+func (h *AgentHandler) pageTicket(w http.ResponseWriter, r *http.Request) (*models.Ticket, bool) {
+	t, err := resolveTicket(r.Context(), h.store, pathParam(r, "id"))
 	if err != nil {
 		http.Error(w, "could not load ticket", http.StatusInternalServerError)
-		return
+		return nil, false
 	}
 	if t == nil {
 		http.Error(w, "not found", http.StatusNotFound)
-		return
+		return nil, false
 	}
+	return t, true
+}
+
+// renderShow renders the ticket screen, with errs as the errors prop when a
+// write from it failed validation.
+func (h *AgentHandler) renderShow(w http.ResponseWriter, r *http.Request, t *models.Ticket, errs map[string]string) {
+	ctx := r.Context()
 	uid := h.userID(r)
 	q := h.queries()
 
@@ -234,7 +249,7 @@ func (h *AgentHandler) ShowTicket(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	_ = h.renderer.Render(w, r, "Escalated/Agent/TicketShow", map[string]any{
+	props := map[string]any{
 		"ticket":          h.ticketDetail(r, t),
 		"departments":     uiDepartments(ctx, h.store),
 		"tags":            uiTags(ctx, h.store),
@@ -243,7 +258,11 @@ func (h *AgentHandler) ShowTicket(w http.ResponseWriter, r *http.Request) {
 		"is_following":    q.isFollowing(ctx, t.ID, uid),
 		"followers_count": q.followersCount(ctx, t.ID),
 		"customActions":   h.customActionsFor(t, uid, "agent"),
-	})
+	}
+	if errs != nil {
+		props["errors"] = pageErrors(errs)
+	}
+	_ = h.renderer.Render(w, r, "Escalated/Agent/TicketShow", props)
 }
 
 // ticketDetail is the ticket as the agent screen reads it: the list row plus
@@ -385,136 +404,4 @@ func (h *AgentHandler) customActionsFor(t *models.Ticket, userID models.UserID, 
 		a["method"] = "post"
 	}
 	return out
-}
-
-// CustomAction handles POST /agent/tickets/{id}/actions/{action}.
-func (h *AgentHandler) CustomAction(w http.ResponseWriter, r *http.Request) {
-	id, err := idFromPath(r)
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
-		return
-	}
-	if h.Actions == nil {
-		http.Error(w, "not found", http.StatusNotFound)
-		return
-	}
-
-	t, err := h.tickets.Get(r.Context(), id)
-	if err != nil || t == nil {
-		http.Error(w, "not found", http.StatusNotFound)
-		return
-	}
-
-	key := r.PathValue("action")
-	uid := h.userID(r)
-	action, ok := h.Actions.Find(key)
-	if !ok || !h.Actions.Visible(action, t, uid) {
-		http.Error(w, "custom action not found", http.StatusNotFound)
-		return
-	}
-	if !h.Actions.Enabled(action, t, uid) {
-		http.Error(w, "custom action is not enabled", http.StatusForbidden)
-		return
-	}
-
-	var in struct {
-		Payload map[string]any `json:"payload"`
-	}
-	_ = json.NewDecoder(r.Body).Decode(&in)
-
-	// Record an internal note for auditability (authored by the agent).
-	authorType := "User"
-	_, _ = h.tickets.AddReply(r.Context(), id, fmt.Sprintf("Custom action %q was triggered.", key), &authorType, &uid, true)
-
-	// Hand off to the host's handler, if any.
-	if h.OnCustomAction != nil {
-		_ = h.OnCustomAction(r.Context(), actions.CustomActionEvent{
-			Ticket:   t,
-			Action:   key,
-			UserID:   uid,
-			Payload:  in.Payload,
-			Metadata: action.Metadata,
-		})
-	}
-
-	writeJSON(w, http.StatusOK, map[string]any{"message": "Custom action dispatched.", "action": key})
-}
-
-// AssignTicket handles assigning a ticket to an agent.
-func (h *AgentHandler) AssignTicket(w http.ResponseWriter, r *http.Request) {
-	id, err := idFromPath(r)
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
-		return
-	}
-
-	var in struct {
-		AgentID models.UserID `json:"agent_id"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		http.Error(w, "invalid input", http.StatusBadRequest)
-		return
-	}
-
-	uid := h.userID(r)
-	if err := h.assignments.Reassign(r.Context(), id, in.AgentID, &uid); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	writeJSON(w, http.StatusOK, map[string]string{"status": "assigned"})
-}
-
-// Reply handles an agent adding a reply or internal note.
-func (h *AgentHandler) Reply(w http.ResponseWriter, r *http.Request) {
-	id, err := idFromPath(r)
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
-		return
-	}
-
-	var in struct {
-		Body       string `json:"body"`
-		IsInternal bool   `json:"is_internal"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || in.Body == "" {
-		http.Error(w, "body is required", http.StatusBadRequest)
-		return
-	}
-
-	uid := h.userID(r)
-	authorType := "User"
-
-	reply, err := h.tickets.AddReply(r.Context(), id, in.Body, &authorType, &uid, in.IsInternal)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	writeJSON(w, http.StatusCreated, map[string]any{"reply": reply})
-}
-
-// ChangeStatus handles updating a ticket's status.
-func (h *AgentHandler) ChangeStatus(w http.ResponseWriter, r *http.Request) {
-	id, err := idFromPath(r)
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
-		return
-	}
-
-	var in struct {
-		Status int `json:"status"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		http.Error(w, "invalid input", http.StatusBadRequest)
-		return
-	}
-
-	uid := h.userID(r)
-	if err := h.tickets.ChangeStatus(r.Context(), id, in.Status, &uid); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 }

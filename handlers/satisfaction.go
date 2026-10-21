@@ -125,40 +125,48 @@ func (h *SatisfactionHandler) rateByTicketID(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	var status int
-	err := ticketaccess.QueryRowContext(r.Context(), h.DB, sqldialect.Rebind(h.DB, `SELECT status FROM escalated_tickets WHERE id = ?`), id).Scan(&status)
-	if err == sql.ErrNoRows {
-		http.Error(w, "ticket not found", http.StatusNotFound)
+	code, msg := recordRating(r.Context(), h.DB, id, in.Rating, in.Comment, ratedByType, ratedByID)
+	if code != http.StatusCreated {
+		http.Error(w, msg, code)
 		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"ok": true})
+}
+
+// recordRating stores a 1-5 rating on a resolved or closed ticket that has
+// none yet. It answers 201, or the status and message of the refusal.
+func recordRating(ctx context.Context, db *sql.DB, id int64, rating int, comment *string, ratedByType *string, ratedByID *models.UserID) (int, string) {
+	if !ratingValid(rating) {
+		return http.StatusBadRequest, "rating must be an integer between 1 and 5"
+	}
+
+	var status int
+	err := ticketaccess.QueryRowContext(ctx, db, sqldialect.Rebind(db, `SELECT status FROM escalated_tickets WHERE id = ?`), id).Scan(&status)
+	if err == sql.ErrNoRows {
+		return http.StatusNotFound, "ticket not found"
 	}
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return http.StatusInternalServerError, "could not load ticket"
 	}
 	if !ticketRateable(status) {
-		http.Error(w, "only resolved or closed tickets can be rated", http.StatusUnprocessableEntity)
-		return
+		return http.StatusUnprocessableEntity, "only resolved or closed tickets can be rated"
 	}
 
 	var existing int
-	if err := ticketaccess.QueryRowContext(r.Context(), h.DB, sqldialect.Rebind(h.DB, `SELECT COUNT(1) FROM escalated_satisfaction_ratings WHERE ticket_id = ?`), id).Scan(&existing); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	if err := ticketaccess.QueryRowContext(ctx, db, sqldialect.Rebind(db, `SELECT COUNT(1) FROM escalated_satisfaction_ratings WHERE ticket_id = ?`), id).Scan(&existing); err != nil {
+		return http.StatusInternalServerError, "could not check the rating"
 	}
 	if existing > 0 {
-		http.Error(w, "this ticket has already been rated", http.StatusUnprocessableEntity)
-		return
+		return http.StatusUnprocessableEntity, "this ticket has already been rated"
 	}
 
-	if _, err := ticketaccess.ExecContext(r.Context(), h.DB, sqldialect.Rebind(h.DB, `INSERT INTO escalated_satisfaction_ratings (ticket_id, rating, comment, rated_by_type, rated_by_id, created_at)
+	if _, err := ticketaccess.ExecContext(ctx, db, sqldialect.Rebind(db, `INSERT INTO escalated_satisfaction_ratings (ticket_id, rating, comment, rated_by_type, rated_by_id, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?)`),
-		id, in.Rating, in.Comment, ratedByType, ratedByID, time.Now(),
+		id, rating, comment, ratedByType, ratedByID, time.Now(),
 	); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return http.StatusInternalServerError, "could not save the rating"
 	}
-
-	writeJSON(w, http.StatusCreated, map[string]any{"ok": true})
+	return http.StatusCreated, ""
 }
 
 // ratingValid reports whether a rating is within the 1-5 CSAT scale.

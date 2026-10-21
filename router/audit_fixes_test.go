@@ -93,10 +93,10 @@ func TestTicketRateIsLimitedToTheRequester(t *testing.T) {
 		t.Fatalf("denied ratings were stored: %d", n)
 	}
 
-	if rec := send(mounts["chi"], http.MethodPost, path, customerB, "", `{"rating":5}`); rec.Code != http.StatusCreated {
+	if rec := sendAPI(mounts["chi"], http.MethodPost, path, customerB, "", `{"rating":5}`); rec.Code != http.StatusCreated {
 		t.Fatalf("requester rating: got %d, want 201: %s", rec.Code, rec.Body.String())
 	}
-	if rec := send(mounts["stdlib"], http.MethodPost, path, customerB, "", `{"rating":4}`); rec.Code != http.StatusUnprocessableEntity {
+	if rec := sendAPI(mounts["stdlib"], http.MethodPost, path, customerB, "", `{"rating":4}`); rec.Code != http.StatusUnprocessableEntity {
 		t.Errorf("second rating: got %d, want 422", rec.Code)
 	}
 	var ratedBy models.UserID

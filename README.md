@@ -388,6 +388,7 @@ tickets they requested. Any other ticket returns 403.
 | `POST` | `/tickets` | Submit a ticket |
 | `GET` | `/tickets/{id}` | View ticket (`{id}` is the reference or the id) |
 | `POST` | `/tickets/{id}/replies` | Reply to ticket |
+| `POST` | `/tickets/{id}/reply`, `/close`, `/reopen`, `/rate` | The ticket screen's writes |
 
 ### Attachments (always mounted)
 
@@ -409,6 +410,7 @@ internal notes. Anyone else gets 401 or 403.
 | `POST` | `/agent/tickets/{id}/assign` | Assign ticket |
 | `POST` | `/agent/tickets/{id}/replies` | Reply / internal note |
 | `POST` | `/agent/tickets/{id}/status` | Change status |
+| `POST` | `/agent/tickets/{id}/reply`, `/note`, `/priority`, `/tags`, `/department`, `/macro`, `/follow`, `/replies/{reply}/pin`; `PUT /agent/tickets/{id}` | The ticket screen's writes; see [the shared pages](docs/ui-pages.md) |
 | `POST` | `/agent/tickets/{id}/subjects` | Attach a ticket subject |
 | `DELETE` | `/agent/tickets/{id}/subjects/{subject}` | Detach a ticket subject |
 
