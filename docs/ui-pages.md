@@ -98,6 +98,7 @@ point your `route()` names at these paths under your `RoutePrefix`.
 | `Customer/KnowledgeBase/Index`, `Article` | `GET /kb`, `/kb/{slug}` (and `POST /kb/{slug}/feedback`) |
 | `Guest/Create`, `Guest/Show` | `GET /guest/create`, `/guest/{token}` (and `POST /guest`, `/guest/{token}/reply`, `/rate`) |
 | `Admin/Workflows/Index`, `Form`, `Logs` | `GET /admin/workflows`, `/create`, `/{id}`, `/logs` |
+| `Admin/Reports` and `Reports/Dashboard`, `AgentMetrics`, `SlaReport`, `CsatReport`, `SlaTrends`, `ResponseTimes`, `ResolutionTimes`, `AgentRanking`, `Cohorts`, `Comparison` | `GET /admin/reports`, `/reports/dashboard`, `/agents`, `/sla`, `/csat`, `/sla-trends`, `/response-times` (`/frt`), `/resolution-times` (`/resolution`), `/agent-ranking`, `/cohorts`, `/comparison` (`?days=`) |
 | `Admin/Users/Index` | `GET /admin/users` (needs `Config.UserDirectory`) |
 | `Admin/Macros/Index` | `GET /admin/macros` |
 | `Admin/CannedResponses/Index` | `GET /admin/canned-responses` |
@@ -133,6 +134,15 @@ and the operators it evaluates; the builder saves with `POST` / `PUT`
 and the list toggles (`POST /{id}/toggle`) and reorders
 (`POST /reorder` with `workflow_ids`). `Admin/Workflows/Builder` is not
 rendered on its own, as in Laravel: the form hosts the builder.
+
+The report pages read the tickets and ratings in the period (`?days=`,
+30 by default). `/admin/reports`, `/reports/agent-ranking`, `/reports/sla`
+and `/reports/csat` render the page for a page visit and keep their JSON for
+API clients. Agents are named through `Config.UserName`. A ticket here has one
+`sla_breached` flag, so the first-response / resolution split is read off its
+due dates; tickets keep no channel, so the channel groupings have one
+"unknown" group. `Admin/Reports/AgentDetail` is not rendered: the props
+Laravel passes it do not match what the page reads.
 
 Macros created in the shared editor use its action names (`status`,
 `priority`, `assign`, `tags`, `department`, `reply`, `note`), which now run

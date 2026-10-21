@@ -36,6 +36,10 @@ import (
 type ReportHandler struct {
 	DB     *sql.DB
 	Prefix string
+
+	// Pages serves the report pages (Escalated/Admin/Reports and
+	// Reports/*). Set by the router; the JSON endpoints answer API clients.
+	Pages PageSupport
 }
 
 // NewReportHandler constructs the handler. prefix is the table prefix (e.g.
@@ -73,6 +77,10 @@ type reportRating struct {
 
 // Index handles GET /admin/reports — dashboard overview for the period.
 func (h *ReportHandler) Index(w http.ResponseWriter, r *http.Request) {
+	if h.Pages.wantsPage(r) {
+		h.OverviewPage(w, r)
+		return
+	}
 	days := reportDays(r)
 	start, end := reportWindow(days)
 
@@ -178,6 +186,10 @@ type agentRankRow struct {
 // AgentRanking handles GET /admin/reports/agent-ranking — composite-scored
 // agent leaderboard.
 func (h *ReportHandler) AgentRanking(w http.ResponseWriter, r *http.Request) {
+	if h.Pages.wantsPage(r) {
+		h.AgentRankingPage(w, r)
+		return
+	}
 	days := reportDays(r)
 	start, end := reportWindow(days)
 
@@ -267,6 +279,10 @@ type slaBreachRow struct {
 
 // SLA handles GET /admin/reports/sla — SLA compliance rate + recent breaches.
 func (h *ReportHandler) SLA(w http.ResponseWriter, r *http.Request) {
+	if h.Pages.wantsPage(r) {
+		h.SLAPage(w, r)
+		return
+	}
 	days := reportDays(r)
 	start, end := reportWindow(days)
 
@@ -319,6 +335,10 @@ func (h *ReportHandler) SLA(w http.ResponseWriter, r *http.Request) {
 // CSAT handles GET /admin/reports/csat — satisfaction average, response rate,
 // and rating breakdown.
 func (h *ReportHandler) CSAT(w http.ResponseWriter, r *http.Request) {
+	if h.Pages.wantsPage(r) {
+		h.CSATPage(w, r)
+		return
+	}
 	days := reportDays(r)
 	start, end := reportWindow(days)
 

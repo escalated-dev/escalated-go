@@ -103,14 +103,14 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 	kbPages := &handlers.KBPages{DB: cfg.DB, Store: s}
 	guestPages := &handlers.GuestPages{Store: s, Tickets: ticketSvc, Access: esc.GuestAccess, DB: cfg.DB, Prefix: cfg.TablePrefix}
 	workflowH := handlers.NewWorkflowHandler(cfg.DB)
-	wireUIPages(esc, agentH, customerH, adminH, uiPageDeps{
-		subjects: subjectSvc, macros: macroSvc, canned: cannedSvc,
-		escalations: escH, macroAdmin: macroH, cannedAdmin: cannedH, webhooks: webhookH,
-		articles: articleH, kbPages: kbPages, guestPages: guestPages, workflows: workflowH,
-	})
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
 	reportH := handlers.NewReportHandler(cfg.DB, cfg.TablePrefix)
+	wireUIPages(esc, agentH, customerH, adminH, uiPageDeps{
+		subjects: subjectSvc, macros: macroSvc, canned: cannedSvc,
+		escalations: escH, macroAdmin: macroH, cannedAdmin: cannedH, webhooks: webhookH,
+		articles: articleH, kbPages: kbPages, guestPages: guestPages, workflows: workflowH, reports: reportH,
+	})
 	var newsletterH *handlers.NewsletterHandler
 	if cfg.EnableNewsletters {
 		newsletterH, _ = newNewsletterStack(esc)
@@ -358,6 +358,15 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 		mux.Handle("GET "+prefix+"/admin/reports/sla", adminMW(http.HandlerFunc(reportH.SLA)))
 		mux.Handle("GET "+prefix+"/admin/reports/csat", adminMW(http.HandlerFunc(reportH.CSAT)))
 		mux.Handle("GET "+prefix+"/admin/reports/period-comparison", adminMW(http.HandlerFunc(reportH.PeriodComparison)))
+		mux.Handle("GET "+prefix+"/admin/reports/dashboard", adminMW(http.HandlerFunc(reportH.DashboardPage)))
+		mux.Handle("GET "+prefix+"/admin/reports/agents", adminMW(http.HandlerFunc(reportH.AgentsPage)))
+		mux.Handle("GET "+prefix+"/admin/reports/sla-trends", adminMW(http.HandlerFunc(reportH.SLATrendsPage)))
+		mux.Handle("GET "+prefix+"/admin/reports/frt", adminMW(http.HandlerFunc(reportH.ResponseTimesPage)))
+		mux.Handle("GET "+prefix+"/admin/reports/response-times", adminMW(http.HandlerFunc(reportH.ResponseTimesPage)))
+		mux.Handle("GET "+prefix+"/admin/reports/resolution", adminMW(http.HandlerFunc(reportH.ResolutionTimesPage)))
+		mux.Handle("GET "+prefix+"/admin/reports/resolution-times", adminMW(http.HandlerFunc(reportH.ResolutionTimesPage)))
+		mux.Handle("GET "+prefix+"/admin/reports/cohorts", adminMW(http.HandlerFunc(reportH.CohortsPage)))
+		mux.Handle("GET "+prefix+"/admin/reports/comparison", adminMW(http.HandlerFunc(reportH.ComparisonPage)))
 
 		mux.Handle("GET "+prefix+"/admin/settings/public-tickets", adminMW(http.HandlerFunc(adminH.GetPublicTicketsSettings)))
 		mux.Handle("PUT "+prefix+"/admin/settings/public-tickets", adminMW(http.HandlerFunc(adminH.UpdatePublicTicketsSettings)))

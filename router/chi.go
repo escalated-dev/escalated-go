@@ -94,14 +94,14 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	kbPages := &handlers.KBPages{DB: cfg.DB, Store: s}
 	guestPages := &handlers.GuestPages{Store: s, Tickets: ticketSvc, Access: esc.GuestAccess, DB: cfg.DB, Prefix: cfg.TablePrefix}
 	workflowH := handlers.NewWorkflowHandler(cfg.DB)
-	wireUIPages(esc, agentH, customerH, adminH, uiPageDeps{
-		subjects: subjectSvc, macros: macroSvc, canned: cannedSvc,
-		escalations: escH, macroAdmin: macroH, cannedAdmin: cannedH, webhooks: webhookH,
-		articles: articleH, kbPages: kbPages, guestPages: guestPages, workflows: workflowH,
-	})
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
 	reportH := handlers.NewReportHandler(cfg.DB, cfg.TablePrefix)
+	wireUIPages(esc, agentH, customerH, adminH, uiPageDeps{
+		subjects: subjectSvc, macros: macroSvc, canned: cannedSvc,
+		escalations: escH, macroAdmin: macroH, cannedAdmin: cannedH, webhooks: webhookH,
+		articles: articleH, kbPages: kbPages, guestPages: guestPages, workflows: workflowH, reports: reportH,
+	})
 	var newsletterH *handlers.NewsletterHandler
 	if cfg.EnableNewsletters {
 		newsletterH, _ = newNewsletterStack(esc)
@@ -414,6 +414,16 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Get("/reports/sla", reportH.SLA)
 				r.Get("/reports/csat", reportH.CSAT)
 				r.Get("/reports/period-comparison", reportH.PeriodComparison)
+				// The report pages at Laravel's paths (escalated.admin.reports.*).
+				r.Get("/reports/dashboard", reportH.DashboardPage)
+				r.Get("/reports/agents", reportH.AgentsPage)
+				r.Get("/reports/sla-trends", reportH.SLATrendsPage)
+				r.Get("/reports/frt", reportH.ResponseTimesPage)
+				r.Get("/reports/response-times", reportH.ResponseTimesPage)
+				r.Get("/reports/resolution", reportH.ResolutionTimesPage)
+				r.Get("/reports/resolution-times", reportH.ResolutionTimesPage)
+				r.Get("/reports/cohorts", reportH.CohortsPage)
+				r.Get("/reports/comparison", reportH.ComparisonPage)
 
 				r.Get("/settings/public-tickets", adminH.GetPublicTicketsSettings)
 				r.Put("/settings/public-tickets", adminH.UpdatePublicTicketsSettings)
