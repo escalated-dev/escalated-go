@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `errors` prop, instead of JSON. API clients (no `X-Inertia`) still get JSON,
   now with `422 {message, errors}` for validation errors where some answered
   400 before. The agent status write validates the status.
+- A new SLA policy sent without `first_response_hours` or
+  `resolution_hours` is stored with `{}` instead of failing; hours may be
+  sent as numbers or numeric strings.
+- A webhook saved with an empty `secret` stores none.
 - `POST /tickets/{id}/rate` is served by the customer handler: the same
   requester-only rule, with JSON errors.
 - The agent dashboard, ticket queue and ticket screen, the customer ticket
@@ -30,6 +34,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for a page visit), and redirects a page visit to the new ticket.
 
 ### Added
+- The admin config pages: `Admin/SlaPolicies/Form` (with `PUT`/`PATCH`
+  update, which SLA policies lacked), `Admin/EscalationRules/Index` and
+  `Form`, `Admin/Macros/Index`, `Admin/CannedResponses/Index`,
+  `Admin/Webhooks/Index`, `Form` and `DeliveryLog`, with Laravel's props. Their
+  list URLs render the page for a page visit or an HTML request and keep
+  answering JSON otherwise; their writes accept `PUT` as well as `PATCH` and
+  answer a page visit with a 303 or the page again with errors.
+- Macros run the shared editor's action names (`status`, `priority`, `tags`,
+  `department`, `reply`, `note`); tags and departments by id or name.
 - `Escalated/Admin/Tickets/Index` and `Escalated/Admin/Tickets/Show` at
   `GET /admin/tickets` and `/admin/tickets/{ticket}`, with Laravel's props
   (`agents` from `Config.SkillAgentDirectory`, `savedViews`, `is_snoozed`)

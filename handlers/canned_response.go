@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/services"
@@ -18,6 +19,42 @@ import (
 type CannedResponseHandler struct {
 	DB      *sql.DB
 	Service *services.CannedResponseService
+
+	// Pages serves Escalated/Admin/CannedResponses/Index from
+	// GET /admin/canned-responses and answers the page's writes the Inertia
+	// way. Set by the router.
+	Pages PageSupport
+}
+
+func (h *CannedResponseHandler) rerender(w http.ResponseWriter, r *http.Request) func(map[string]string) {
+	return func(errs map[string]string) { h.renderIndex(w, r, nil, errs) }
+}
+
+// renderIndex renders Escalated/Admin/CannedResponses/Index (Laravel
+// Admin\CannedResponseController::index): each response with its creator.
+func (h *CannedResponseHandler) renderIndex(w http.ResponseWriter, r *http.Request, responses []models.CannedResponse, errs map[string]string) {
+	if responses == nil {
+		var err error
+		if responses, err = h.Service.ListAll(); err != nil {
+			http.Error(w, "could not list canned responses", http.StatusInternalServerError)
+			return
+		}
+	}
+	rows := make([]map[string]any, 0, len(responses))
+	for _, c := range responses {
+		rows = append(rows, map[string]any{
+			"id":         c.ID,
+			"title":      c.Title,
+			"body":       c.Body,
+			"category":   c.Category,
+			"is_shared":  c.IsShared,
+			"created_by": c.CreatedBy,
+			"creator":    h.Pages.creator(r, c.CreatedBy),
+			"created_at": uiTimeValue(c.CreatedAt),
+			"updated_at": uiTimeValue(c.UpdatedAt),
+		})
+	}
+	h.Pages.render(w, r, "Escalated/Admin/CannedResponses/Index", map[string]any{"responses": rows}, errs)
 }
 
 // NewCannedResponseHandler constructs the handler.
@@ -38,6 +75,10 @@ func (h *CannedResponseHandler) AdminList(w http.ResponseWriter, r *http.Request
 	if responses == nil {
 		responses = []models.CannedResponse{}
 	}
+	if h.Pages.wantsPage(r) {
+		h.renderIndex(w, r, responses, nil)
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"responses": responses})
 }
 
@@ -49,16 +90,26 @@ func (h *CannedResponseHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Category *string `json:"category"`
 		IsShared *bool   `json:"is_shared"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || in.Title == "" || in.Body == "" {
-		http.Error(w, "title and body are required", http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || strings.TrimSpace(in.Title) == "" || strings.TrimSpace(in.Body) == "" {
+		errs := map[string]string{}
+		if strings.TrimSpace(in.Title) == "" {
+			errs["title"] = requiredMessage("title")
+		}
+		if strings.TrimSpace(in.Body) == "" {
+			errs["body"] = requiredMessage("body")
+		}
+		h.Pages.fail(w, r, http.StatusBadRequest, "title and body are required", errs, h.rerender(w, r))
 		return
+	}
+	if in.Category != nil && strings.TrimSpace(*in.Category) == "" {
+		in.Category = nil
 	}
 
 	isShared := true
 	if in.IsShared != nil {
 		isShared = *in.IsShared
 	}
-	creator := currentAgentID(r)
+	creator := h.Pages.currentUser(r)
 	var creatorPtr *models.UserID
 	if !creator.Empty() {
 		creatorPtr = &creator
@@ -75,7 +126,7 @@ func (h *CannedResponseHandler) Create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"id": c.ID})
+	h.Pages.succeed(w, r, h.Pages.path("/admin/canned-responses"), http.StatusCreated, map[string]any{"id": c.ID})
 }
 
 // Update handles PATCH /admin/canned-responses/{id}.
@@ -120,7 +171,7 @@ func (h *CannedResponseHandler) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"id": c.ID})
+	h.Pages.succeed(w, r, h.Pages.path("/admin/canned-responses"), http.StatusOK, map[string]any{"id": c.ID})
 }
 
 // Delete handles DELETE /admin/canned-responses/{id}.
@@ -134,7 +185,7 @@ func (h *CannedResponseHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	h.Pages.succeed(w, r, h.Pages.path("/admin/canned-responses"), http.StatusNoContent, nil)
 }
 
 // AgentList handles GET /agent/canned-responses — responses the agent can see.

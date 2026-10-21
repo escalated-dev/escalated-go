@@ -89,9 +89,12 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	macroH := handlers.NewMacroHandler(cfg.DB, macroSvc)
 	cannedSvc := services.NewCannedResponseService(cfg.DB, nil)
 	cannedH := handlers.NewCannedResponseHandler(cfg.DB, cannedSvc)
-	wireUIPages(esc, agentH, customerH, adminH, uiPageDeps{subjects: subjectSvc, macros: macroSvc, canned: cannedSvc})
 	articleH := handlers.NewArticleHandler(cfg.DB, services.NewArticleService(cfg.DB, nil))
 	webhookH := handlers.NewWebhookHandler(cfg.DB, webhookDispatcher)
+	wireUIPages(esc, agentH, customerH, adminH, uiPageDeps{
+		subjects: subjectSvc, macros: macroSvc, canned: cannedSvc,
+		escalations: escH, macroAdmin: macroH, cannedAdmin: cannedH, webhooks: webhookH,
+	})
 	workflowH := handlers.NewWorkflowHandler(cfg.DB)
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
@@ -270,6 +273,10 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				mountTicketPanels(chiGroup{r: r, prefix: "/tickets"}, s, subjectH, linkH, scH)
 				r.Get("/sla-policies", adminH.ListSLAPolicies)
 				r.Post("/sla-policies", adminH.CreateSLAPolicy)
+				r.Get("/sla-policies/create", adminH.CreateSLAPolicyForm)
+				r.Get("/sla-policies/{id}/edit", adminH.EditSLAPolicyForm)
+				r.Put("/sla-policies/{id}", adminH.UpdateSLAPolicy)
+				r.Patch("/sla-policies/{id}", adminH.UpdateSLAPolicy)
 				r.Delete("/sla-policies/{id}", adminH.DeleteSLAPolicy)
 
 				// Data-retention purge (attachments + audit logs per policy).
@@ -296,6 +303,9 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				// Time-based admin Escalation rules.
 				r.Get("/escalation-rules", escH.List)
 				r.Post("/escalation-rules", escH.Create)
+				r.Get("/escalation-rules/create", escH.CreateForm)
+				r.Get("/escalation-rules/{id}/edit", escH.EditForm)
+				r.Put("/escalation-rules/{id}", escH.Update)
 				r.Patch("/escalation-rules/{id}", escH.Update)
 				r.Delete("/escalation-rules/{id}", escH.Delete)
 				r.Post("/escalation-rules/run", escH.Run)
@@ -307,12 +317,14 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				// Macros admin CRUD.
 				r.Get("/macros", macroH.AdminList)
 				r.Post("/macros", macroH.Create)
+				r.Put("/macros/{id}", macroH.Update)
 				r.Patch("/macros/{id}", macroH.Update)
 				r.Delete("/macros/{id}", macroH.Delete)
 
 				// Canned responses admin CRUD.
 				r.Get("/canned-responses", cannedH.AdminList)
 				r.Post("/canned-responses", cannedH.Create)
+				r.Put("/canned-responses/{id}", cannedH.Update)
 				r.Patch("/canned-responses/{id}", cannedH.Update)
 				r.Delete("/canned-responses/{id}", cannedH.Delete)
 
@@ -332,6 +344,9 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				// Outbound webhooks admin CRUD + per-delivery retry.
 				r.Get("/webhooks", webhookH.List)
 				r.Post("/webhooks", webhookH.Create)
+				r.Get("/webhooks/create", webhookH.CreateForm)
+				r.Get("/webhooks/{id}/edit", webhookH.EditForm)
+				r.Put("/webhooks/{id}", webhookH.Update)
 				r.Patch("/webhooks/{id}", webhookH.Update)
 				r.Delete("/webhooks/{id}", webhookH.Delete)
 				r.Get("/webhooks/{id}/deliveries", webhookH.Deliveries)

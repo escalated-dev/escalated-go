@@ -15,6 +15,12 @@ type uiPageDeps struct {
 	subjects *services.TicketSubjectService
 	macros   *services.MacroService
 	canned   *services.CannedResponseService
+
+	// The admin handlers that serve a page beside their JSON.
+	escalations *handlers.EscalationHandler
+	macroAdmin  *handlers.MacroHandler
+	cannedAdmin *handlers.CannedResponseHandler
+	webhooks    *handlers.WebhookHandler
 }
 
 // wireUIPages gives the page handlers what they need to build the props the
@@ -41,6 +47,22 @@ func wireUIPages(esc *escalated.Escalated, agentH *handlers.AgentHandler, custom
 
 	adminH.DB = cfg.DB
 	adminH.TablePrefix = cfg.TablePrefix
+	adminH.RoutePrefix = cfg.RoutePrefix
+	adminH.TargetedSLAs = cfg.TargetedSLAs
+
+	pages := handlers.PageSupport{Renderer: esc.Renderer, RoutePrefix: cfg.RoutePrefix, UserID: cfg.UserIDFunc, Users: users}
+	if deps.escalations != nil {
+		deps.escalations.Pages = pages
+	}
+	if deps.macroAdmin != nil {
+		deps.macroAdmin.Pages = pages
+	}
+	if deps.cannedAdmin != nil {
+		deps.cannedAdmin.Pages = pages
+	}
+	if deps.webhooks != nil {
+		deps.webhooks.Pages = pages
+	}
 }
 
 // ticketRoutes is the part of a router the ticket routes are added to: a chi
