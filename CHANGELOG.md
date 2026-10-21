@@ -7,7 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- Verified guest access (escalated-laravel `docs/guest-access.md`): guests
+  prove their email with a one-time code before creating a ticket
+  (`/api/guest/tickets`, `/widget/tickets`), starting a widget chat or looking
+  a ticket up. Codes are 8 digits, sent only by email, bound to the email and
+  purpose, expire in 10 minutes, allow 5 guesses and are consumed once; only
+  an HMAC digest is stored. Code delivery is budgeted per mailbox (3 an hour
+  per client IP, 10 across clients).
+- Tickets are opened with expiring, sealed grants
+  (`guest_access_token`, 24 h by default) instead of a permanent token. A new
+  grant invalidates older ones; `esc.GuestAccess.Revoke` invalidates them all.
+- Guest and widget ticket responses send `Cache-Control: no-store` and
+  `Referrer-Policy: no-referrer`; the legacy widget lookup no longer returns
+  reply author ids.
+
 ### Added
+- `POST /api/guest/verification`, `POST /api/guest/lookup`,
+  `POST /api/guest/tickets/{token}/replies`, and on the widget
+  `POST /verification`, `POST /lookup` and
+  `GET /tickets/{reference}` (Bearer grant). Widget `/config` sends
+  `guest_verification_required: true` and `status_lookup_enabled: true`, so
+  the widget's Status tab works.
+- `Config.Mailer` (`services.MailSender`) and `Config.MailFrom`: the host's
+  mail transport. Without one, `services.LogMailSender` logs and sends nothing.
+- `Config.GuestAccess` (`Secret`, `TTL`, code budgets, `RejectLegacyTokens`).
 - Event vocabulary (escalated-developer-context ADR 2026-10-21): tag changes
   fire `ticket.tag_added` / `ticket.tag_removed` (payload carries `tag`), from
   the new `TicketService.AddTag` / `RemoveTag` and from workflow, automation
@@ -32,6 +56,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `note.created`.
 
 ### Upgrade notes
+- Guest ticket creation and widget chat start now need the email-code step.
+  Set `Config.Mailer`, `Config.MailFrom` and `Config.GuestAccess.Secret`
+  (the same on every instance), run the migrations (new
+  `guest_verifications` table and four nullable ticket columns), and use a
+  client that runs the code step (the bundled widget does). Guest API clients
+  read `data.guest_access_token`; `data.guest_token` carries the same grant.
+- Permanent guest tokens on existing tickets keep working until a grant is
+  issued for the ticket, or until you set
+  `GuestAccess.RejectLegacyTokens = true`.
 - Nothing runs the SLA check for you. Call `esc.StartSLAChecker(ctx, time.Minute)`
   once at startup, or `esc.CheckSLA` from your own scheduler. Like Laravel,
   `sla.warning` repeats on every run while a deadline is inside the window.

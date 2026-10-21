@@ -171,6 +171,11 @@ func (l *GuestRateLimiter) limitFor(scope GuestScope) int {
 	return defaultGuestTickets
 }
 
+// ClientIP is the address the limiter counts the request against.
+func (l *GuestRateLimiter) ClientIP(r *http.Request) string {
+	return l.clientIP(r)
+}
+
 func (l *GuestRateLimiter) clientIP(r *http.Request) string {
 	if l.cfg.ClientIP != nil {
 		return l.cfg.ClientIP(r)

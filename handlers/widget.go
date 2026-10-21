@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"crypto/subtle"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
@@ -81,6 +83,14 @@ type WidgetHandler struct {
 	// The routers set it from Config.DB.
 	DB *sql.DB
 
+	// Access checks guest email codes and grants (verified guest access, see
+	// docs/guest-access.md). The routers set it. With it, ticket creation
+	// needs a "ticket" code and returns an expiring grant, and the status tab
+	// works through /verification, /lookup and GET /tickets/{reference}.
+	// Without it (a host wiring the handler itself) creation takes no code and
+	// /config reports guest_verification_required false.
+	Access *services.GuestAccess
+
 	// SignedIn reports whether the request comes from a signed-in host user.
 	// A private knowledge base (knowledge_base_public off) is served only to
 	// them. The routers set it; cross-origin embeds always count as guests.
@@ -108,10 +118,10 @@ func newWidgetRateLimiter(cfg WidgetConfig) *middleware.GuestRateLimiter {
 //
 // The top-level keys the shared widget reads (enabled, color, position,
 // greeting, departments, kb_enabled, guest_tickets_enabled,
-// status_lookup_enabled) sit alongside the original ones (primary_color,
-// welcome_message, ...). This backend has no mailbox verification, so
-// status_lookup_enabled is false and guest_verification_required is never
-// sent: the widget hides its Status tab.
+// guest_verification_required, status_lookup_enabled) sit alongside the
+// original ones (primary_color, welcome_message, ...). With verified guest
+// access wired, guest_verification_required and status_lookup_enabled are
+// true and the widget runs the email-code step.
 func (h *WidgetHandler) Config(w http.ResponseWriter, r *http.Request) {
 	if !h.rateLimit(w, r) {
 		return
@@ -140,19 +150,20 @@ func (h *WidgetHandler) Config(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"enabled":               true,
-		"title":                 h.config.Title,
-		"subtitle":              h.config.Subtitle,
-		"primary_color":         h.config.PrimaryColor,
-		"color":                 h.config.PrimaryColor,
-		"position":              position,
-		"logo_url":              h.config.LogoURL,
-		"welcome_message":       h.config.WelcomeMessage,
-		"greeting":              h.config.WelcomeMessage,
-		"departments":           departments,
-		"kb_enabled":            h.kbEnabledFor(r),
-		"guest_tickets_enabled": true,
-		"status_lookup_enabled": false,
+		"enabled":                     true,
+		"title":                       h.config.Title,
+		"subtitle":                    h.config.Subtitle,
+		"primary_color":               h.config.PrimaryColor,
+		"color":                       h.config.PrimaryColor,
+		"position":                    position,
+		"logo_url":                    h.config.LogoURL,
+		"welcome_message":             h.config.WelcomeMessage,
+		"greeting":                    h.config.WelcomeMessage,
+		"departments":                 departments,
+		"kb_enabled":                  h.kbEnabledFor(r),
+		"guest_tickets_enabled":       true,
+		"guest_verification_required": h.Access != nil,
+		"status_lookup_enabled":       h.Access != nil,
 		// The widget may send host parameters (order number, plan, page
 		// URL, ...) as "metadata" with a ticket or chat.
 		"accepts_metadata": true,
@@ -295,7 +306,9 @@ func (h *WidgetHandler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 		Description  string           `json:"description"`
 		DepartmentID widgetOptionalID `json:"department_id"`
 		Metadata     json.RawMessage  `json:"metadata"`
+		guestProof
 	}
+	setGuestPrivacyHeaders(w)
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body", "message": "Invalid request body."})
 		return
@@ -305,6 +318,16 @@ func (h *WidgetHandler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 	if len(missing) > 0 {
 		writeWidgetValidation(w, "email, subject, and description are required", missing)
 		return
+	}
+	if h.Access != nil {
+		errs := in.validate()
+		if !services.ValidGuestEmail(in.Email) {
+			errs["email"] = []string{"Enter a valid email address."}
+		}
+		if len(errs) > 0 {
+			writeGuestValidation(w, errs)
+			return
+		}
 	}
 	if !widgetDepartmentValid(r, h.store, in.DepartmentID.Ptr()) {
 		writeWidgetValidation(w, "the selected department is invalid", map[string][]string{
@@ -318,14 +341,30 @@ func (h *WidgetHandler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	t, err := h.tickets.Create(r.Context(), services.CreateTicketInput{
+	input := services.CreateTicketInput{
 		Subject:      in.Subject,
 		Description:  in.Description,
 		GuestName:    &in.Name,
 		GuestEmail:   &in.Email,
 		DepartmentID: in.DepartmentID.Ptr(),
 		Metadata:     widgetMetadataJSON(metadata),
-	})
+	}
+	if h.Access != nil {
+		t, token, expires, err := createVerifiedGuestTicket(r.Context(), h.Access, h.tickets, in.guestProof, in.Email, input)
+		if !writeGuestAccessError(w, err) {
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]any{
+			"message":            "Ticket created successfully.",
+			"reference":          t.Reference,
+			"ticket_reference":   t.Reference,
+			"guest_access_token": token,
+			"expires_at":         expires.Format(time.RFC3339),
+		})
+		return
+	}
+
+	t, err := h.tickets.Create(r.Context(), input)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -362,17 +401,13 @@ func (h *WidgetHandler) LookupTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !guestTokenMatches(t.GuestToken, token) {
+	if (h.Access != nil && !h.Access.LegacyTokensAccepted()) || !guestTokenMatches(t.GuestToken, token) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "invalid token"})
 		return
 	}
 
-	// Load public replies
-	isInternal := false
-	replies, _ := h.store.ListReplies(r.Context(), models.ReplyFilters{
-		TicketID: t.ID,
-		Internal: &isInternal,
-	})
+	// Public replies, guest-shaped: no author ids or internal flags.
+	replies := guestReplies(r.Context(), h.store, t.ID)
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ticket": map[string]any{
@@ -384,6 +419,75 @@ func (h *WidgetHandler) LookupTicket(w http.ResponseWriter, r *http.Request) {
 		},
 		"replies": replies,
 	})
+}
+
+// TicketStatus handles GET /widget/tickets/{reference} with
+// Authorization: Bearer <grant>: the ticket's status and its latest 20 public
+// replies (Laravel WidgetController::ticketStatus). The grant must belong to
+// the ticket the reference names; anything else is 404.
+func (h *WidgetHandler) TicketStatus(w http.ResponseWriter, r *http.Request) {
+	setGuestPrivacyHeaders(w)
+	if !h.config.Enabled {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "widget is disabled"})
+		return
+	}
+	if !h.rateLimit(w, r, middleware.GuestReplyScope) {
+		return
+	}
+	notFound := func() {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "ticket not found", "message": "The link has expired. Verify your email for a new one."})
+	}
+	token := bearerToken(r)
+	if h.Access == nil || token == "" {
+		notFound()
+		return
+	}
+	id, err := h.Access.ResolveTicketID(r.Context(), token)
+	if err != nil {
+		notFound()
+		return
+	}
+	t, err := h.store.GetTicket(r.Context(), id)
+	if err != nil || t == nil || subtle.ConstantTimeCompare([]byte(t.Reference), []byte(pathParam(r, "reference"))) != 1 {
+		notFound()
+		return
+	}
+
+	replies := guestReplies(r.Context(), h.store, t.ID)
+	// Latest first, at most 20, as Laravel sends them.
+	for i, j := 0, len(replies)-1; i < j; i, j = i+1, j-1 {
+		replies[i], replies[j] = replies[j], replies[i]
+	}
+	if len(replies) > 20 {
+		replies = replies[:20]
+	}
+	var department any
+	if t.DepartmentID != nil {
+		if d, err := h.store.GetDepartment(r.Context(), *t.DepartmentID); err == nil && d != nil {
+			department = d.Name
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"reference":    t.Reference,
+		"subject":      t.Subject,
+		"status":       t.StatusString(),
+		"status_label": widgetStatusLabel(t.StatusString()),
+		"created_at":   t.CreatedAt,
+		"department":   department,
+		"replies":      replies,
+	})
+}
+
+// widgetStatusLabel turns a status slug into its label ("in_progress" ->
+// "In Progress").
+func widgetStatusLabel(slug string) string {
+	words := strings.Split(slug, "_")
+	for i, w := range words {
+		if w != "" {
+			words[i] = strings.ToUpper(w[:1]) + w[1:]
+		}
+	}
+	return strings.Join(words, " ")
 }
 
 func (h *WidgetHandler) rateLimit(w http.ResponseWriter, r *http.Request, scopes ...middleware.GuestScope) bool {

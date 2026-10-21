@@ -11,6 +11,7 @@ import (
 	"github.com/escalated-dev/escalated-go/handlers"
 	"github.com/escalated-dev/escalated-go/middleware"
 	"github.com/escalated-dev/escalated-go/models"
+	"github.com/escalated-dev/escalated-go/services"
 )
 
 // NewsletterPermissionCheck lets hosts with granular permissions enforce
@@ -167,6 +168,22 @@ type Config struct {
 	// shares the proxy's address unless a trusted real-IP middleware runs first
 	// or ClientIP is set. See middleware.GuestRateLimitConfig.
 	GuestRateLimit middleware.GuestRateLimitConfig
+
+	// Mailer delivers Escalated's outbound email: guest verification codes
+	// and ticket notifications. Escalated renders each message and hands it
+	// over; the host owns the transport. Nil logs the recipient and subject
+	// of each message and sends nothing (services.LogMailSender), so guest
+	// verification cannot complete until a Mailer is set.
+	Mailer services.MailSender
+
+	// MailFrom is the From address on Escalated's email. Empty leaves it to
+	// the Mailer.
+	MailFrom string
+
+	// GuestAccess configures verified guest access: email codes, expiring
+	// grants and the legacy-token transition. Set Secret in production. See
+	// docs/guest-access.md.
+	GuestAccess services.GuestAccessConfig
 }
 
 // DefaultConfig returns a Config with sensible defaults.

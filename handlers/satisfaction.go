@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -27,6 +28,11 @@ type SatisfactionHandler struct {
 	// rating only from the ticket's requester; a nil resolver refuses every
 	// by-id rating. Guest ratings go through GuestRate and the guest token.
 	UserID func(r *http.Request) models.UserID
+
+	// GuestTicketID opens the ticket a guest token names (a grant, or a
+	// legacy token while accepted). The routers set it from GuestAccess; nil
+	// looks the token up as a legacy guest_token.
+	GuestTicketID func(ctx context.Context, token string) (int64, error)
 }
 
 // NewSatisfactionHandler constructs the handler.
@@ -87,8 +93,16 @@ func (h *SatisfactionHandler) GuestRate(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	setGuestPrivacyHeaders(w)
 	var id int64
-	err := ticketaccess.QueryRowContext(r.Context(), h.DB, sqldialect.Rebind(h.DB, `SELECT id FROM escalated_tickets WHERE guest_token = ?`), token).Scan(&id)
+	var err error
+	if h.GuestTicketID != nil {
+		if id, err = h.GuestTicketID(r.Context(), token); err != nil {
+			err = sql.ErrNoRows
+		}
+	} else {
+		err = ticketaccess.QueryRowContext(r.Context(), h.DB, sqldialect.Rebind(h.DB, `SELECT id FROM escalated_tickets WHERE guest_token = ?`), token).Scan(&id)
+	}
 	if err == sql.ErrNoRows {
 		http.Error(w, "ticket not found", http.StatusNotFound)
 		return

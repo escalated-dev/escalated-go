@@ -60,9 +60,12 @@ prefix rather than single routes.
 With chi:
 
 ```go
-widget := handlers.NewWidgetHandler(widgetCfg, esc.Store, services.NewTicketService(esc.Store))
+widget := handlers.NewWidgetHandler(widgetCfg, esc.Store, esc.NewTicketService())
 widget.DB = esc.Config.DB // the knowledge base; leave nil for none
+widget.Access = esc.GuestAccess // verified guest access (docs/guest-access.md)
 chat := handlers.NewWidgetChatHandler(widgetCfg, esc.Store, chatSessions, chatAvailability)
+chat.Access = esc.GuestAccess
+verify := &handlers.GuestVerificationHandler{Access: esc.GuestAccess}
 
 r.Get("/support/widget/embed.js", handlers.WidgetScript)
 r.Route("/support/widget", func(r chi.Router) {
@@ -70,8 +73,11 @@ r.Route("/support/widget", func(r chi.Router) {
     r.Get("/config", widget.Config)
     r.Get("/articles", widget.SearchArticles)
     r.Get("/articles/{slug}", widget.ShowArticle)
+    r.Post("/verification", verify.Request)
+    r.Post("/lookup", verify.Lookup)
     r.Post("/tickets", widget.CreateTicket)
     r.Get("/tickets/lookup", widget.LookupTicket)
+    r.Get("/tickets/{reference}", widget.TicketStatus)
     r.Get("/chat/availability", chat.Availability)
     r.Post("/chat/start", chat.StartChat)
     r.Get("/chat/{id}/messages", chat.Messages)
@@ -108,13 +114,16 @@ Paths are relative to the widget prefix.
 
 | Route | Notes |
 |---|---|
-| `GET /config` | `enabled`, `color`, `position`, `greeting`, `departments` (`[{id, name}]`, active only), `kb_enabled`, `guest_tickets_enabled`, `status_lookup_enabled: false`, `accepts_metadata: true`, plus the original `title`, `subtitle`, `primary_color`, `logo_url`, `welcome_message`. |
+| `GET /config` | `enabled`, `color`, `position`, `greeting`, `departments` (`[{id, name}]`, active only), `kb_enabled`, `guest_tickets_enabled`, `guest_verification_required: true`, `status_lookup_enabled: true`, `accepts_metadata: true`, plus the original `title`, `subtitle`, `primary_color`, `logo_url`, `welcome_message`. |
 | `GET /articles?q=` | Published knowledge-base articles matching the title or body: `{articles: [{title, slug, excerpt}]}`, at most 10. Fewer than two characters, or no knowledge base, returns none. |
 | `GET /articles/{slug}` | A published article: `{title, slug, body, category}`. Drafts and unknown slugs are 404. |
-| `POST /tickets` | `{name, email, subject, description, department_id?, metadata?}`. 201 `{message, reference, ticket_reference, guest_token}`. An unknown or inactive department is 422. |
-| `GET /tickets/lookup?ref=&token=` | Unchanged: needs the ticket's guest token. |
+| `POST /verification` | `{email, purpose}` (`ticket`, `chat` or `lookup`). 202 `{verification_id, expires_in, message}`; the code goes to the mailbox. |
+| `POST /lookup` | `{email, reference, verification_id, verification_code}`. `{data: [{reference, subject, guest_access_token, expires_at}]}`. |
+| `POST /tickets` | `{name, email, subject, description, department_id?, metadata?, verification_id, verification_code}`. 201 `{message, reference, ticket_reference, guest_access_token, expires_at}`. An unknown or inactive department is 422. |
+| `GET /tickets/{reference}` | `Authorization: Bearer <guest_access_token>`. `{reference, subject, status, status_label, created_at, department, replies}`. |
+| `GET /tickets/lookup?ref=&token=` | Legacy permanent guest tokens only, while `GuestAccess.RejectLegacyTokens` is off. |
 | `GET /chat/availability` | `{available, queue_length}`. |
-| `POST /chat/start` | `{name, email, department_id?, message?, subject?, metadata?}`. 201 `{id, session_id, status, messages, agent?}`. |
+| `POST /chat/start` | `{name, email, department_id?, message?, subject?, metadata?, verification_id, verification_code}` (a `chat` code). 201 `{id, session_id, status, messages, agent?}`. |
 | `GET /chat/{id}/messages` | `{messages: [{id, body, is_agent, author: {name}, created_at}], typing: null, agent, ended}`. The opening message comes first. |
 | `POST /chat/{id}/messages` | `{body}`. 422 once the chat has ended. |
 | `POST /chat/{id}/typing`, `/end` | The visitor's typing indicator (broadcast, not stored); ending the chat. |
@@ -135,9 +144,9 @@ chat messages, chat ratings and ticket lookups against the guest reply limit
 uses `Config.GuestRateLimit`'s `ClientIP`, `Store` and `Disabled`, so behind a
 proxy set `ClientIP` or every visitor shares the proxy's budget.
 
-There is no mailbox verification in this backend, so `/config` sends
-`status_lookup_enabled: false` and no `guest_verification_required`: the
-widget hides its Status tab. Nothing looks a ticket up by email address.
+Guests prove their email with a code before creating a ticket, starting a
+chat or looking a ticket up. Set `Config.Mailer` and `Config.GuestAccess.Secret`
+first; see [verified guest access](guest-access.md).
 Agent names in the chat transcript show as "Support" unless you set
 `WidgetChatHandler.AgentName`; the routers leave it unset.
 

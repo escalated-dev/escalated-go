@@ -41,6 +41,8 @@ func newWidgetContractFixture(t *testing.T, enable bool) *widgetContractFixture 
 	cfg.Widget.PrimaryColor = "#123456"
 	cfg.Widget.WelcomeMessage = "Hi there"
 	cfg.Widget.AllowedOrigins = "https://shop.example.com"
+	cfg.Mailer = newCodeMailer()
+	cfg.GuestAccess.CodesPerMailboxPerHour = 1000
 
 	esc, err := escalated.New(cfg)
 	if err != nil {
@@ -135,7 +137,10 @@ func TestWidgetContractConfig(t *testing.T) {
 				"kb_enabled":            true,
 				"guest_tickets_enabled": true,
 				"accepts_metadata":      true,
-				"status_lookup_enabled": false,
+				// Verified guest access: the widget runs the code step and
+				// shows its status tab.
+				"status_lookup_enabled":       true,
+				"guest_verification_required": true,
 				// Existing keys stay.
 				"primary_color":   "#123456",
 				"welcome_message": "Hi there",
@@ -144,9 +149,6 @@ func TestWidgetContractConfig(t *testing.T) {
 				if cfg[k] != v {
 					t.Errorf("config[%q] = %#v, want %#v", k, cfg[k], v)
 				}
-			}
-			if _, ok := cfg["guest_verification_required"]; ok {
-				t.Errorf("guest_verification_required must be omitted: no /verification endpoint")
 			}
 			depts, _ := cfg["departments"].([]any)
 			if len(depts) != 1 {
@@ -233,19 +235,19 @@ func TestWidgetContractCreateTicket(t *testing.T) {
 	f := newWidgetContractFixture(t, true)
 	for name, h := range f.mounts() {
 		t.Run(name, func(t *testing.T) {
-			rec, out := widgetCall(t, h, http.MethodPost, "/tickets", map[string]any{
+			rec, out := widgetCall(t, h, http.MethodPost, "/tickets", withProof(t, f.esc, "ticket", map[string]any{
 				"name":          "Ada",
 				"email":         "ada@example.com",
 				"subject":       "Billing question",
 				"description":   "Why was I charged twice?",
 				"department_id": f.department,
 				"metadata":      map[string]any{"plan": "pro"},
-			})
+			}))
 			if rec.Code != http.StatusCreated {
 				t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
 			}
 			ref, _ := out["reference"].(string)
-			if ref == "" || out["ticket_reference"] != ref || out["message"] == nil || out["guest_token"] == nil {
+			if ref == "" || out["ticket_reference"] != ref || out["message"] == nil || out["guest_access_token"] == nil || out["expires_at"] == nil {
 				t.Fatalf("create response = %#v", out)
 			}
 			tk, err := f.esc.Store.GetTicketByReference(context.Background(), ref)
@@ -257,17 +259,17 @@ func TestWidgetContractCreateTicket(t *testing.T) {
 			}
 
 			// The widget sends department_id: null when none is picked.
-			rec, _ = widgetCall(t, h, http.MethodPost, "/tickets", map[string]any{
+			rec, _ = widgetCall(t, h, http.MethodPost, "/tickets", withProof(t, f.esc, "ticket", map[string]any{
 				"name": "Ada", "email": "ada@example.com", "subject": "S", "description": "D", "department_id": nil,
-			})
+			}))
 			if rec.Code != http.StatusCreated {
 				t.Fatalf("create with null department: %d %s", rec.Code, rec.Body.String())
 			}
 
 			for _, dept := range []int64{f.inactive, 99999} {
-				rec, out = widgetCall(t, h, http.MethodPost, "/tickets", map[string]any{
+				rec, out = widgetCall(t, h, http.MethodPost, "/tickets", withProof(t, f.esc, "ticket", map[string]any{
 					"name": "Ada", "email": "ada@example.com", "subject": "S", "description": "D", "department_id": dept,
-				})
+				}))
 				errs, _ := out["errors"].(map[string]any)
 				if rec.Code != http.StatusUnprocessableEntity || errs["department_id"] == nil {
 					t.Fatalf("department %d: %d %s", dept, rec.Code, rec.Body.String())
@@ -295,13 +297,13 @@ func TestWidgetContractChatFlow(t *testing.T) {
 				t.Fatalf("availability = %#v", out)
 			}
 
-			rec, out = widgetCall(t, h, http.MethodPost, "/chat/start", map[string]any{
+			rec, out = widgetCall(t, h, http.MethodPost, "/chat/start", withProof(t, f.esc, "chat", map[string]any{
 				"name":          "Grace",
 				"email":         "grace@example.com",
 				"department_id": f.department,
 				"message":       "Hello, anyone there?",
 				"metadata":      map[string]any{"page_url": "https://help.example.com/pricing"},
-			})
+			}))
 			if rec.Code != http.StatusCreated {
 				t.Fatalf("start: %d %s", rec.Code, rec.Body.String())
 			}

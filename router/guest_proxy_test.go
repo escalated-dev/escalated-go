@@ -1,6 +1,7 @@
 package router_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -58,6 +59,7 @@ func TestGuestTicketRoute_TrustedProxyRateLimits(t *testing.T) {
 			cfg.DB = testdb.Open(t)
 			cfg.UIEnabled = false
 			cfg.GuestRateLimit.TicketsPerMinute = 1
+			cfg.Mailer = newCodeMailer()
 			cfg.GuestRateLimit.ClientIP = func(r *http.Request) string {
 				return chimiddleware.GetClientIP(r.Context())
 			}
@@ -71,7 +73,10 @@ func TestGuestTicketRoute_TrustedProxyRateLimits(t *testing.T) {
 			router.MountChi(r, esc)
 
 			for i, request := range tc.requests {
-				body := fmt.Sprintf(`{"guest_email":"guest%d@example.test","subject":"Help","description":"d"}`, i)
+				b, _ := json.Marshal(withProof(t, esc, "ticket", map[string]any{
+					"guest_email": fmt.Sprintf("guest%d@example.test", i), "subject": "Help", "description": "d",
+				}))
+				body := string(b)
 				req := httptest.NewRequest(http.MethodPost, "/escalated/api/guest/tickets", strings.NewReader(body))
 				req.RemoteAddr = request.peer
 				req.Header.Set("Content-Type", "application/json")

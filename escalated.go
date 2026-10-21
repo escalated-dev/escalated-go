@@ -50,6 +50,10 @@ type Escalated struct {
 	Config   Config
 	Store    store.Store
 	Renderer renderer.Renderer
+	// GuestAccess issues and checks guest email codes and grants for the
+	// guest API and the widget (docs/guest-access.md). Host code can call
+	// GuestAccess.Revoke after changing a ticket's guest email.
+	GuestAccess *services.GuestAccess
 }
 
 type newsletterMailerBridge struct {
@@ -123,10 +127,11 @@ func New(cfg Config) (*Escalated, error) {
 		configured.ConfigureTicketAccess(access)
 	}
 	return &Escalated{
-		Access:   access,
-		Config:   cfg,
-		Store:    s,
-		Renderer: rend,
+		Access:      access,
+		Config:      cfg,
+		Store:       s,
+		Renderer:    rend,
+		GuestAccess: newGuestAccess(cfg),
 	}, nil
 }
 
@@ -155,10 +160,11 @@ func NewSQLite(cfg Config) (*Escalated, error) {
 	}
 	s.ConfigureTicketAccess(access)
 	return &Escalated{
-		Access:   access,
-		Config:   cfg,
-		Store:    s,
-		Renderer: rend,
+		Access:      access,
+		Config:      cfg,
+		Store:       s,
+		Renderer:    rend,
+		GuestAccess: newGuestAccess(cfg),
 	}, nil
 }
 
@@ -305,4 +311,8 @@ func (e *Escalated) StartSLAChecker(ctx context.Context, interval time.Duration)
 		}
 	}()
 	return cancel
+}
+
+func newGuestAccess(cfg Config) *services.GuestAccess {
+	return services.NewGuestAccess(cfg.DB, cfg.TablePrefix, cfg.GuestAccess, cfg.Mailer, cfg.MailFrom, cfg.GuestRateLimit.Store, nil)
 }

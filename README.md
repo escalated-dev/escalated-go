@@ -336,6 +336,12 @@ The ticket, department and tag routes above require `AgentCheck` or
 `AdminCheck` and return 403 to anyone else. The `/api/auth/*`, `/api/guest/*`
 and `/api/kb/*` routes are public.
 
+Guests verify their email with a code first: `POST /api/guest/verification`,
+then `POST /api/guest/tickets` with the code returns an expiring grant that
+opens `GET /api/guest/tickets/{grant}`, its `/replies` and `/rate`;
+`POST /api/guest/lookup` finds tickets by reference. Configure `Config.Mailer`
+and `Config.GuestAccess` (see [verified guest access](docs/guest-access.md)).
+
 `POST /api/guest/tickets` is rate-limited per client IP: 5 tickets a minute by
 default, then 429 with `Retry-After`. Configure it with `Config.GuestRateLimit`
 (`TicketsPerMinute`, `RepliesPerMinute`, `Disabled`, a shared `Store` for

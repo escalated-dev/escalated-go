@@ -72,6 +72,9 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 	guestH := handlers.NewGuestTicketHandler(s, ticketSvc)
 	// Per-client-IP limits on the unauthenticated guest endpoints.
 	guestLimit := middleware.NewGuestRateLimiter(cfg.GuestRateLimit)
+	guestH.Access = esc.GuestAccess
+	satH.GuestTicketID = esc.GuestAccess.ResolveTicketID
+	guestVerifyH := &handlers.GuestVerificationHandler{Access: esc.GuestAccess, ClientIP: guestLimit.ClientIP}
 	kbH := handlers.NewKBHandler(cfg.DB)
 	kbGuard := kbPublicGuard(esc)
 	retentionH := handlers.NewRetentionHandler(services.NewRetentionService(cfg.DB, s))
@@ -121,9 +124,14 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 	mux.HandleFunc("POST "+prefix+"/api/auth/validate", authH.Validate)
 
 	// Anonymous (guest) ticket submission + lookup by token.
+	// Creating a ticket needs an email code from /api/guest/verification;
+	// {token} is the expiring grant it returns (docs/guest-access.md).
+	mux.Handle("POST "+prefix+"/api/guest/verification", guestLimit.Middleware(middleware.GuestTicketScope)(http.HandlerFunc(guestVerifyH.Request)))
+	mux.Handle("POST "+prefix+"/api/guest/lookup", guestLimit.Middleware(middleware.GuestReplyScope)(http.HandlerFunc(guestVerifyH.Lookup)))
 	mux.Handle("POST "+prefix+"/api/guest/tickets", guestLimit.Middleware(middleware.GuestTicketScope)(http.HandlerFunc(guestH.Create)))
-	mux.HandleFunc("GET "+prefix+"/api/guest/tickets/{token}", guestH.Show)
-	mux.HandleFunc("POST "+prefix+"/api/guest/tickets/{token}/rate", satH.GuestRate)
+	mux.Handle("GET "+prefix+"/api/guest/tickets/{token}", guestLimit.Middleware(middleware.GuestRequestScope)(http.HandlerFunc(guestH.Show)))
+	mux.Handle("POST "+prefix+"/api/guest/tickets/{token}/replies", guestLimit.Middleware(middleware.GuestReplyScope)(http.HandlerFunc(guestH.Reply)))
+	mux.Handle("POST "+prefix+"/api/guest/tickets/{token}/rate", guestLimit.Middleware(middleware.GuestReplyScope)(http.HandlerFunc(satH.GuestRate)))
 
 	// Public knowledge base (published only).
 	mux.Handle("GET "+prefix+"/api/kb/articles", kbGuard(http.HandlerFunc(kbH.ListArticles)))
