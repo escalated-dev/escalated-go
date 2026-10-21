@@ -82,6 +82,7 @@ func (r *WorkflowRunner) RunForEvent(event string, t *models.Ticket) {
 	}
 
 	td := ticketToData(t)
+	td.Tags = r.tagNames(t.ID)
 	for _, wf := range workflows {
 		if matched := r.runOne(wf, t, td, event); matched && wf.StopOnMatch {
 			break
@@ -205,15 +206,25 @@ func (r *WorkflowRunner) scheduleDelayed(wf models.Workflow, t *models.Ticket, r
 func (r *WorkflowRunner) runAction(wf models.Workflow, t *models.Ticket, td TicketData, a WorkflowAction) error {
 	switch a.Type {
 	case "change_status":
+		// The builder sends the slug ("resolved"); older workflows stored the
+		// number. An unknown value is an error rather than a silent reopen.
+		status, ok := StatusFromValue(strings.TrimSpace(a.Value))
+		if !ok {
+			return ErrInvalidStatus
+		}
 		_, err := r.DB.Exec(
 			r.query(`UPDATE escalated_tickets SET status = ?, updated_at = ? WHERE id = ?`),
-			toInt(a.Value), time.Now(), t.ID,
+			status, time.Now(), t.ID,
 		)
 		return err
 	case "change_priority":
+		priority, ok := PriorityFromValue(strings.TrimSpace(a.Value))
+		if !ok {
+			return ErrInvalidPriority
+		}
 		_, err := r.DB.Exec(
 			r.query(`UPDATE escalated_tickets SET priority = ?, updated_at = ? WHERE id = ?`),
-			toInt(a.Value), time.Now(), t.ID,
+			priority, time.Now(), t.ID,
 		)
 		return err
 	case "assign_agent":
@@ -249,6 +260,15 @@ func (r *WorkflowRunner) runAction(wf models.Workflow, t *models.Ticket, td Tick
 		_, err := r.DB.Exec(
 			r.query(`INSERT INTO escalated_replies (ticket_id, body, is_internal, is_system, created_at, updated_at)
 			 VALUES (?, ?, TRUE, TRUE, ?, ?)`),
+			t.ID, InterpolateVariables(a.Value, td), time.Now(), time.Now(),
+		)
+		return err
+	case "insert_canned_reply":
+		// The reply body, resolved by the builder from the canned response; a
+		// public reply, as Laravel's WorkflowEngine sends it.
+		_, err := r.DB.Exec(
+			r.query(`INSERT INTO escalated_replies (ticket_id, body, is_internal, is_system, created_at, updated_at)
+			 VALUES (?, ?, FALSE, FALSE, ?, ?)`),
 			t.ID, InterpolateVariables(a.Value, td), time.Now(), time.Now(),
 		)
 		return err
@@ -362,7 +382,31 @@ func ticketToData(t *models.Ticket) TicketData {
 		d := int(*t.DepartmentID)
 		td.DepartmentID = &d
 	}
+	if !t.CreatedAt.IsZero() {
+		td.HoursSinceCreated = time.Since(t.CreatedAt).Hours()
+	}
+	if !t.UpdatedAt.IsZero() {
+		td.HoursSinceUpdated = time.Since(t.UpdatedAt).Hours()
+	}
 	return td
+}
+
+// tagNames lists the ticket's tag names, for "tags" conditions.
+func (r *WorkflowRunner) tagNames(ticketID int64) []string {
+	rows, err := r.DB.Query(r.query(`SELECT t.name FROM escalated_tags t
+		JOIN escalated_ticket_tags tt ON tt.tag_id = t.id WHERE tt.ticket_id = ? ORDER BY t.name`), ticketID)
+	if err != nil {
+		return nil
+	}
+	defer func() { _ = rows.Close() }()
+	var names []string
+	for rows.Next() {
+		var name string
+		if rows.Scan(&name) == nil {
+			names = append(names, name)
+		}
+	}
+	return names
 }
 
 func parseWorkflowConditions(raw models.JSONText) WorkflowConditionGroup {
@@ -371,6 +415,12 @@ func parseWorkflowConditions(raw models.JSONText) WorkflowConditionGroup {
 		return g
 	}
 	if json.Unmarshal(raw, &g) != nil {
+		// A flat list of conditions, as some older workflows were stored, is
+		// treated as all (workflow admin contract).
+		var list []WorkflowCondition
+		if json.Unmarshal(raw, &list) == nil {
+			return WorkflowConditionGroup{All: list}
+		}
 		return WorkflowConditionGroup{All: []WorkflowCondition{{Field: "__invalid", Operator: "equals", Value: "__never"}}}
 	}
 	return g

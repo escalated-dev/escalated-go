@@ -97,6 +97,7 @@ point your `route()` names at these paths under your `RoutePrefix`.
 | `Admin/KnowledgeBase/Categories/Index` | `GET /admin/kb-categories` |
 | `Customer/KnowledgeBase/Index`, `Article` | `GET /kb`, `/kb/{slug}` (and `POST /kb/{slug}/feedback`) |
 | `Guest/Create`, `Guest/Show` | `GET /guest/create`, `/guest/{token}` (and `POST /guest`, `/guest/{token}/reply`, `/rate`) |
+| `Admin/Workflows/Index`, `Form`, `Logs` | `GET /admin/workflows`, `/create`, `/{id}`, `/logs` |
 | `Admin/Users/Index` | `GET /admin/users` (needs `Config.UserDirectory`) |
 | `Admin/Macros/Index` | `GET /admin/macros` |
 | `Admin/CannedResponses/Index` | `GET /admin/canned-responses` |
@@ -123,6 +124,15 @@ ticket; the ticket page opens by the expiring grant the ticket is created
 with (a legacy token while those are accepted), and the grant is the guest's
 proof for replies and the rating. Guest pages carry no file list: guests have
 no attachment access here.
+
+The workflow pages follow the workflow admin contract
+(escalated-developer-context `domain-model/workflow-admin-contract.md`): the
+form lists the events this package fires, the actions its runner carries out
+and the operators it evaluates; the builder saves with `POST` / `PUT`
+(`name`, `trigger_event` and at least one action required for a page visit),
+and the list toggles (`POST /{id}/toggle`) and reorders
+(`POST /reorder` with `workflow_ids`). `Admin/Workflows/Builder` is not
+rendered on its own, as in Laravel: the form hosts the builder.
 
 Macros created in the shared editor use its action names (`status`,
 `priority`, `assign`, `tags`, `department`, `reply`, `note`), which now run

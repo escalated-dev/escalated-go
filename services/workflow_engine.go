@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -12,6 +13,19 @@ type WorkflowCondition struct {
 	Field    string `json:"field"`
 	Operator string `json:"operator"`
 	Value    string `json:"value"`
+}
+
+// scalarString is a JSON scalar as text: a string as it is, a number or a
+// boolean in its JSON spelling, null as "".
+func scalarString(raw json.RawMessage) string {
+	if len(raw) == 0 || string(raw) == "null" {
+		return ""
+	}
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return s
+	}
+	return string(raw)
 }
 
 // WorkflowConditionGroup represents AND/OR condition groups
@@ -27,6 +41,23 @@ type WorkflowAction struct {
 	URL              string           `json:"url,omitempty"`
 	Payload          string           `json:"payload,omitempty"`
 	RemainingActions []WorkflowAction `json:"remaining_actions,omitempty"`
+}
+
+// UnmarshalJSON reads value as a string, or a number or boolean in its JSON
+// spelling (a department id sent as 4).
+func (a *WorkflowAction) UnmarshalJSON(b []byte) error {
+	var raw struct {
+		Type             string           `json:"type"`
+		Value            json.RawMessage  `json:"value"`
+		URL              string           `json:"url"`
+		Payload          string           `json:"payload"`
+		RemainingActions []WorkflowAction `json:"remaining_actions"`
+	}
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	a.Type, a.Value, a.URL, a.Payload, a.RemainingActions = raw.Type, scalarString(raw.Value), raw.URL, raw.Payload, raw.RemainingActions
+	return nil
 }
 
 // Operators supported by the workflow engine
@@ -69,6 +100,13 @@ type TicketData struct {
 	Subject                string
 	Description            string
 	Reference              string
+	// Tags are the ticket's tag names; a "tags" condition compares against
+	// them joined with ", ", and equals / contains match any one name.
+	Tags []string
+	// HoursSinceCreated and HoursSinceUpdated are the ticket's age and
+	// staleness, in hours.
+	HoursSinceCreated float64
+	HoursSinceUpdated float64
 }
 
 // DryRunResult holds the result of a dry run
@@ -121,6 +159,25 @@ func evaluateSingle(c WorkflowCondition, ticket TicketData) bool {
 		equal := !empty && ticket.AccountType == account.Type && ticket.AccountID == account.ID
 		return (c.Operator == "equals" && equal) || (c.Operator == "not_equals" && !equal)
 	}
+	if c.Field == "tags" {
+		switch c.Operator {
+		case "equals", "contains":
+			for _, tag := range ticket.Tags {
+				if applyOperator(c.Operator, tag, c.Value) {
+					return true
+				}
+			}
+			return false
+		case "not_equals", "not_contains":
+			positive := strings.TrimPrefix(c.Operator, "not_")
+			for _, tag := range ticket.Tags {
+				if applyOperator(positive, tag, c.Value) {
+					return false
+				}
+			}
+			return true
+		}
+	}
 	actual := resolveField(c.Field, ticket)
 	return applyOperator(c.Operator, actual, c.Value)
 }
@@ -146,6 +203,12 @@ func resolveField(field string, ticket TicketData) string {
 			return strconv.Itoa(*ticket.DepartmentID)
 		}
 		return ""
+	case "tags":
+		return strings.Join(ticket.Tags, ", ")
+	case "hours_since_created":
+		return strconv.FormatFloat(ticket.HoursSinceCreated, 'f', 2, 64)
+	case "hours_since_updated":
+		return strconv.FormatFloat(ticket.HoursSinceUpdated, 'f', 2, 64)
 	default:
 		return ""
 	}
