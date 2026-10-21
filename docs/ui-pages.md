@@ -93,6 +93,7 @@ point your `route()` names at these paths under your `RoutePrefix`.
 | `Admin/Tickets/Show` | `GET /admin/tickets/{reference}` |
 | `Admin/SlaPolicies/Form` | `GET /admin/sla-policies/create`, `/{id}/edit` |
 | `Admin/EscalationRules/Index`, `Form` | `GET /admin/escalation-rules`, `/create`, `/{id}/edit` |
+| `Admin/Users/Index` | `GET /admin/users` (needs `Config.UserDirectory`) |
 | `Admin/Macros/Index` | `GET /admin/macros` |
 | `Admin/CannedResponses/Index` | `GET /admin/canned-responses` |
 | `Admin/Webhooks/Index`, `Form`, `DeliveryLog` | `GET /admin/webhooks`, `/create`, `/{id}/edit`, `/{id}/deliveries` |
@@ -122,6 +123,8 @@ every shipped page not rendered yet.
 - Tickets keep no channel column, so a ticket shows `channel: "chat"` only
   while it is a live chat (or, on the ticket screen, when it has a chat
   session).
+- Roles and API tokens: authentication and users stay with the host, so the
+  `Admin/Roles/*` and `Admin/ApiTokens/Index` pages are not rendered.
 - SLA policies have no business-hours mode: `business_hours_only` is always
   `false`.
 - Shared props (`auth.user`, `escalated.*`) and Ziggy's `route()` come from the
