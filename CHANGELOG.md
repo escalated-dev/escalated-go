@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Upgrading
+- The agent dashboard, ticket queue and ticket screen, the customer ticket
+  list and ticket screen, and the SLA policy list now render the props the
+  shared Vue pages read (escalated-laravel's shapes) instead of raw models:
+  `tickets` is a paginator (`tickets.data`, 15 a page), status and priority
+  are slugs, relations are nested, and the ticket screens nest replies,
+  attachments and activities inside `ticket`. Hosts that read the old props
+  (`total`, `my_tickets`, top-level `replies`, `sla_policies`) from these
+  routes must switch. See [docs/ui-pages.md](docs/ui-pages.md).
+- Set `Config.UserName` to show people by name on the pages. Without it staff
+  show as "Support".
+- `POST /tickets` (customer) defaults priority to medium, validates subject,
+  description, priority, department and ticket type (422, or the form again
+  for a page visit), and redirects a page visit to the new ticket.
+
+### Added
+- `Escalated/Customer/Create` at `GET /tickets/create`, with the active
+  departments and the priority slugs.
+- Ticket page paths take the ticket's reference as well as its id.
+- `Config.UserName`, and `docs/ui-pages.md`.
+- `page_name_parity_test.go` keeps the list of shipped pages not rendered yet.
+
+### Security
+- The agent ticket queue and dashboard no longer send guest tokens to the
+  browser.
+
 ## [0.2.3] - 2026-10-21
 
 ### Upgrading

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net"
 	"net/http"
@@ -22,6 +23,40 @@ type AdminHandler struct {
 	// (Laravel's Auditable models). The routers set it with UserID.
 	Audit  *services.AuditLogService
 	UserID func(r *http.Request) models.UserID
+
+	// DB and TablePrefix back the pages' counts (an SLA policy's tickets).
+	// Optional; the router sets them.
+	DB          *sql.DB
+	TablePrefix string
+}
+
+// slaPolicyProps is an SLA policy as the admin pages read it, with Laravel's
+// tickets_count. Policies here have no business-hours mode, so
+// business_hours_only is always false.
+func slaPolicyProps(p *models.SLAPolicy, ticketsCount int) map[string]any {
+	firstResponse, _ := uiJSON(p.FirstResponseHours).(map[string]any)
+	resolution, _ := uiJSON(p.ResolutionHours).(map[string]any)
+	if firstResponse == nil {
+		firstResponse = map[string]any{}
+	}
+	if resolution == nil {
+		resolution = map[string]any{}
+	}
+	return map[string]any{
+		"id":                   p.ID,
+		"name":                 p.Name,
+		"description":          p.Description,
+		"is_default":           p.IsDefault,
+		"is_active":            p.IsActive,
+		"business_hours_only":  false,
+		"first_response_hours": firstResponse,
+		"resolution_hours":     resolution,
+		"department_id":        p.DepartmentID,
+		"ticket_type":          p.TicketType,
+		"tickets_count":        ticketsCount,
+		"created_at":           uiTimeValue(p.CreatedAt),
+		"updated_at":           uiTimeValue(p.UpdatedAt),
+	}
 }
 
 // audit records one admin change; failures never fail the request.
@@ -215,9 +250,13 @@ func (h *AdminHandler) ListSLAPolicies(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	counts := uiQueries{DB: h.DB, Prefix: h.TablePrefix}.slaTicketCounts(r.Context())
+	rows := make([]map[string]any, 0, len(policies))
+	for _, p := range policies {
+		rows = append(rows, slaPolicyProps(p, counts[p.ID]))
+	}
 	_ = h.renderer.Render(w, r, "Escalated/Admin/SlaPolicies/Index", map[string]any{
-		"policies":     policies,
-		"sla_policies": policies,
+		"policies": rows,
 	})
 }
 

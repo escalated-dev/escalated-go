@@ -1,8 +1,14 @@
 package handlers
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
+	"net/url"
+	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/renderer"
@@ -16,6 +22,13 @@ type CustomerHandler struct {
 	tickets  *services.TicketService
 	renderer renderer.Renderer
 	userID   func(r *http.Request) models.UserID
+
+	// The pages' lookups, wired by the router. All optional: RoutePrefix
+	// builds links, Users names people, DB and TablePrefix back the rating.
+	RoutePrefix string
+	Users       UserLookup
+	DB          *sql.DB
+	TablePrefix string
 }
 
 // NewCustomerHandler creates a new CustomerHandler.
@@ -28,37 +41,169 @@ func NewCustomerHandler(s store.Store, ts *services.TicketService, rend renderer
 	}
 }
 
-// Index shows the customer's ticket list.
+// customerFilterKeys are the filters the customer list honours and echoes, as
+// Laravel's Customer\TicketController::index $filterKeys.
+var customerFilterKeys = []string{
+	"status", "priority", "ticket_type", "search",
+	"tag", "has_attachments", "created_after", "created_before",
+	"sort_by", "sort_dir",
+}
+
+func (h *CustomerHandler) presenter() *uiPresenter {
+	return newUIPresenter(h.store, h.Users, h.RoutePrefix)
+}
+
+func (h *CustomerHandler) routePrefix() string {
+	if h.RoutePrefix == "" {
+		return "/escalated"
+	}
+	return h.RoutePrefix
+}
+
+// Index renders Escalated/Customer/Index: the signed-in user's tickets as
+// Laravel's paginator (15 a page) and the filters it honoured.
 func (h *CustomerHandler) Index(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	uid := h.userID(r)
-	f := models.TicketFilters{RequesterID: &uid, Limit: 50}
-	tickets, total, err := h.store.ListTickets(r.Context(), f)
+	q := r.URL.Query()
+	pg := uiPageFrom(q, 15)
+
+	f := models.TicketFilters{RequesterID: &uid, Limit: pg.PerPage, Offset: pg.offset()}
+	if v, ok := parseStatus(q.Get("status")); ok {
+		f.Status = &v
+	}
+	if v, ok := parsePriority(q.Get("priority")); ok {
+		f.Priority = &v
+	}
+	if v := q.Get("ticket_type"); v != "" {
+		f.TicketType = &v
+	}
+	f.Search = q.Get("search")
+	f.SortBy = q.Get("sort_by")
+	f.SortOrder = strings.ToLower(q.Get("sort_dir"))
+
+	tickets, total, err := h.store.ListTickets(ctx, f)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "could not list tickets", http.StatusInternalServerError)
 		return
 	}
 
+	p := h.presenter()
+	rows := make([]map[string]any, 0, len(tickets))
 	for _, t := range tickets {
-		t.PopulateComputed(nil)
+		rows = append(rows, h.customerRow(r, p, t))
+	}
+
+	filters := map[string]string{}
+	for _, key := range customerFilterKeys {
+		if q.Has(key) {
+			filters[key] = q.Get(key)
+		}
 	}
 
 	_ = h.renderer.Render(w, r, "Escalated/Customer/Index", map[string]any{
-		"tickets": tickets,
-		"total":   total,
-		"filters": queryFilters(r),
+		"tickets": uiPaginator(rows, total, pg, r.URL.Path),
+		"filters": filters,
 	})
 }
 
-// Show displays a single ticket to the customer who requested it.
+// customerRow is a list row with nothing about staff but display names.
+func (h *CustomerHandler) customerRow(r *http.Request, p *uiPresenter, t *models.Ticket) map[string]any {
+	ctx := r.Context()
+	requester := p.requester(ctx, t)
+	var department any
+	if d := p.department(ctx, t.DepartmentID); d != nil {
+		department = map[string]any{"name": d["name"]}
+	}
+	var assignee any
+	if t.AssignedTo != nil && !t.AssignedTo.Empty() {
+		assignee = customerStaff(p.users.name(ctx, *t.AssignedTo))
+	}
+	row := map[string]any{
+		"id":                t.ID,
+		"reference":         t.Reference,
+		"subject":           t.Subject,
+		"status":            uiStatus(t.Status),
+		"priority":          uiPriority(t.Priority),
+		"ticket_type":       t.TicketType,
+		"channel":           uiChannel(t),
+		"requester":         requester,
+		"requester_name":    requester["name"],
+		"requester_email":   requester["email"],
+		"department":        department,
+		"assignee":          assignee,
+		"is_live_chat":      t.Status == models.StatusLive,
+		"is_snoozed":        false,
+		"last_reply_at":     nil,
+		"last_reply_author": nil,
+		"created_at":        uiTimeValue(t.CreatedAt),
+		"updated_at":        uiTimeValue(t.UpdatedAt),
+	}
+	public := false
+	if replies, err := h.store.ListReplies(ctx, models.ReplyFilters{TicketID: t.ID, Internal: &public}); err == nil {
+		if latest := latestReply(replies); latest != nil {
+			row["last_reply_at"] = uiTimeValue(latest.CreatedAt)
+			row["last_reply_author"] = customerReplyAuthor(ctx, p, t, latest)
+		}
+	}
+	return row
+}
+
+// customerStaff is a staff member as a customer sees them: a display name
+// only (Laravel CustomerTicketPayload::assignee).
+func customerStaff(name string) map[string]any {
+	if name == "" {
+		name = "Support"
+	}
+	return map[string]any{"id": 0, "name": name, "email": ""}
+}
+
+func customerReplyAuthor(ctx context.Context, p *uiPresenter, t *models.Ticket, r *models.Reply) string {
+	if isRequesterReply(t, r) {
+		name, _ := p.requester(ctx, t)["name"].(string)
+		return name
+	}
+	if name := p.users.name(ctx, *r.AuthorID); name != "" {
+		return name
+	}
+	return "Support"
+}
+
+// CreateForm renders Escalated/Customer/Create with the active departments
+// and the priority slugs (Laravel Customer\TicketController::create).
+func (h *CustomerHandler) CreateForm(w http.ResponseWriter, r *http.Request) {
+	h.renderCreate(w, r, nil)
+}
+
+func (h *CustomerHandler) renderCreate(w http.ResponseWriter, r *http.Request, errs map[string]string) {
+	props := map[string]any{
+		"departments": uiDepartments(r.Context(), h.store),
+		"priorities":  uiPriorities(),
+	}
+	if errs != nil {
+		// The renderer merges an "errors" prop only when it is a
+		// map[string]any.
+		pageErrors := map[string]any{}
+		for k, v := range errs {
+			pageErrors[k] = v
+		}
+		props["errors"] = pageErrors
+	}
+	_ = h.renderer.Render(w, r, "Escalated/Customer/Create", props)
+}
+
+// Show renders Escalated/Customer/Show for a ticket the signed-in user
+// requested, named by its reference or id, as Laravel's
+// CustomerTicketPayload::customerWeb: public replies only, staff by display
+// name.
 func (h *CustomerHandler) Show(w http.ResponseWriter, r *http.Request) {
-	id, err := idFromPath(r)
+	ctx := r.Context()
+	t, err := resolveTicket(ctx, h.store, pathParam(r, "id"))
 	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
+		http.Error(w, "could not load ticket", http.StatusInternalServerError)
 		return
 	}
-
-	t, err := h.tickets.Get(r.Context(), id)
-	if err != nil || t == nil {
+	if t == nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -67,48 +212,113 @@ func (h *CustomerHandler) Show(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Only show public replies to customers
-	isInternal := false
-	replies, _ := h.store.ListReplies(r.Context(), models.ReplyFilters{
-		TicketID: id,
-		Internal: &isInternal,
-	})
-
-	// Load attachments for the ticket
-	ticketAttachments, _ := h.store.GetAttachmentsByTicketID(r.Context(), id)
-	populateAttachmentURLs(ticketAttachments, "/escalated")
-
-	// Attach per-reply attachments
-	for _, rpl := range replies {
-		replyAtts, _ := h.store.GetAttachmentsByReplyID(r.Context(), rpl.ID)
-		populateAttachmentURLs(replyAtts, "/escalated")
-		if len(replyAtts) > 0 {
-			rpl.Attachments = make([]models.Attachment, len(replyAtts))
-			for i, a := range replyAtts {
-				rpl.Attachments[i] = *a
-			}
-		}
-	}
-
-	t.PopulateComputed(replies)
-
 	_ = h.renderer.Render(w, r, "Escalated/Customer/Show", map[string]any{
-		"ticket":      t,
-		"replies":     replies,
-		"attachments": ticketAttachments,
+		"ticket": h.customerPayload(r, t),
 	})
 }
 
-// Create handles the ticket creation form submission.
-func (h *CustomerHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		Subject      string `json:"subject"`
-		Description  string `json:"description"`
-		Priority     int    `json:"priority"`
-		DepartmentID *int64 `json:"department_id"`
+// customerPayload is Laravel's CustomerTicketPayload::customerWeb.
+func (h *CustomerHandler) customerPayload(r *http.Request, t *models.Ticket) map[string]any {
+	ctx := r.Context()
+	p := h.presenter()
+	var department any
+	if d := p.department(ctx, t.DepartmentID); d != nil {
+		department = map[string]any{"name": d["name"]}
 	}
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+
+	public := false
+	replies, _ := h.store.ListReplies(ctx, models.ReplyFilters{TicketID: t.ID, Internal: &public})
+	sortNewestFirst(replies)
+	thread := []map[string]any{}
+	for _, rpl := range replies {
+		if rpl.IsInternal {
+			continue
+		}
+		thread = append(thread, map[string]any{
+			"id":               rpl.ID,
+			"body":             rpl.Body,
+			"is_internal_note": false,
+			"is_pinned":        rpl.IsPinned,
+			"author":           map[string]any{"name": customerReplyAuthor(ctx, p, t, rpl)},
+			"attachments":      p.replyAttachments(ctx, rpl.ID),
+			"created_at":       uiTimeValue(rpl.CreatedAt),
+		})
+	}
+
+	var rating any
+	if got := (uiQueries{DB: h.DB, Prefix: h.TablePrefix}).rating(ctx, t.ID); got != nil {
+		rating = map[string]any{"rating": got.Rating, "comment": got.Comment}
+	}
+
+	return map[string]any{
+		"id":                  t.ID,
+		"reference":           t.Reference,
+		"subject":             t.Subject,
+		"description":         t.Description,
+		"status":              uiStatus(t.Status),
+		"priority":            uiPriority(t.Priority),
+		"channel":             uiChannel(t),
+		"department":          department,
+		"attachments":         p.ticketAttachments(ctx, t.ID),
+		"replies":             thread,
+		"satisfaction_rating": rating,
+		"resolved_at":         uiTime(t.ResolvedAt),
+		"closed_at":           uiTime(t.ClosedAt),
+		"created_at":          uiTimeValue(t.CreatedAt),
+		"updated_at":          uiTimeValue(t.UpdatedAt),
+	}
+}
+
+// Create handles the ticket form (Laravel Customer\TicketController::store).
+// It reads JSON or a form, takes priority as a slug ("medium") or the integer,
+// and validates like CreateTicketRequest. A page visit (X-Inertia) is
+// redirected to the new ticket, or shown the form again with errors; an API
+// client gets 201 with the ticket, or 422.
+func (h *CustomerHandler) Create(w http.ResponseWriter, r *http.Request) {
+	in, err := readInput(r)
+	if err != nil {
 		http.Error(w, "invalid input", http.StatusBadRequest)
+		return
+	}
+
+	errs := map[string]string{}
+	subject := strings.TrimSpace(in.Get("subject"))
+	description := strings.TrimSpace(in.Get("description"))
+	if subject == "" {
+		errs["subject"] = requiredMessage("subject")
+	} else if len(subject) > 255 {
+		errs["subject"] = "The subject may not be greater than 255 characters."
+	}
+	if description == "" {
+		errs["description"] = requiredMessage("description")
+	}
+	priority := models.PriorityMedium
+	if v := in.Get("priority"); v != "" {
+		if p, ok := parsePriority(v); ok {
+			priority = p
+		} else {
+			errs["priority"] = "The selected priority is invalid."
+		}
+	}
+	var departmentID *int64
+	if v := strings.TrimSpace(in.Get("department_id")); v != "" {
+		id, err := strconv.ParseInt(v, 10, 64)
+		var dept *models.Department
+		if err == nil {
+			dept, _ = h.store.GetDepartment(r.Context(), id)
+		}
+		if dept == nil {
+			errs["department_id"] = "The selected department is invalid."
+		} else {
+			departmentID = &id
+		}
+	}
+	ticketType := strings.TrimSpace(in.Get("ticket_type"))
+	if ticketType != "" && !slices.Contains(models.TicketTypes, ticketType) {
+		errs["ticket_type"] = "The selected ticket type is invalid."
+	}
+	if len(errs) > 0 {
+		validationErrors(w, r, errs, func(errs map[string]string) { h.renderCreate(w, r, errs) })
 		return
 	}
 
@@ -116,18 +326,23 @@ func (h *CustomerHandler) Create(w http.ResponseWriter, r *http.Request) {
 	reqType := "User"
 
 	t, err := h.tickets.Create(r.Context(), services.CreateTicketInput{
-		Subject:       in.Subject,
-		Description:   in.Description,
-		Priority:      in.Priority,
+		Subject:       subject,
+		Description:   description,
+		Priority:      priority,
+		TicketType:    ticketType,
 		RequesterType: &reqType,
 		RequesterID:   &uid,
-		DepartmentID:  in.DepartmentID,
+		DepartmentID:  departmentID,
 	})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "could not create the ticket", http.StatusInternalServerError)
 		return
 	}
 
+	if isInertia(r) {
+		seeOther(w, r, h.routePrefix()+"/tickets/"+url.PathEscape(t.Reference))
+		return
+	}
 	t.PopulateComputed(nil)
 	writeJSON(w, http.StatusCreated, map[string]any{"ticket": t})
 }
