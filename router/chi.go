@@ -480,6 +480,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Get("/reports/resolution", reportH.ResolutionTimesPage)
 				r.Get("/reports/resolution-times", reportH.ResolutionTimesPage)
 				r.Get("/reports/cohorts", reportH.CohortsPage)
+				r.Get("/reports/agent/{id}/detail", reportH.AgentDetailPage)
 				r.Get("/reports/comparison", reportH.ComparisonPage)
 
 				r.Get("/settings/public-tickets", adminH.GetPublicTicketsSettings)

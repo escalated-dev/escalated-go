@@ -422,6 +422,7 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 		mux.Handle("GET "+prefix+"/admin/reports/resolution", adminMW(http.HandlerFunc(reportH.ResolutionTimesPage)))
 		mux.Handle("GET "+prefix+"/admin/reports/resolution-times", adminMW(http.HandlerFunc(reportH.ResolutionTimesPage)))
 		mux.Handle("GET "+prefix+"/admin/reports/cohorts", adminMW(http.HandlerFunc(reportH.CohortsPage)))
+		mux.Handle("GET "+prefix+"/admin/reports/agent/{id}/detail", adminMW(http.HandlerFunc(reportH.AgentDetailPage)))
 		mux.Handle("GET "+prefix+"/admin/reports/comparison", adminMW(http.HandlerFunc(reportH.ComparisonPage)))
 
 		mux.Handle("GET "+prefix+"/admin/settings/public-tickets", adminMW(http.HandlerFunc(adminH.GetPublicTicketsSettings)))
