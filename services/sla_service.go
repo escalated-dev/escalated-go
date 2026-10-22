@@ -172,7 +172,6 @@ func (ss *SLAService) ApplyPolicy(ctx context.Context, ticketID, policyID int64)
 	}
 
 	t.SLAPolicyID = &policy.ID
-	priority := models.PriorityName[t.Priority]
 	base := time.Now()
 	if access := store.AccessFor(ss.store); access != nil && access.Options.TargetedSLAs {
 		base = t.CreatedAt
@@ -180,14 +179,7 @@ func (ss *SLAService) ApplyPolicy(ctx context.Context, ticketID, policyID int64)
 		t.SLAResolutionDueAt = nil
 	}
 
-	if hours, ok := policy.FirstResponseHoursFor(priority); ok {
-		due := base.Add(time.Duration(hours * float64(time.Hour)))
-		t.SLAFirstResponseDueAt = &due
-	}
-	if hours, ok := policy.ResolutionHoursFor(priority); ok {
-		due := base.Add(time.Duration(hours * float64(time.Hour)))
-		t.SLAResolutionDueAt = &due
-	}
+	setSLADeadlines(ctx, ss.store, policy, t, base)
 
 	return ss.store.UpdateTicket(ctx, t)
 }

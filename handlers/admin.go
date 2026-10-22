@@ -110,6 +110,8 @@ type slaPolicyInput struct {
 	ResolutionHours    models.JSONText `json:"resolution_hours"`
 	DepartmentID       *int64          `json:"department_id"`
 	TicketType         *string         `json:"ticket_type"`
+	BusinessHoursOnly  *bool           `json:"business_hours_only"`
+	BusinessScheduleID json.RawMessage `json:"business_schedule_id"`
 }
 
 // apply copies the fields that were sent onto p.
@@ -133,6 +135,9 @@ func (in slaPolicyInput) apply(p *models.SLAPolicy) map[string]string {
 	}
 	if in.IsActive != nil {
 		p.IsActive = *in.IsActive
+	}
+	if in.BusinessHoursOnly != nil {
+		p.BusinessHoursOnly = *in.BusinessHoursOnly
 	}
 	for field, raw := range map[string]models.JSONText{"first_response_hours": in.FirstResponseHours, "resolution_hours": in.ResolutionHours} {
 		if len(raw) == 0 || string(raw) == "null" {
@@ -207,7 +212,9 @@ func (h *AdminHandler) UpdateSLAPolicy(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid input", http.StatusBadRequest)
 		return
 	}
-	if errs := in.apply(policy); len(errs) > 0 {
+	errs := in.apply(policy)
+	h.applyPolicySchedule(r, in, policy, errs)
+	if len(errs) > 0 {
 		if isInertia(r) {
 			h.renderSLAForm(w, r, &old, errs)
 			return
@@ -227,9 +234,20 @@ func (h *AdminHandler) UpdateSLAPolicy(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"sla_policy": policy})
 }
 
+// applyPolicySchedule sets the policy's business_schedule_id when it was sent.
+func (h *AdminHandler) applyPolicySchedule(r *http.Request, in slaPolicyInput, p *models.SLAPolicy, errs map[string]string) {
+	id, msg, present := h.rawScheduleReference(r.Context(), in.BusinessScheduleID)
+	switch {
+	case !present:
+	case msg != "":
+		errs["business_schedule_id"] = msg
+	default:
+		p.BusinessScheduleID = id
+	}
+}
+
 // slaPolicyProps is an SLA policy as the admin pages read it, with Laravel's
-// tickets_count. Policies here have no business-hours mode, so
-// business_hours_only is always false.
+// tickets_count.
 func slaPolicyProps(p *models.SLAPolicy, ticketsCount int) map[string]any {
 	firstResponse, _ := uiJSON(p.FirstResponseHours).(map[string]any)
 	resolution, _ := uiJSON(p.ResolutionHours).(map[string]any)
@@ -245,7 +263,8 @@ func slaPolicyProps(p *models.SLAPolicy, ticketsCount int) map[string]any {
 		"description":          p.Description,
 		"is_default":           p.IsDefault,
 		"is_active":            p.IsActive,
-		"business_hours_only":  false,
+		"business_hours_only":  p.BusinessHoursOnly,
+		"business_schedule_id": p.BusinessScheduleID,
 		"first_response_hours": firstResponse,
 		"resolution_hours":     resolution,
 		"department_id":        p.DepartmentID,
@@ -301,16 +320,17 @@ func (h *AdminHandler) ListDepartments(w http.ResponseWriter, r *http.Request) {
 // is null.
 func departmentProps(d *models.Department, tickets int) map[string]any {
 	return map[string]any{
-		"id":            d.ID,
-		"name":          d.Name,
-		"slug":          d.Slug,
-		"description":   d.Description,
-		"email":         d.Email,
-		"is_active":     d.IsActive,
-		"tickets_count": tickets,
-		"agents_count":  nil,
-		"created_at":    uiTimeValue(d.CreatedAt),
-		"updated_at":    uiTimeValue(d.UpdatedAt),
+		"id":                   d.ID,
+		"name":                 d.Name,
+		"slug":                 d.Slug,
+		"description":          d.Description,
+		"email":                d.Email,
+		"is_active":            d.IsActive,
+		"business_schedule_id": d.BusinessScheduleID,
+		"tickets_count":        tickets,
+		"agents_count":         nil,
+		"created_at":           uiTimeValue(d.CreatedAt),
+		"updated_at":           uiTimeValue(d.UpdatedAt),
 	}
 }
 
@@ -373,6 +393,8 @@ func (h *AdminHandler) CreateDepartment(w http.ResponseWriter, r *http.Request) 
 		Description *string `json:"description"`
 		Email       *string `json:"email"`
 		IsActive    *bool   `json:"is_active"`
+
+		BusinessScheduleID json.RawMessage `json:"business_schedule_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || strings.TrimSpace(in.Name) == "" {
 		if isInertia(r) {
@@ -395,6 +417,13 @@ func (h *AdminHandler) CreateDepartment(w http.ResponseWriter, r *http.Request) 
 	}
 	if in.IsActive != nil {
 		d.IsActive = *in.IsActive
+	}
+	if id, msg, present := h.rawScheduleReference(r.Context(), in.BusinessScheduleID); present {
+		if msg != "" {
+			validationErrors(w, r, map[string]string{"business_schedule_id": msg}, func(errs map[string]string) { h.renderDepartmentForm(w, r, nil, errs) })
+			return
+		}
+		d.BusinessScheduleID = id
 	}
 
 	if err := h.store.CreateDepartment(r.Context(), d); err != nil {
@@ -458,6 +487,15 @@ func (h *AdminHandler) UpdateDepartment(w http.ResponseWriter, r *http.Request) 
 	if v, ok := updates["is_active"].(bool); ok && v != d.IsActive {
 		oldValues["is_active"], newValues["is_active"] = d.IsActive, v
 		d.IsActive = v
+	}
+	if raw, present := updates["business_schedule_id"]; present {
+		id, msg := h.scheduleReference(r.Context(), raw, true)
+		if msg != "" {
+			validationErrors(w, r, map[string]string{"business_schedule_id": msg}, func(errs map[string]string) { h.renderDepartmentForm(w, r, d, errs) })
+			return
+		}
+		oldValues["business_schedule_id"], newValues["business_schedule_id"] = d.BusinessScheduleID, id
+		d.BusinessScheduleID = id
 	}
 
 	if err := h.store.UpdateDepartment(r.Context(), d); err != nil {
@@ -644,7 +682,9 @@ func (h *AdminHandler) CreateSLAPolicy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in := models.SLAPolicy{IsActive: true, FirstResponseHours: models.JSONText(`{}`), ResolutionHours: models.JSONText(`{}`)}
-	if errs := raw.apply(&in); len(errs) > 0 {
+	errs := raw.apply(&in)
+	h.applyPolicySchedule(r, raw, &in, errs)
+	if len(errs) > 0 {
 		if isInertia(r) {
 			h.renderSLAForm(w, r, nil, errs)
 			return

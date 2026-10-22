@@ -306,6 +306,15 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Patch("/sla-policies/{id}", adminH.UpdateSLAPolicy)
 				r.Delete("/sla-policies/{id}", adminH.DeleteSLAPolicy)
 
+				// Business hours and holidays (escalated.admin.business-hours.*).
+				r.Get("/business-hours", adminH.ListBusinessHours)
+				r.Post("/business-hours", adminH.StoreBusinessHours)
+				r.Get("/business-hours/create", adminH.CreateBusinessHoursForm)
+				r.Get("/business-hours/{id}/edit", adminH.EditBusinessHoursForm)
+				r.Put("/business-hours/{id}", adminH.UpdateBusinessHours)
+				r.Patch("/business-hours/{id}", adminH.UpdateBusinessHours)
+				r.Delete("/business-hours/{id}", adminH.DeleteBusinessHours)
+
 				// Data-retention purge (attachments + audit logs per policy).
 				r.Post("/data-retention/purge", retentionH.Purge)
 

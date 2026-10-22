@@ -12,6 +12,10 @@ func upgradeTicketAccess(db *sql.DB, prefix string, postgres bool) error {
 	if postgres {
 		collation = `"C"`
 	}
+	boolFalse := "INTEGER NOT NULL DEFAULT 0"
+	if postgres {
+		boolFalse = "BOOLEAN NOT NULL DEFAULT FALSE"
+	}
 	timestamp := "TIMESTAMP"
 	if postgres {
 		timestamp = "TIMESTAMPTZ"
@@ -27,6 +31,12 @@ func upgradeTicketAccess(db *sql.DB, prefix string, postgres bool) error {
 		{"tickets", "account_id", "VARCHAR(191) COLLATE " + collation},
 		{"sla_policies", "department_id", "BIGINT REFERENCES " + prefix + "departments(id) ON DELETE RESTRICT"},
 		{"sla_policies", "ticket_type", "VARCHAR(50)"},
+		// Business hours (Laravel business_hours_only plus the schedule a
+		// policy or department counts against). Off and unset by default, so
+		// existing policies keep calendar-hour deadlines.
+		{"sla_policies", "business_hours_only", boolFalse},
+		{"sla_policies", "business_schedule_id", "BIGINT REFERENCES " + prefix + "business_schedules(id) ON DELETE SET NULL"},
+		{"departments", "business_schedule_id", "BIGINT REFERENCES " + prefix + "business_schedules(id) ON DELETE SET NULL"},
 	}
 	for _, column := range columns {
 		exists := false
