@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Live chat transfer (escalated-laravel `escalated.admin.chat.transfer`):
+  `POST /agent/chat/sessions/{id}/transfer` on both routers, behind the agent
+  check like the rest of the chat console ({id} is the chat ticket's id). The
+  body is `{"agent_id", "department_id"}` (either or both); the shared
+  `ChatActionBar`'s `{"type": "agent"|"department", "id"}` is accepted too.
+  With an agent, the session and ticket are reassigned to them (the agent must
+  be able to see the ticket). With only a department, the ticket moves there
+  and the chat goes back to the queue (unassigned, waiting) for routing. A
+  closed chat, an unknown department or a missing target is a 422. An internal
+  system note records the transfer; the visitor's transcript does not show it.
+  New `ChatSessionService.TransferSession`.
+- `chat.transferred` is sent to outbound webhooks, runs workflows and is
+  offered in the webhook form and workflow builder. Its `chat` payload adds
+  `from_agent_id`, `to_agent_id` and `to_department_id`, as in Laravel. The
+  realtime ticket channel gets `chat.transferred` too.
+
 ## [0.2.5] - 2026-10-22
 
 ### Upgrading

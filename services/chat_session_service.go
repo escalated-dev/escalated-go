@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/escalated-dev/escalated-go/models"
@@ -17,10 +18,9 @@ type ChatSessionService struct {
 	routing     *ChatRoutingService
 	broadcaster *Broadcaster
 
-	// Tickets announces chat.started, chat.assigned, chat.message and
-	// chat.ended to outbound webhooks and workflows (ADR 2026-10-21). The
-	// mounted routes set it; nil announces nothing. There is no chat transfer
-	// here, so chat.transferred is never sent.
+	// Tickets announces chat.started, chat.assigned, chat.transferred,
+	// chat.message and chat.ended to outbound webhooks and workflows (ADR
+	// 2026-10-21). The mounted routes set it; nil announces nothing.
 	Tickets *TicketService
 }
 
@@ -165,6 +165,106 @@ func (cs *ChatSessionService) AssignAgent(ctx context.Context, session *models.C
 		})
 	}
 
+	return nil
+}
+
+// ErrChatAgentCannotAccess is returned by TransferSession when the target
+// agent cannot see the chat's ticket.
+var ErrChatAgentCannotAccess = errors.New("the agent cannot access this chat")
+
+// TransferSession hands a chat to another agent and/or department, as
+// escalated-laravel's ChatSessionService::transferChat does. With an agent,
+// the session and its ticket are reassigned to that agent. With a department,
+// the ticket moves there; without an agent too, the chat goes back to the
+// queue (unassigned, waiting) and routing picks an agent in its new
+// department. A system note records the transfer on the ticket; it is
+// internal, so the visitor's transcript does not show it. chat.transferred
+// carries from_agent_id, to_agent_id and to_department_id.
+func (cs *ChatSessionService) TransferSession(ctx context.Context, session *models.ChatSession, toAgentID *models.UserID, toDepartmentID *int64) error {
+	if toAgentID == nil && toDepartmentID == nil {
+		return fmt.Errorf("transfer needs an agent or a department")
+	}
+	if toAgentID != nil {
+		if access := store.AccessFor(cs.store); access != nil && !access.CanViewUser(ctx, *toAgentID, session.TicketID, true) {
+			return ErrChatAgentCannotAccess
+		}
+	}
+
+	t, err := cs.store.GetTicket(ctx, session.TicketID)
+	if err != nil {
+		return err
+	}
+	if t == nil {
+		return fmt.Errorf("chat ticket %d not found", session.TicketID)
+	}
+
+	fromAgentID := session.AgentID
+	if toAgentID != nil {
+		aid := *toAgentID
+		session.AgentID = &aid
+		t.AssignedTo = &aid
+	}
+	if toDepartmentID != nil {
+		did := *toDepartmentID
+		t.DepartmentID = &did
+		if toAgentID == nil {
+			session.AgentID = nil
+			session.Status = models.ChatStatusWaiting
+			t.AssignedTo = nil
+		}
+	}
+
+	if err := cs.store.UpdateChatSession(ctx, session); err != nil {
+		return fmt.Errorf("updating chat session: %w", err)
+	}
+	if err := cs.store.UpdateTicket(ctx, t); err != nil {
+		return fmt.Errorf("updating chat ticket: %w", err)
+	}
+
+	var to []string
+	if toAgentID != nil {
+		to = append(to, "agent "+string(*toAgentID))
+	}
+	if toDepartmentID != nil {
+		name := fmt.Sprintf("department %d", *toDepartmentID)
+		if d, err := cs.store.GetDepartment(ctx, *toDepartmentID); err == nil && d != nil {
+			name = "department " + d.Name
+		}
+		to = append(to, name)
+	}
+	_ = cs.store.CreateReply(ctx, &models.Reply{
+		TicketID:   session.TicketID,
+		Body:       "Chat transferred to " + strings.Join(to, " in ") + ".",
+		IsInternal: true,
+		IsSystem:   true,
+	})
+
+	extra := map[string]any{"from_agent_id": nil, "to_agent_id": nil, "to_department_id": nil}
+	if fromAgentID != nil {
+		extra["from_agent_id"] = *fromAgentID
+	}
+	if toAgentID != nil {
+		extra["to_agent_id"] = *toAgentID
+	}
+	if toDepartmentID != nil {
+		extra["to_department_id"] = *toDepartmentID
+	}
+	cs.announce(ctx, "chat.transferred", session, t, extra)
+
+	if cs.broadcaster != nil {
+		_, _ = cs.broadcaster.Publish(TicketChannel(session.TicketID), "chat.transferred", map[string]any{
+			"session_id":       session.ID,
+			"from_agent_id":    extra["from_agent_id"],
+			"to_agent_id":      extra["to_agent_id"],
+			"to_department_id": extra["to_department_id"],
+		})
+	}
+
+	if toAgentID == nil && cs.routing != nil {
+		if agentID, err := cs.routing.FindAvailableAgentForTicket(ctx, t); err == nil && agentID != nil {
+			_ = cs.AssignAgent(ctx, session, *agentID)
+		}
+	}
 	return nil
 }
 

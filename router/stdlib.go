@@ -226,6 +226,7 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 		mux.Handle("POST "+prefix+"/agent/chat/sessions/{id}/accept", agentMW(http.HandlerFunc(chatH.AcceptSession)))
 		mux.Handle("POST "+prefix+"/agent/chat/sessions/{id}/message", agentMW(http.HandlerFunc(chatH.SendMessage)))
 		mux.Handle("POST "+prefix+"/agent/chat/sessions/{id}/end", agentMW(http.HandlerFunc(chatH.EndSession)))
+		mux.Handle("POST "+prefix+"/agent/chat/sessions/{id}/transfer", agentMW(http.HandlerFunc(chatH.TransferSession)))
 
 		// Admin routes (wrapped with admin middleware)
 		adminMW := middleware.RequireAdmin(cfg.AdminCheck)

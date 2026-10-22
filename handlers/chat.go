@@ -2,7 +2,11 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/services"
@@ -116,4 +120,99 @@ func (h *ChatHandler) EndSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ended"})
+}
+
+// TransferSession handles POST /agent/chat/sessions/{id}/transfer
+// (escalated-laravel escalated.admin.chat.transfer). The body names the new
+// agent and/or department as {"agent_id", "department_id"}; the shared
+// ChatActionBar's {"type": "agent"|"department", "id"} is read too.
+func (h *ChatHandler) TransferSession(w http.ResponseWriter, r *http.Request) {
+	id, err := idFromPath(r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid session id"})
+		return
+	}
+
+	session, err := h.store.GetChatSessionByTicket(r.Context(), id)
+	if err != nil || session == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "session not found"})
+		return
+	}
+	if !session.IsActive() && !session.IsWaiting() {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": "Chat is already ended."})
+		return
+	}
+
+	var in struct {
+		AgentID      json.RawMessage `json:"agent_id"`
+		DepartmentID json.RawMessage `json:"department_id"`
+		Type         string          `json:"type"`
+		ID           json.RawMessage `json:"id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil && !errors.Is(err, io.EOF) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON body"})
+		return
+	}
+	switch in.Type {
+	case "agent":
+		if len(in.AgentID) == 0 {
+			in.AgentID = in.ID
+		}
+	case "department":
+		if len(in.DepartmentID) == 0 {
+			in.DepartmentID = in.ID
+		}
+	}
+
+	var toAgent *models.UserID
+	if agentID := rawID(in.AgentID); agentID != "" {
+		a := models.UserID(agentID)
+		toAgent = &a
+	}
+	var toDepartment *int64
+	if deptID := rawID(in.DepartmentID); deptID != "" {
+		n, err := strconv.ParseInt(deptID, 10, 64)
+		if err != nil {
+			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": "The department_id must be an integer."})
+			return
+		}
+		if d, err := h.store.GetDepartment(r.Context(), n); err != nil || d == nil {
+			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": "The selected department_id is invalid."})
+			return
+		}
+		toDepartment = &n
+	}
+	if toAgent == nil && toDepartment == nil {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": "Provide an agent_id or department_id."})
+		return
+	}
+
+	if err := h.sessions.TransferSession(r.Context(), session, toAgent, toDepartment); err != nil {
+		if errors.Is(err, services.ErrChatAgentCannotAccess) {
+			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	fresh, _ := h.store.GetChatSessionByTicket(r.Context(), id)
+	writeJSON(w, http.StatusOK, map[string]any{"message": "Chat transferred.", "session": fresh})
+}
+
+// rawID reads a JSON id that may be a number or a string; null and "" are
+// empty.
+func rawID(raw json.RawMessage) string {
+	s := strings.TrimSpace(string(raw))
+	if s == "" || s == "null" {
+		return ""
+	}
+	if strings.HasPrefix(s, `"`) {
+		var str string
+		if json.Unmarshal(raw, &str) != nil {
+			return ""
+		}
+		return strings.TrimSpace(str)
+	}
+	return s
 }
