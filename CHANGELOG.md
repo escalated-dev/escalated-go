@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-10-22
+
 ### Upgrading
 - Run the migrations: they add `{prefix}api_tokens` (PostgreSQL and SQLite).
 - Nothing changes for existing hosts until `Config.APITokensEnabled` is set,
