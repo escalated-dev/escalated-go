@@ -93,7 +93,7 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 	guestVerifyH := &handlers.GuestVerificationHandler{Access: esc.GuestAccess, ClientIP: guestLimit.ClientIP}
 	kbH := handlers.NewKBHandler(cfg.DB)
 	kbGuard := kbPublicGuard(esc)
-	retentionH := handlers.NewRetentionHandler(services.NewRetentionService(cfg.DB, s))
+	retentionH := handlers.NewRetentionHandler(services.NewRetentionService(cfg.DB, s).WithPrefix(cfg.TablePrefix))
 	macroSvc := services.NewMacroService(cfg.DB, nil, esc.Access)
 	macroSvc.Tickets = ticketSvc
 	macroH := handlers.NewMacroHandler(cfg.DB, macroSvc)
@@ -426,6 +426,17 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 
 		mux.Handle("GET "+prefix+"/admin/settings/public-tickets", adminMW(http.HandlerFunc(adminH.GetPublicTicketsSettings)))
 		mux.Handle("PUT "+prefix+"/admin/settings/public-tickets", adminMW(http.HandlerFunc(adminH.UpdatePublicTicketsSettings)))
+		mux.Handle("POST "+prefix+"/admin/settings/public-tickets", adminMW(http.HandlerFunc(adminH.UpdatePublicTicketsSettings)))
+		// The Settings sub-pages (escalated.admin.settings.*).
+		mux.Handle("GET "+prefix+"/admin/settings/csat", adminMW(http.HandlerFunc(adminH.CsatSettingsPage)))
+		mux.Handle("POST "+prefix+"/admin/settings/csat", adminMW(http.HandlerFunc(adminH.UpdateCsatSettings)))
+		mux.Handle("GET "+prefix+"/admin/settings/data-retention", adminMW(http.HandlerFunc(adminH.DataRetentionPage)))
+		mux.Handle("POST "+prefix+"/admin/settings/data-retention", adminMW(http.HandlerFunc(adminH.UpdateDataRetention)))
+		mux.Handle("GET "+prefix+"/admin/settings/database", adminMW(http.HandlerFunc(adminH.DatabaseConnectionPage)))
+		mux.Handle("POST "+prefix+"/admin/settings/database", adminMW(http.HandlerFunc(adminH.UpdateDatabaseConnection)))
+		mux.Handle("POST "+prefix+"/admin/settings/database/test", adminMW(http.HandlerFunc(adminH.TestDatabaseConnection)))
+		mux.Handle("GET "+prefix+"/admin/settings/email", adminMW(http.HandlerFunc(adminH.EmailSettingsPage)))
+		mux.Handle("POST "+prefix+"/admin/settings/email", adminMW(http.HandlerFunc(adminH.UpdateEmailSettings)))
 		mux.Handle("GET "+prefix+"/admin/settings/widget", adminMW(http.HandlerFunc(adminH.GetWidgetSettings)))
 		mux.Handle("PUT "+prefix+"/admin/settings/widget", adminMW(http.HandlerFunc(adminH.UpdateWidgetSettings)))
 

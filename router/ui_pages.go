@@ -75,6 +75,10 @@ func wireUIPages(esc *escalated.Escalated, agentH *handlers.AgentHandler, custom
 	adminH.TablePrefix = cfg.TablePrefix
 	adminH.RoutePrefix = cfg.RoutePrefix
 	adminH.TargetedSLAs = cfg.TargetedSLAs
+	adminH.DatabaseDialect = cfg.DatabaseDialect
+	if cfg.DB != nil {
+		adminH.Retention = services.NewRetentionService(cfg.DB, esc.Store).WithPrefix(cfg.TablePrefix)
+	}
 
 	// Custom fields: the admin, and ticket values on the ticket pages.
 	fields := customFieldService(esc)

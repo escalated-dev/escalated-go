@@ -40,6 +40,12 @@ type AdminHandler struct {
 
 	// Statuses backs the custom ticket statuses admin. Set by the router.
 	Statuses *services.TicketStatusService
+
+	// Retention backs the data retention page's purge preview, and
+	// DatabaseDialect (Config.DatabaseDialect) the database connection page.
+	// Set by the router.
+	Retention       *services.RetentionService
+	DatabaseDialect string
 }
 
 func (h *AdminHandler) slaIndexURL() string {
@@ -794,7 +800,18 @@ func (h *AdminHandler) publicTicketsSettings(w http.ResponseWriter, r *http.Requ
 		"guest_policy_signup_url_template": template,
 	}
 	if page {
-		props := map[string]any{"settings": payload}
+		// The page reads the user id as a string (Laravel's setting value), or
+		// null when there is none.
+		var userID any
+		if userIDRaw != "" {
+			userID = userIDRaw
+		}
+		pageSettings := map[string]any{
+			"guest_policy_mode":                mode,
+			"guest_policy_user_id":             userID,
+			"guest_policy_signup_url_template": template,
+		}
+		props := map[string]any{"settings": pageSettings}
 		if errs != nil {
 			props["errors"] = pageErrors(errs)
 		}
@@ -804,7 +821,8 @@ func (h *AdminHandler) publicTicketsSettings(w http.ResponseWriter, r *http.Requ
 	writeJSON(w, http.StatusOK, payload)
 }
 
-// UpdatePublicTicketsSettings handles PUT /admin/settings/public-tickets.
+// UpdatePublicTicketsSettings handles PUT (and the page's POST)
+// /admin/settings/public-tickets.
 // Validates the mode against the known enum (falls back to unassigned
 // for unknown values), clears mode-specific fields on switch to
 // prevent stale guest_user_id leaking back into prompt_signup
@@ -829,6 +847,15 @@ func (h *AdminHandler) UpdatePublicTicketsSettings(w http.ResponseWriter, r *htt
 		}
 		if mode == "guest_user" && (in.GuestPolicyUserID == nil || in.GuestPolicyUserID.Empty()) {
 			errs["guest_policy_user_id"] = "Choose the user guest tickets are filed under."
+		} else if in.GuestPolicyUserID != nil && !in.GuestPolicyUserID.Empty() {
+			// Laravel: nullable integer, min 1. Host ids that are not numbers
+			// (UUIDs) are accepted as they are.
+			if n, err := strconv.ParseInt(string(*in.GuestPolicyUserID), 10, 64); err == nil && n < 1 {
+				errs["guest_policy_user_id"] = "The guest policy user id field must be at least 1."
+			}
+		}
+		if in.GuestPolicySignupURLTemplate != nil && len(*in.GuestPolicySignupURLTemplate) > 500 {
+			errs["guest_policy_signup_url_template"] = "The guest policy signup url template field must not be greater than 500 characters."
 		}
 		if len(errs) > 0 {
 			h.publicTicketsSettings(w, r, true, errs)
