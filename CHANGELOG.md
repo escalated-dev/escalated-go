@@ -7,7 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Upgrading
+- Run the migrations: they add `{prefix}api_tokens` (PostgreSQL and SQLite).
+- Nothing changes for existing hosts until `Config.APITokensEnabled` is set,
+  and with it on, a bearer header the package did not issue is still left to
+  `AgentCheck` / `AdminCheck`.
+
 ### Added
+- API tokens (escalated-laravel `ApiToken`): admins issue, rename, re-scope and
+  revoke bearer tokens on `Escalated/Admin/ApiTokens/Index` at
+  `GET /admin/api-tokens` (`POST`, `PATCH /{id}`, `DELETE /{id}`;
+  `escalated.admin.api-tokens.*`), on both routers. Only each token's SHA-256
+  digest is stored; the token is shown once. Tokens carry abilities (`agent`,
+  `admin`, `*`), an optional expiry and their last use. With the new
+  `Config.APITokensEnabled` they authenticate the REST API's ticket, department
+  and tag routes as their owner, narrowed by their abilities; the owner must
+  still be staff (`Config.APITokenOwner`, defaulting to `UserDirectory`). See
+  docs/api-tokens.md.
 - `Escalated/Admin/Settings` at `GET /admin/settings` (`escalated.admin.settings`;
   `POST` saves, `escalated.admin.settings.update`), on both routers. It carries
   only the settings this package stores and honours, named in

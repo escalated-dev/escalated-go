@@ -116,6 +116,7 @@ point your `route()` names at these paths under your `RoutePrefix`.
 | `Admin/CustomFields/Index`, `Form` | `GET /admin/custom-fields`, `/create`, `/{id}/edit` |
 | `Admin/Statuses/Index`, `Form` | `GET /admin/statuses`, `/create`, `/{id}/edit` |
 | `Admin/CustomObjects/Index`, `Form`, `Records` | `GET /admin/custom-objects`, `/create`, `/{id}/edit`, `/{id}/records` |
+| `Admin/ApiTokens/Index` | `GET /admin/api-tokens` (see [API tokens](api-tokens.md)) |
 | `Admin/Webhooks/Index`, `Form`, `DeliveryLog` | `GET /admin/webhooks`, `/create`, `/{id}/edit`, `/{id}/deliveries` |
 
 The admin config lists (escalation rules, macros, canned responses, webhooks
@@ -159,8 +160,7 @@ and `/reports/csat` render the page for a page visit and keep their JSON for
 API clients. Agents are named through `Config.UserName`. A ticket here has one
 `sla_breached` flag, so the first-response / resolution split is read off its
 due dates; tickets keep no channel, so the channel groupings have one
-"unknown" group. `Admin/Reports/AgentDetail` is not rendered: the props
-Laravel passes it do not match what the page reads.
+"unknown" group.
 
 The Settings sub-pages keep their values in the settings store, under
 Laravel's keys. CSAT settings and email addresses (`email_addresses`,
@@ -195,8 +195,8 @@ every shipped page not rendered yet.
   while it is a live chat (or, on the ticket screen, when it has a chat
   session).
 - Departments have no agent membership here, so `agents_count` is null.
-- Roles and API tokens: authentication and users stay with the host, so the
-  `Admin/Roles/*` and `Admin/ApiTokens/Index` pages are not rendered.
+- Roles: authentication and users stay with the host, so the `Admin/Roles/*`
+  pages are not rendered.
 - SLA policies have no business-hours mode: `business_hours_only` is always
   `false`.
 - Shared props (`auth.user`, `escalated.*`) and Ziggy's `route()` come from the

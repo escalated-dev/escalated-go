@@ -49,6 +49,29 @@ func newImportHandler(esc *escalated.Escalated) *handlers.ImportHandler {
 	}
 }
 
+// newAPITokenHandler is the admin API token screen over esc.APITokens(). Nil
+// without a database.
+func newAPITokenHandler(esc *escalated.Escalated) *handlers.APITokenHandler {
+	tokens := esc.APITokens()
+	if tokens == nil {
+		return nil
+	}
+	cfg := esc.Config
+	return &handlers.APITokenHandler{
+		Tokens:    tokens,
+		Owner:     cfg.APITokenOwner,
+		Agents:    cfg.SkillAgentDirectory,
+		Directory: cfg.UserDirectory,
+		Enabled:   cfg.APITokensEnabled,
+		Pages: handlers.PageSupport{
+			Renderer:    esc.Renderer,
+			RoutePrefix: cfg.RoutePrefix,
+			UserID:      cfg.UserIDFunc,
+			Users:       handlers.UserLookup{Name: cfg.UserName, Email: cfg.UserEmail},
+		},
+	}
+}
+
 // wireUIPages gives the page handlers what they need to build the props the
 // shared Vue pages read: the database for counts, the host's user lookups,
 // the route prefix for links, and the ticket screen's panels.

@@ -335,7 +335,9 @@ All routes are prefixed with `RoutePrefix` (default `/escalated`).
 | `GET` | `/api/tags` | List tags |
 
 The ticket, department and tag routes above require `AgentCheck` or
-`AdminCheck` and return 403 to anyone else. The `/api/auth/*`, `/api/guest/*`
+`AdminCheck` and return 403 to anyone else. With `Config.APITokensEnabled` they also
+accept an admin-issued API token as `Authorization: Bearer <token>` (see
+[API tokens](docs/api-tokens.md)). The `/api/auth/*`, `/api/guest/*`
 and `/api/kb/*` routes are public.
 
 Guests verify their email with a code first: `POST /api/guest/verification`,
