@@ -2,13 +2,14 @@ package models
 
 import "time"
 
-// TwoFactor stores two-factor authentication configuration for a user.
+// TwoFactor stores two-factor authentication configuration for a user. The
+// TOTP seed (Secret) and the RecoveryCodes are never serialized.
 type TwoFactor struct {
 	ID            int64      `json:"id"`
 	UserID        UserID     `json:"user_id"`
 	Method        string     `json:"method"`
-	Secret        *string    `json:"secret,omitempty"`
-	RecoveryCodes []string   `json:"recovery_codes,omitempty"`
+	Secret        *string    `json:"-"`
+	RecoveryCodes []string   `json:"-"`
 	IsEnabled     bool       `json:"is_enabled"`
 	VerifiedAt    *time.Time `json:"verified_at,omitempty"`
 	CreatedAt     time.Time  `json:"created_at"`

@@ -21,7 +21,7 @@ type EmailChannel struct {
 	SmtpHost       *string   `json:"smtp_host,omitempty"`
 	SmtpPort       *int      `json:"smtp_port,omitempty"`
 	SmtpUsername   *string   `json:"smtp_username,omitempty"`
-	SmtpPassword   *string   `json:"smtp_password,omitempty"`
+	SmtpPassword   *string   `json:"-"` // never serialized
 	IsActive       bool      `json:"is_active"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`

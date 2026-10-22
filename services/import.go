@@ -146,7 +146,7 @@ type ImportJob struct {
 	UserID        *models.UserID
 	Platform      string
 	Status        string
-	Credentials   *string
+	Credentials   *string `json:"-"` // sealed; read server-side only, never serialized
 	FieldMappings map[string]any
 	Progress      map[string]map[string]any
 	ErrorLog      []map[string]any

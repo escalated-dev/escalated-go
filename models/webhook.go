@@ -17,11 +17,24 @@ type Webhook struct {
 	URL string `json:"url"`
 	// Events is a JSON array of subscribed event names (e.g. ["ticket.created"]).
 	Events JSONText `json:"events"`
-	// Secret, when set, signs each delivery via X-Escalated-Signature.
-	Secret    *string   `json:"secret,omitempty"`
+	// Secret, when set, signs each delivery via X-Escalated-Signature. It is
+	// never serialized; the JSON carries has_secret instead.
+	Secret    *string   `json:"-"`
 	Active    bool      `json:"active"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// HasSecret reports whether a signing secret is stored.
+func (w Webhook) HasSecret() bool { return w.Secret != nil && *w.Secret != "" }
+
+// MarshalJSON encodes the webhook with has_secret in place of the secret.
+func (w Webhook) MarshalJSON() ([]byte, error) {
+	type plain Webhook
+	return json.Marshal(struct {
+		plain
+		HasSecret bool `json:"has_secret"`
+	}{plain(w), w.HasSecret()})
 }
 
 // SubscribedTo reports whether this webhook is registered for the event. A

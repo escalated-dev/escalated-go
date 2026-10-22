@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Upgrading
+- Updating a webhook with the secret left blank (or left out) now keeps the
+  stored secret, because the form no longer receives it; it used to remove
+  it. Send `clear_secret: true` to remove it. A non-blank `secret` replaces it,
+  and create is unchanged. This applies to page visits and API clients alike.
+- `models.Webhook` encodes as JSON with `has_secret` in place of `secret`, so
+  the `GET /admin/webhooks` JSON list no longer carries the secret. Code that
+  read `secret` from that JSON should keep its own copy of the secret.
+- `models.Webhook.Secret`, `models.TwoFactor.Secret` / `RecoveryCodes`,
+  `models.EmailChannel.SmtpPassword`, `models.Ticket.GuestToken` and
+  `services.ImportJob.Credentials` are tagged `json:"-"`; the fields are still
+  there in Go. The guest flows that hand a guest its token name it explicitly
+  and are unchanged.
 - Data retention now deletes closed tickets. `POST /admin/data-retention/purge`
   used to only count closed tickets past `retention_closed_tickets`; it now
   deletes them with their replies, attachment rows, followers, tags, subjects,
@@ -255,6 +267,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 - The agent ticket queue and dashboard no longer send guest tokens to the
   browser.
+- **Stored secrets are no longer sent to admin pages or JSON responses**
+  (escalated-laravel #258). The webhook edit page received each webhook's
+  signing secret, and the `GET /admin/webhooks` JSON list sent it for every
+  webhook. The webhook index, edit and delivery-log pages and the JSON list
+  now carry `has_secret` instead. Saving the shared edit form (which posts
+  `secret: ''`) silently removed the stored secret; a blank secret now keeps
+  it. `ImportJob.Credentials` (sealed), `TwoFactor`'s seed and recovery codes,
+  `EmailChannel`'s SMTP password and a ticket's guest token are left out of
+  their models' JSON encoding, so no handler that encodes one of them can send
+  it. The import pages' jobs are now Laravel's `toPageProps()` field list
+  (`user_id` and `updated_at` dropped; `error_log` is the last 50 entries); they
+  never carried the credentials.
 
 ## [0.2.3] - 2026-10-21
 

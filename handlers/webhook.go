@@ -129,10 +129,11 @@ func (h *WebhookHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var in struct {
-		URL    *string         `json:"url"`
-		Events json.RawMessage `json:"events"`
-		Secret *string         `json:"secret"`
-		Active *bool           `json:"active"`
+		URL         *string         `json:"url"`
+		Events      json.RawMessage `json:"events"`
+		Secret      *string         `json:"secret"`
+		ClearSecret bool            `json:"clear_secret"`
+		Active      *bool           `json:"active"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		http.Error(w, "invalid body", http.StatusBadRequest)
@@ -163,14 +164,14 @@ func (h *WebhookHandler) Update(w http.ResponseWriter, r *http.Request) {
 		sets = append(sets, "events = ?")
 		args = append(args, []byte(canonicalEventsJSON(models.JSONText(in.Events))))
 	}
-	if in.Secret != nil {
-		// An empty secret (the form's blank field) means none.
+	// The form never receives the stored secret, so a blank or missing one
+	// means "leave it as it is". clear_secret removes it.
+	if in.ClearSecret {
 		sets = append(sets, "secret = ?")
-		if *in.Secret == "" {
-			args = append(args, nil)
-		} else {
-			args = append(args, *in.Secret)
-		}
+		args = append(args, nil)
+	} else if in.Secret != nil && *in.Secret != "" {
+		sets = append(sets, "secret = ?")
+		args = append(args, *in.Secret)
 	}
 	if in.Active != nil {
 		sets = append(sets, "active = ?")
@@ -427,6 +428,7 @@ func (h *WebhookHandler) renderIndex(w http.ResponseWriter, r *http.Request, web
 			"url":              wh.URL,
 			"events":           webhookEvents(wh),
 			"active":           wh.Active,
+			"has_secret":       wh.HasSecret(),
 			"deliveries_count": count,
 			"deliveries":       latest,
 			"created_at":       uiTimeValue(wh.CreatedAt),
@@ -466,16 +468,14 @@ func (h *WebhookHandler) EditForm(w http.ResponseWriter, r *http.Request) {
 func (h *WebhookHandler) renderForm(w http.ResponseWriter, r *http.Request, wh *models.Webhook, errs map[string]string) {
 	props := map[string]any{"availableEvents": services.SupportedWebhookEvents}
 	if wh != nil {
-		secret := ""
-		if wh.Secret != nil {
-			secret = *wh.Secret
-		}
+		// The signing secret stays server-side; the form learns only that
+		// one is set.
 		props["webhook"] = map[string]any{
-			"id":     wh.ID,
-			"url":    wh.URL,
-			"events": webhookEvents(*wh),
-			"secret": secret,
-			"active": wh.Active,
+			"id":         wh.ID,
+			"url":        wh.URL,
+			"events":     webhookEvents(*wh),
+			"has_secret": wh.HasSecret(),
+			"active":     wh.Active,
 		}
 	}
 	h.Pages.render(w, r, "Escalated/Admin/Webhooks/Form", props, errs)
@@ -507,7 +507,7 @@ func (h *WebhookHandler) renderDeliveryLog(w http.ResponseWriter, r *http.Reques
 		rows = append(rows, deliveryProps(d))
 	}
 	h.Pages.render(w, r, "Escalated/Admin/Webhooks/DeliveryLog", map[string]any{
-		"webhook":    map[string]any{"id": wh.ID, "url": wh.URL, "events": webhookEvents(*wh), "active": wh.Active},
+		"webhook":    map[string]any{"id": wh.ID, "url": wh.URL, "events": webhookEvents(*wh), "active": wh.Active, "has_secret": wh.HasSecret()},
 		"deliveries": uiPaginator(rows, total, pg, r.URL.Path),
 	}, nil)
 }
