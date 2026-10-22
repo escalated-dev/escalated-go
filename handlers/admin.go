@@ -51,7 +51,7 @@ func (h *AdminHandler) slaIndexURL() string {
 }
 
 // slaFormProps are the SLA form's options (Laravel SlaPolicyController::
-// formOptions): priorities, targeted, departments and ticketTypes.
+// formOptions): priorities, targeted, departments, ticketTypes and schedules.
 func (h *AdminHandler) slaFormProps(r *http.Request, policy *models.SLAPolicy) map[string]any {
 	props := map[string]any{
 		"priorities":  uiPriorities(),
@@ -62,6 +62,7 @@ func (h *AdminHandler) slaFormProps(r *http.Request, policy *models.SLAPolicy) m
 	if policy != nil {
 		props["policy"] = slaPolicyProps(policy, 0)
 	}
+	h.addScheduleOptions(r.Context(), props)
 	return props
 }
 
@@ -364,6 +365,7 @@ func (h *AdminHandler) renderDepartmentForm(w http.ResponseWriter, r *http.Reque
 	if d != nil {
 		props["department"] = departmentProps(d, 0)
 	}
+	h.addScheduleOptions(r.Context(), props)
 	if errs != nil {
 		props["errors"] = pageErrors(errs)
 	}

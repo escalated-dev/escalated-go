@@ -33,7 +33,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   so existing installs see no change. The SLA policy form's
   `business_hours_only` switch is now stored (it was ignored) and
   `business_schedule_id` is accepted on SLA policy and department writes; a
-  write that leaves the key out leaves the stored value alone.
+  write that leaves the key out leaves the stored value alone. The
+  `Admin/SlaPolicies/Form` and `Admin/Departments/Form` pages receive a
+  `schedules` prop (`[{id, name}]`, by name) for the shared frontend's
+  **Business hours schedule** picker (omitted when the store keeps no
+  business schedules).
 - `models.BusinessSchedule` now serialises its hours as `schedule` and
   holidays as `schedule_id` / `recurring` / `YYYY-MM-DD` dates (Laravel's
   keys). `DaySchedule.Enabled` is now `*bool`: a day is open when it has a
