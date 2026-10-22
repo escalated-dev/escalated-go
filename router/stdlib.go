@@ -298,6 +298,12 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 		mux.Handle("PUT "+prefix+"/admin/statuses/{id}", adminMW(http.HandlerFunc(adminH.UpdateStatus)))
 		mux.Handle("PATCH "+prefix+"/admin/statuses/{id}", adminMW(http.HandlerFunc(adminH.UpdateStatus)))
 		mux.Handle("DELETE "+prefix+"/admin/statuses/{id}", adminMW(http.HandlerFunc(adminH.DeleteStatus)))
+
+		// Import wizard (escalated.admin.import.*, Laravel's paths).
+		importH := newImportHandler(esc)
+		mux.Handle("GET "+prefix+"/admin/import", adminMW(http.HandlerFunc(importH.Index)))
+		mux.Handle("GET "+prefix+"/admin/import/{a}/{b}", adminMW(http.HandlerFunc(importH.Get)))
+		mux.Handle("POST "+prefix+"/admin/import/{a}/{b}", adminMW(http.HandlerFunc(importH.Post)))
 		mux.Handle("POST "+prefix+"/admin/data-retention/purge", adminMW(http.HandlerFunc(retentionH.Purge)))
 
 		// Event-driven admin Workflows (fire on ticket lifecycle events).

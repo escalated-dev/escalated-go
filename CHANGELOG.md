@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Upgrading
+- Migrate (or restart, which migrates) to create `escalated_import_jobs` and `escalated_import_source_maps`. Set `Config.ImportSecret` (16 bytes or more) or `GuestAccess.Secret` before using the import wizard: it seals source credentials with it.
 - Custom ticket statuses (additive): `Migrate` / `MigrateSQLite` create
   `ticket_statuses`, seed one system row per built-in status (`open` ...
   `snoozed`, `live`), and add a nullable `tickets.ticket_status_id`
@@ -80,6 +81,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for a page visit), and redirects a page visit to the new ticket.
 
 ### Added
+- The admin Import wizard, as escalated-laravel's Admin\ImportController, on its paths and props: `Escalated/Admin/Import/Index` (`GET {prefix}/admin/import`), `Connect` (`GET /admin/import/{platform}/connect`, with `POST .../test-connection` answering `{success[, error]}`, 422 when the source fails), `Mapping` (`GET .../mapping`), `Review` (`POST .../review`, which writes nothing), `start` (`POST .../start`) and `Progress` (`GET /admin/import/progress/{job}`, polled through `GET /admin/import/status/{job}`, with `POST /admin/import/{pause,resume,cancel}/{job}`). Admin only.
+  - Sources are `services.ImportAdapter` values in `Config.ImportAdapters`; Escalated ships none, so a Zendesk or Freshdesk adapter is the host's or a plugin package's. `Config.UserIDByEmail` finds host users: agents must exist; contacts that do import as that user, others as Escalated contacts on guest tickets.
+  - `services.ImportService` (`Escalated.Imports()`) keeps the jobs and runs them as Laravel's ImportService does: entity types in order, records already in the source map skipped (so a paused, failed or interrupted run resumes without duplicates), references resolved through the map, progress saved per batch, and a stop between batches when the job is paused or cancelled. It imports contacts, agents, tags, departments, tickets and replies; attachments, custom fields and satisfaction ratings are not imported yet.
+  - Tested credentials wait, sealed, in an HttpOnly cookie scoped to the import paths (Escalated has no session) until the import starts, and are never sent in a page; a completed or cancelled job drops them.
+  - A started import runs in a goroutine; `Config.ImportDispatcher` hands the job id to the host's queue instead, whose worker calls `Escalated.Imports().Run`.
+  - Import mode (`services.WithImportMode`, a context value) holds back SLA deadlines and breach and warning checks for the run.
 - Custom ticket statuses, per the shared statuses spec. Admins manage them at
   `/admin/statuses` (`Admin/Statuses/Index` and `Form`,
   `escalated.admin.statuses.index|create|store|edit|update|destroy`, admin

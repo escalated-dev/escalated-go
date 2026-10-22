@@ -30,6 +30,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/escalated-dev/escalated-go/ticketaccess"
@@ -59,6 +60,34 @@ type Escalated struct {
 	// Notifier sends the ticket notification emails; nil while Config.Mailer
 	// is nil or Config.Notifications.Disabled is set.
 	Notifier *services.Notifier
+
+	importsOnce sync.Once
+	imports     *services.ImportService
+}
+
+// Imports returns the import service behind the admin Import wizard: the
+// Config.ImportAdapters, their jobs and runs. Nil without a database.
+func (e *Escalated) Imports() *services.ImportService {
+	if e.Config.DB == nil {
+		return nil
+	}
+	e.importsOnce.Do(func() {
+		secret := e.Config.ImportSecret
+		if secret == "" {
+			secret = e.Config.GuestAccess.Secret
+		}
+		e.imports = &services.ImportService{
+			DB:            e.Config.DB,
+			Prefix:        e.Config.TablePrefix,
+			Store:         e.Store,
+			Adapters:      e.Config.ImportAdapters,
+			Secret:        secret,
+			UserIDByEmail: e.Config.UserIDByEmail,
+			UserType:      "User",
+			Dispatch:      e.Config.ImportDispatcher,
+		}
+	})
+	return e.imports
 }
 
 type newsletterMailerBridge struct {
