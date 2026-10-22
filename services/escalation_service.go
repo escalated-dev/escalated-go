@@ -219,7 +219,7 @@ func (s *EscalationService) runAction(action models.EscalationAction, ticketID i
 	switch action.Type {
 	case "escalate":
 		_, err := s.DB.Exec(
-			s.query(`UPDATE escalated_tickets SET status = ?, updated_at = ? WHERE id = ?`),
+			s.query(`UPDATE escalated_tickets SET status = ?, ticket_status_id = NULL, updated_at = ? WHERE id = ?`),
 			models.StatusEscalated, time.Now(), ticketID,
 		)
 		return err

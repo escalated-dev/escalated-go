@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Upgrading
+- Custom ticket statuses (additive): `Migrate` / `MigrateSQLite` create
+  `ticket_statuses`, seed one system row per built-in status (`open` ...
+  `snoozed`, `live`), and add a nullable `tickets.ticket_status_id`
+  (`ON DELETE SET NULL`). The integer `status` column and its values are
+  unchanged and existing tickets get no custom status, so nothing changes
+  until an admin adds one. Webhook and workflow payloads keep their keys and
+  values; `ticket.status_changed` (and the lifecycle events fired with it)
+  gain `old_custom_status`, `new_custom_status`, `old_category` and
+  `new_category`. A macro run without the ticket service now rejects an
+  unknown `set_status` value instead of storing 0 (open).
 - Custom fields (additive): `Migrate` / `MigrateSQLite` add the nullable
   `custom_fields.placeholder`, `validation_rules` and `conditions` columns.
   Existing fields and values are kept. With no custom fields defined, every
@@ -66,6 +76,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for a page visit), and redirects a page visit to the new ticket.
 
 ### Added
+- Custom ticket statuses, per the shared statuses spec. Admins manage them at
+  `/admin/statuses` (`Admin/Statuses/Index` and `Form`,
+  `escalated.admin.statuses.index|create|store|edit|update|destroy`, admin
+  only) with escalated-laravel's props and validation (`label`, `category`,
+  `color`, `description`, `position`, `is_default`); `is_default` is
+  exclusive within a category, and the slug comes from the label
+  (`waiting_on_vendor`, then `_2`, `_3`; never a built-in's name). Each status
+  belongs to a category (`new`, `open`, `pending`, `on_hold`, `solved`); a
+  ticket given one takes the category's anchor (`open`, `open`,
+  `waiting_on_customer`, `in_progress`, `resolved`) through
+  `TicketService.ChangeStatus`'s path, so `resolved_at`/`closed_at`, SLA,
+  activity, `ticket.status_changed` (also on a move within one category),
+  `ticket.resolved` etc., notifications and workflows behave as for the
+  built-in, and `ticket_status_id` records the sub-status. New
+  `TicketService.SetCustomStatus` and `ChangeStatusValue`. The agent and admin
+  status writes, bulk `status`, `PATCH /api/tickets/{id}`, macro
+  `set_status`, and workflow and automation `change_status` take a custom
+  slug as well as a built-in value; unknown values are rejected as before.
+  Setting a built-in status by any path (including assignment's
+  open-to-in-progress move, snooze, unsnooze, merge and escalation) clears
+  the custom status. System rows keep their slug and category and cannot be
+  deleted (`422`, or the index with an `errors` prop for a page visit).
+  Deleting a custom status leaves its tickets in their built-in status;
+  changing a status's category does not move tickets already in it.
+- Agent and admin ticket pages and the JSON API's ticket list and detail
+  carry `custom_status` (`{id, label, slug, color, category}` or null) and
+  `status_category`; the agent and admin queues' `status` filter takes a
+  custom slug. Customer and guest views show the built-in status only.
 - Custom field admin (Laravel's routes and props):
   `Escalated/Admin/CustomFields/Index` and `Form` at `/admin/custom-fields`
   (`escalated.admin.custom-fields.*`, including `reorder`). Fields have a

@@ -90,6 +90,12 @@ type Ticket struct {
 	MergedIntoID *int64 `json:"merged_into_id,omitempty"`
 	SplitFromID  *int64 `json:"split_from_id,omitempty"`
 
+	// TicketStatusID is the custom status (ticket_statuses row) the ticket is
+	// in, if any. Status still holds the built-in status (the custom status's
+	// category anchor); setting a built-in status clears this. Not serialised:
+	// staff views add custom_status, customer views never show it.
+	TicketStatusID *int64 `json:"-"`
+
 	// Snooze fields
 	SnoozedUntil       *time.Time `json:"snoozed_until,omitempty"`
 	SnoozedBy          *UserID    `json:"snoozed_by,omitempty"`
@@ -354,17 +360,19 @@ func GenerateGuestToken() (string, error) {
 
 // TicketFilters holds query parameters for listing tickets.
 type TicketFilters struct {
-	AccountType  *string
-	AccountID    *string
-	Status       *int    `json:"status,omitempty"`
-	Priority     *int    `json:"priority,omitempty"`
-	TicketType   *string `json:"ticket_type,omitempty"`
-	DepartmentID *int64  `json:"department_id,omitempty"`
-	AssignedTo   *UserID `json:"assigned_to,omitempty"`
-	RequesterID  *UserID `json:"requester_id,omitempty"`
-	Search       string  `json:"search,omitempty"`
-	SLABreached  *bool   `json:"sla_breached,omitempty"`
-	Unassigned   bool    `json:"unassigned,omitempty"`
+	AccountType *string
+	AccountID   *string
+	Status      *int `json:"status,omitempty"`
+	// TicketStatusID keeps tickets in one custom status.
+	TicketStatusID *int64  `json:"ticket_status_id,omitempty"`
+	Priority       *int    `json:"priority,omitempty"`
+	TicketType     *string `json:"ticket_type,omitempty"`
+	DepartmentID   *int64  `json:"department_id,omitempty"`
+	AssignedTo     *UserID `json:"assigned_to,omitempty"`
+	RequesterID    *UserID `json:"requester_id,omitempty"`
+	Search         string  `json:"search,omitempty"`
+	SLABreached    *bool   `json:"sla_breached,omitempty"`
+	Unassigned     bool    `json:"unassigned,omitempty"`
 
 	// Pagination
 	Limit  int `json:"limit"`

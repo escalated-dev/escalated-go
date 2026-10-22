@@ -183,19 +183,23 @@ func (h *AgentHandler) addReply(w http.ResponseWriter, r *http.Request, internal
 }
 
 // ChangeStatus handles POST /agent/tickets/{id}/status with status as a slug
-// ("resolved") or the integer.
+// ("resolved"), the integer, or a custom status's slug.
 func (h *AgentHandler) ChangeStatus(w http.ResponseWriter, r *http.Request) {
 	t, in, ok := h.writeInput(w, r)
 	if !ok {
 		return
 	}
-	status, valid := parseStatus(in.Get("status"))
+	_, _, valid, err := h.tickets.ResolveStatus(r.Context(), in.Get("status"))
+	if err != nil {
+		h.failed(w, "change the status")
+		return
+	}
 	if !valid {
 		h.invalid(w, r, t, map[string]string{"status": "The selected status is invalid."})
 		return
 	}
 	uid := h.userID(r)
-	if err := h.tickets.ChangeStatus(r.Context(), t.ID, status, &uid); err != nil {
+	if err := h.tickets.ChangeStatusValue(r.Context(), t.ID, in.Get("status"), &uid); err != nil {
 		h.failed(w, "change the status")
 		return
 	}
@@ -525,11 +529,8 @@ func (h *AgentHandler) Bulk(w http.ResponseWriter, r *http.Request) {
 		var failed error
 		switch action {
 		case "status":
-			if status, ok := parseStatus(value); ok {
-				failed = h.tickets.ChangeStatus(ctx, id, status, &uid)
-			} else {
-				failed = fmt.Errorf("invalid status")
-			}
+			// A built-in status or a custom status's slug.
+			failed = h.tickets.ChangeStatusValue(ctx, id, value, &uid)
 		case "priority":
 			if priority, ok := parsePriority(value); ok {
 				failed = h.tickets.ChangePriority(ctx, id, priority, &uid)

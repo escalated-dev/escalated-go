@@ -243,14 +243,16 @@ func (r *AutomationRunner) executeActions(a models.Automation, t models.Ticket) 
 func (r *AutomationRunner) runAction(a models.Automation, t models.Ticket, action models.AutomationAction) error {
 	switch action.Type {
 	case "change_status":
-		// The editor sends the slug ("closed"); toInt made it 0 (open).
-		status, ok := StatusFromValue(action.Value)
-		if !ok {
-			return ErrInvalidStatus
+		// The editor sends the slug ("closed"); toInt made it 0 (open). A
+		// custom status's slug sets its category's anchor and the custom
+		// status; a built-in clears it.
+		status, custom, err := resolveStatusDirect(context.Background(), r.DB, r.query, action.Value)
+		if err != nil {
+			return err
 		}
-		_, err := r.DB.Exec(
-			r.query(`UPDATE escalated_tickets SET status = ?, updated_at = ? WHERE id = ?`),
-			status, time.Now(), t.ID,
+		_, err = r.DB.Exec(
+			r.query(`UPDATE escalated_tickets SET status = ?, ticket_status_id = ?, updated_at = ? WHERE id = ?`),
+			status, custom, time.Now(), t.ID,
 		)
 		return err
 	case "change_priority":

@@ -97,13 +97,16 @@ func (h *APIHandler) ListTickets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Populate computed fields for each ticket.
+	// Populate computed fields for each ticket, and the custom status.
+	p := h.statusPresenter()
+	rows := make([]any, 0, len(tickets))
 	for _, t := range tickets {
 		t.PopulateComputed(nil)
+		rows = append(rows, apiTicketPayload(r.Context(), p, t))
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"tickets": tickets,
+		"tickets": rows,
 		"total":   total,
 	})
 }
@@ -181,12 +184,9 @@ func (h *APIHandler) ShowTicket(w http.ResponseWriter, r *http.Request) {
 	// The ticket payload gains custom_fields: the active ticket fields with
 	// this ticket's values.
 	var ticket any = t
-	if b, err := json.Marshal(t); err == nil {
-		payload := map[string]any{}
-		if json.Unmarshal(b, &payload) == nil {
-			payload["custom_fields"] = h.CustomFields.TicketFieldValues(r.Context(), t.ID)
-			ticket = payload
-		}
+	if payload, ok := apiTicketPayload(r.Context(), h.statusPresenter(), t).(map[string]any); ok {
+		payload["custom_fields"] = h.CustomFields.TicketFieldValues(r.Context(), t.ID)
+		ticket = payload
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -195,6 +195,30 @@ func (h *APIHandler) ShowTicket(w http.ResponseWriter, r *http.Request) {
 		"activities":  activities,
 		"attachments": ticketAttachments,
 	})
+}
+
+// statusPresenter resolves custom statuses for the API's ticket payloads.
+func (h *APIHandler) statusPresenter() *uiPresenter {
+	p := &uiPresenter{store: h.store}
+	if h.tickets != nil {
+		p.statuses = h.tickets.Statuses
+	}
+	return p
+}
+
+// apiTicketPayload is the ticket's JSON with custom_status and
+// status_category added (the agent API is staff-only).
+func apiTicketPayload(ctx context.Context, p *uiPresenter, t *models.Ticket) any {
+	b, err := json.Marshal(t)
+	if err != nil {
+		return t
+	}
+	payload := map[string]any{}
+	if json.Unmarshal(b, &payload) != nil {
+		return t
+	}
+	p.staffStatus(ctx, t, payload)
+	return payload
 }
 
 // customActionsFor serializes the visible custom actions for a ticket, adding
@@ -383,7 +407,21 @@ func (h *APIHandler) UpdateTicket(w http.ResponseWriter, r *http.Request) {
 		}
 		return &v
 	}
-	status := enumField("status", services.StatusFromValue, "The selected status is invalid.")
+	// status also takes a custom status's slug.
+	var status *int
+	var customStatus *models.TicketStatus
+	if raw, ok := updates["status"]; ok && raw != nil {
+		v, custom, valid, err := h.tickets.ResolveStatus(r.Context(), raw)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not update ticket"})
+			return
+		}
+		if !valid {
+			errs["status"] = []string{"The selected status is invalid."}
+		} else {
+			status, customStatus = &v, custom
+		}
+	}
 	priority := enumField("priority", services.PriorityFromValue, "The selected priority is invalid.")
 	subject, description, ticketType := strField("subject"), strField("description"), strField("ticket_type")
 	var departmentID *int64
@@ -437,7 +475,13 @@ func (h *APIHandler) UpdateTicket(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not update ticket"})
 		return
 	}
-	if status != nil && *status != t.Status {
+	if customStatus != nil {
+		if err := h.tickets.SetCustomStatus(ctx, id, customStatus, causer); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not update ticket"})
+			return
+		}
+	} else if status != nil && (*status != t.Status || t.TicketStatusID != nil) {
+		// A built-in status replaces a custom one even when it is the anchor.
 		if err := h.tickets.ChangeStatus(ctx, id, *status, causer); err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not update ticket"})
 			return

@@ -72,6 +72,9 @@ func wireUIPages(esc *escalated.Escalated, agentH *handlers.AgentHandler, custom
 	agentH.CustomFields = fields
 	customerH.CustomFields = fields
 
+	// Custom ticket statuses: the admin pages.
+	adminH.Statuses = esc.TicketStatuses()
+
 	pages := handlers.PageSupport{Renderer: esc.Renderer, RoutePrefix: cfg.RoutePrefix, UserID: cfg.UserIDFunc, Users: users}
 	if deps.escalations != nil {
 		deps.escalations.Pages = pages

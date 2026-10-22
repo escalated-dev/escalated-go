@@ -283,7 +283,18 @@ func (e *Escalated) NewTicketService() *services.TicketService {
 	ts.Workflows = services.NewWorkflowRunner(e.Config.DB, nil, e.Access)
 	ts.Workflows.Tickets = ts
 	ts.Notifications = e.Notifier
+	ts.Statuses = e.TicketStatuses()
 	return ts
+}
+
+// TicketStatuses returns the custom ticket statuses over the host database,
+// with every table name built from Config.TablePrefix. Nil without a
+// database, which leaves status inputs to the built-in statuses.
+func (e *Escalated) TicketStatuses() *services.TicketStatusService {
+	if e.Config.DB == nil {
+		return nil
+	}
+	return &services.TicketStatusService{DB: e.Config.DB, Prefix: e.Config.TablePrefix}
 }
 
 // CheckSLA marks tickets whose SLA deadline has passed and fires sla.breached

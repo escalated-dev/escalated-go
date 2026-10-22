@@ -37,6 +37,9 @@ type AdminHandler struct {
 	// CustomFields backs the custom field and custom object admin. Set by
 	// the router.
 	CustomFields *services.CustomFieldService
+
+	// Statuses backs the custom ticket statuses admin. Set by the router.
+	Statuses *services.TicketStatusService
 }
 
 func (h *AdminHandler) slaIndexURL() string {
