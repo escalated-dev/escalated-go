@@ -188,7 +188,6 @@ func TestTheGuardSeesUnprefixedRenderCalls(t *testing.T) {
 var notYetRendered = []string{
 	"Escalated/Admin/ApiTokens/Index",
 	"Escalated/Admin/Plugins/Index",
-	"Escalated/Admin/Reports/AgentDetail",
 	"Escalated/Admin/Roles/Form",
 	"Escalated/Admin/Roles/Index",
 	"Escalated/Admin/Settings",

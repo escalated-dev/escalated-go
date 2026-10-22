@@ -99,6 +99,7 @@ point your `route()` names at these paths under your `RoutePrefix`.
 | `Guest/Create`, `Guest/Show` | `GET /guest/create`, `/guest/{token}` (and `POST /guest`, `/guest/{token}/reply`, `/rate`) |
 | `Admin/Workflows/Index`, `Form`, `Logs` | `GET /admin/workflows`, `/create`, `/{id}`, `/logs` |
 | `Admin/Reports` and `Reports/Dashboard`, `AgentMetrics`, `SlaReport`, `CsatReport`, `SlaTrends`, `ResponseTimes`, `ResolutionTimes`, `AgentRanking`, `Cohorts`, `Comparison` | `GET /admin/reports`, `/reports/dashboard`, `/agents`, `/sla`, `/csat`, `/sla-trends`, `/response-times` (`/frt`), `/resolution-times` (`/resolution`), `/agent-ranking`, `/cohorts`, `/comparison` (`?days=`) |
+| `Reports/AgentDetail` | `GET /admin/reports/agent/{id}/detail` (`?days=`; the agent against the period before) |
 | `Admin/Departments/Index`, `Form` | `GET /admin/departments`, `/create`, `/{id}/edit` |
 | `Admin/Tags/Index` | `GET /admin/tags` |
 | `Admin/Automations/Index`, `Form` | `GET /admin/automations`, `/create`, `/{id}/edit` |

@@ -146,3 +146,59 @@ func TestReportPages(t *testing.T) {
 		})
 	}
 }
+
+// Reports/AgentDetail: the fixture agent's one ticket (answered in 30
+// minutes, resolved in 2 hours, rated 4) and the reply and note they wrote,
+// against an empty period before. The props are the ones the page declares.
+func TestReportAgentDetailPage(t *testing.T) {
+	f := reportFixture(t)
+	for name, h := range f.mounts() {
+		t.Run(name, func(t *testing.T) {
+			page := visit(t, h, "/escalated/admin/reports/agent/"+uiAgent+"/detail?days=7", uiAgent, "admin")
+			if page.Component != "Escalated/Admin/Reports/AgentDetail" {
+				t.Fatalf("component %q", page.Component)
+			}
+			p := page.Props
+			hasKeys(t, "agent detail", p, "period_days", "agent", "total_tickets", "resolved_tickets", "avg_frt",
+				"avg_resolution", "csat_score", "response_percentiles", "productivity", "workload", "csat_breakdown",
+				"prev_total_tickets", "prev_resolved_tickets", "prev_avg_frt", "prev_avg_resolution", "prev_csat_score")
+			agent := obj(t, p, "agent")
+			hasKeys(t, "agent", agent, "id", "name", "email")
+			if agent["id"].(float64) != 900 || agent["name"] != "Ada Agent" || agent["email"] != "ada@example.com" {
+				t.Errorf("agent %v", agent)
+			}
+			if p["period_days"].(float64) != 7 || p["total_tickets"].(float64) != 1 || p["resolved_tickets"].(float64) != 1 ||
+				p["avg_frt"].(float64) != 0.5 || p["avg_resolution"].(float64) != 2 || p["csat_score"].(float64) != 4 {
+				t.Errorf("figures %v", p)
+			}
+			percentiles := obj(t, p, "response_percentiles")
+			hasKeys(t, "percentiles", percentiles, "p50", "p75", "p90", "p95", "p99")
+			if percentiles["p90"].(float64) != 0.5 {
+				t.Errorf("percentiles %v", percentiles)
+			}
+			written, resolved := 0.0, 0.0
+			for _, item := range list(t, p, "productivity") {
+				day := item.(map[string]any)
+				hasKeys(t, "productivity", day, "label", "value", "values")
+				values := day["values"].([]any)
+				written += values[0].(float64)
+				resolved += values[1].(float64)
+			}
+			if written != 2 || resolved != 1 {
+				t.Errorf("productivity %v", p["productivity"])
+			}
+			hasKeys(t, "workload", first(t, list(t, p, "workload"), "workload"), "label", "value")
+			breakdown := first(t, list(t, p, "csat_breakdown"), "csat_breakdown")
+			if breakdown["label"] != "4 stars" || breakdown["value"].(float64) != 1 {
+				t.Errorf("csat_breakdown %v", p["csat_breakdown"])
+			}
+			if p["prev_total_tickets"].(float64) != 0 || p["prev_avg_frt"].(float64) != 0 || p["prev_csat_score"] != nil {
+				t.Errorf("previous %v %v %v", p["prev_total_tickets"], p["prev_avg_frt"], p["prev_csat_score"])
+			}
+
+			if rec := send(h, http.MethodGet, "/escalated/admin/reports/agent/"+uiAgent+"/detail", uiAgent, "agent", ""); rec.Code != http.StatusForbidden {
+				t.Errorf("an agent who is not an admin: %d", rec.Code)
+			}
+		})
+	}
+}
