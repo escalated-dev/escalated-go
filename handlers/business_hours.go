@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -399,4 +400,26 @@ func (h *AdminHandler) rawScheduleReference(ctx context.Context, raw json.RawMes
 	}
 	id, msg := h.scheduleReference(ctx, v, true)
 	return id, msg, true
+}
+
+// addScheduleOptions adds the SLA policy and department forms' `schedules`
+// prop (Laravel passes BusinessSchedule::orderBy('name')->get(['id','name'])):
+// every schedule as {id, name}, by name, for the shared Business hours
+// schedule picker. A store without business schedules sends no prop, so the
+// form shows no picker.
+func (h *AdminHandler) addScheduleOptions(ctx context.Context, props map[string]any) {
+	repo := store.BusinessSchedulesFor(h.store)
+	if repo == nil {
+		return
+	}
+	all, err := repo.ListBusinessSchedules(ctx)
+	if err != nil {
+		return
+	}
+	sort.SliceStable(all, func(i, j int) bool { return all[i].Name < all[j].Name })
+	options := make([]map[string]any, 0, len(all))
+	for _, s := range all {
+		options = append(options, map[string]any{"id": s.ID, "name": s.Name})
+	}
+	props["schedules"] = options
 }

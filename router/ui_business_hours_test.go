@@ -3,6 +3,7 @@ package router_test
 import (
 	"context"
 	"net/http"
+	"reflect"
 	"testing"
 
 	"github.com/escalated-dev/escalated-go/models"
@@ -175,4 +176,54 @@ func TestSLAPolicyAndDepartmentKeepTheirBusinessHoursSettings(t *testing.T) {
 	}
 	wantPageErrors(t, pageJSON(h, http.MethodPut, "/escalated/admin/departments/"+itoa(dept.ID), `{"business_schedule_id":999999}`),
 		"unknown schedule", "Escalated/Admin/Departments/Form", "business_schedule_id")
+}
+
+// The SLA policy and department forms get the schedules to pick from, as
+// Laravel SlaPolicyController / DepartmentController pass them: {id, name}
+// by name.
+func TestSLAPolicyAndDepartmentFormsListTheSchedules(t *testing.T) {
+	f := newUIFixture(t)
+	ctx := context.Background()
+	repo := store.BusinessSchedulesFor(f.esc.Store)
+	zulu := &models.BusinessSchedule{Name: "Zulu shift", Timezone: "UTC", IsActive: true, Hours: models.DefaultBusinessHours()}
+	alpha := &models.BusinessSchedule{Name: "Alpha weekend", Timezone: "UTC", IsActive: true, Hours: models.DefaultBusinessHours()}
+	for _, s := range []*models.BusinessSchedule{zulu, alpha} {
+		if err := repo.CreateBusinessSchedule(ctx, s); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want := []any{
+		map[string]any{"id": float64(alpha.ID), "name": "Alpha weekend"},
+		map[string]any{"id": float64(zulu.ID), "name": "Zulu shift"},
+	}
+
+	policy := &models.SLAPolicy{Name: "Picker", IsActive: true, FirstResponseHours: models.JSONText(`{}`), ResolutionHours: models.JSONText(`{}`)}
+	if err := f.esc.Store.CreateSLAPolicy(ctx, policy); err != nil {
+		t.Fatal(err)
+	}
+	depts, _ := f.esc.Store.ListDepartments(ctx, false)
+	dept := depts[0]
+	dept.BusinessScheduleID = &zulu.ID
+	if err := f.esc.Store.UpdateDepartment(ctx, dept); err != nil {
+		t.Fatal(err)
+	}
+
+	for name, h := range f.mounts() {
+		for _, path := range []string{
+			"/escalated/admin/sla-policies/create",
+			"/escalated/admin/sla-policies/" + itoa(policy.ID) + "/edit",
+			"/escalated/admin/departments/create",
+			"/escalated/admin/departments/" + itoa(dept.ID) + "/edit",
+		} {
+			page := visit(t, h, path, uiAgent, "admin")
+			got := list(t, page.Props, "schedules")
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("%s %s: schedules %v, want %v", name, path, got, want)
+			}
+		}
+		edit := visit(t, h, "/escalated/admin/departments/"+itoa(dept.ID)+"/edit", uiAgent, "admin")
+		if d := obj(t, edit.Props, "department"); d["business_schedule_id"] != float64(zulu.ID) {
+			t.Errorf("%s department props %v", name, d)
+		}
+	}
 }
