@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Upgrading
+- Data retention now deletes closed tickets. `POST /admin/data-retention/purge`
+  used to only count closed tickets past `retention_closed_tickets`; it now
+  deletes them with their replies, attachment rows, followers, tags, subjects,
+  activities, ratings, links, workflow logs, delayed actions, chat sessions and
+  messages, side conversations and custom field values (tickets merged into one
+  are kept and unlinked). Tickets have no soft delete here, so there is no 30-day
+  grace period. The setting defaults to `never`, which deletes nothing. The
+  purge also deletes expired guest verification codes, and now uses
+  `Config.TablePrefix` instead of `escalated_`. Its JSON adds
+  `closed_tickets_deleted` and `guest_verifications_deleted`.
+- The public tickets page save is validated like Laravel's for a page visit: a
+  user id below 1 or a signup template over 500 characters is refused (it was
+  truncated). API clients (`PUT` without `X-Inertia`) keep the old handling.
+  The page's `settings.guest_policy_user_id` is now the stored string, or null.
 - Migrate (or restart, which migrates) to create `escalated_import_jobs` and `escalated_import_source_maps`. Set `Config.ImportSecret` (16 bytes or more) or `GuestAccess.Secret` before using the import wizard: it seals source credentials with it.
 - To import attachments, set `Config.ImportAttachmentStorage` (for example `email.NewLocalFileStorage` on a directory the web server does not serve); adapters must send each file's bytes as `content`.
 - Custom ticket statuses (additive): `Migrate` / `MigrateSQLite` create
@@ -82,6 +96,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for a page visit), and redirects a page visit to the new ticket.
 
 ### Added
+- The admin Settings sub-pages, on escalated-laravel's paths, props and
+  validation: `Admin/Settings/CsatSettings` (`/admin/settings/csat`),
+  `Admin/Settings/DataRetention` (`/admin/settings/data-retention`, with the
+  `purgePreview` counts), `Admin/Settings/EmailSettings`
+  (`/admin/settings/email`; `email_addresses` and `default_reply_address`,
+  stored only) and a read-only `Admin/Settings/DatabaseConnection`
+  (`/admin/settings/database`, `/database/test`). Public tickets also accepts
+  `POST`, which the page sends. All values live in the settings store.
+- `Escalated.PurgeExpired(ctx, dryRun)` and `StartRetentionPurger(ctx,
+  interval)` (daily by default) apply the data retention periods, as Laravel's
+  `escalated:purge-expired`.
 - The admin Import wizard, as escalated-laravel's Admin\ImportController, on its paths and props: `Escalated/Admin/Import/Index` (`GET {prefix}/admin/import`), `Connect` (`GET /admin/import/{platform}/connect`, with `POST .../test-connection` answering `{success[, error]}`, 422 when the source fails), `Mapping` (`GET .../mapping`), `Review` (`POST .../review`, which writes nothing), `start` (`POST .../start`) and `Progress` (`GET /admin/import/progress/{job}`, polled through `GET /admin/import/status/{job}`, with `POST /admin/import/{pause,resume,cancel}/{job}`). Admin only.
   - Sources are `services.ImportAdapter` values in `Config.ImportAdapters`; Escalated ships none, so a Zendesk or Freshdesk adapter is the host's or a plugin package's. `Config.UserIDByEmail` finds host users: agents must exist; contacts that do import as that user, others as Escalated contacts on guest tickets.
   - `services.ImportService` (`Escalated.Imports()`) keeps the jobs and runs them as Laravel's ImportService does: entity types in order, records already in the source map skipped (so a paused, failed or interrupted run resumes without duplicates), references resolved through the map, progress saved per batch, and a stop between batches when the job is paused or cancelled. It imports contacts, agents, tags, departments, custom fields, tickets (with their custom field values), replies, attachments and satisfaction ratings.

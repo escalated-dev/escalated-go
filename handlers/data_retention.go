@@ -17,9 +17,10 @@ func NewRetentionHandler(service *services.RetentionService) *RetentionHandler {
 	return &RetentionHandler{service: service}
 }
 
-// Purge handles POST /admin/data-retention/purge — purge expired attachments
-// and audit logs per the configured retention policy, reporting closed-ticket
-// candidates. Pass ?dry_run=1 to report counts without deleting.
+// Purge handles POST /admin/data-retention/purge — purge closed tickets,
+// attachments and audit logs past the configured retention periods, and
+// expired guest verification codes. Pass ?dry_run=1 to report counts without
+// deleting.
 func (h *RetentionHandler) Purge(w http.ResponseWriter, r *http.Request) {
 	dryRun := r.URL.Query().Get("dry_run") == "1" || r.URL.Query().Get("dry_run") == "true"
 

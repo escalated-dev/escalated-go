@@ -84,7 +84,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	guestVerifyH := &handlers.GuestVerificationHandler{Access: esc.GuestAccess, ClientIP: guestLimit.ClientIP}
 	kbH := handlers.NewKBHandler(cfg.DB)
 	kbGuard := kbPublicGuard(esc)
-	retentionH := handlers.NewRetentionHandler(services.NewRetentionService(cfg.DB, s))
+	retentionH := handlers.NewRetentionHandler(services.NewRetentionService(cfg.DB, s).WithPrefix(cfg.TablePrefix))
 	macroSvc := services.NewMacroService(cfg.DB, nil, esc.Access)
 	macroSvc.Tickets = ticketSvc
 	macroH := handlers.NewMacroHandler(cfg.DB, macroSvc)
@@ -484,6 +484,17 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 
 				r.Get("/settings/public-tickets", adminH.GetPublicTicketsSettings)
 				r.Put("/settings/public-tickets", adminH.UpdatePublicTicketsSettings)
+				r.Post("/settings/public-tickets", adminH.UpdatePublicTicketsSettings)
+				// The Settings sub-pages (escalated.admin.settings.*).
+				r.Get("/settings/csat", adminH.CsatSettingsPage)
+				r.Post("/settings/csat", adminH.UpdateCsatSettings)
+				r.Get("/settings/data-retention", adminH.DataRetentionPage)
+				r.Post("/settings/data-retention", adminH.UpdateDataRetention)
+				r.Get("/settings/database", adminH.DatabaseConnectionPage)
+				r.Post("/settings/database", adminH.UpdateDatabaseConnection)
+				r.Post("/settings/database/test", adminH.TestDatabaseConnection)
+				r.Get("/settings/email", adminH.EmailSettingsPage)
+				r.Post("/settings/email", adminH.UpdateEmailSettings)
 				r.Get("/settings/widget", adminH.GetWidgetSettings)
 				r.Put("/settings/widget", adminH.UpdateWidgetSettings)
 

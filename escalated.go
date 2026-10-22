@@ -363,6 +363,41 @@ func (e *Escalated) StartSLAChecker(ctx context.Context, interval time.Duration)
 	return cancel
 }
 
+// PurgeExpired applies the data retention settings (the admin Data retention
+// page): closed tickets, attachments and audit logs past their periods are
+// deleted, and so are expired guest verification codes. Every period defaults
+// to "never", which deletes nothing. With dryRun it only counts. Laravel's
+// escalated:purge-expired; call it from the host's scheduler, daily being the
+// convention, or use StartRetentionPurger.
+func (e *Escalated) PurgeExpired(ctx context.Context, dryRun bool) (*services.RetentionReport, error) {
+	return services.NewRetentionService(e.Config.DB, e.Store).WithPrefix(e.Config.TablePrefix).PurgeExpired(ctx, time.Now(), dryRun)
+}
+
+// StartRetentionPurger runs PurgeExpired every interval (daily when <= 0)
+// until ctx is done or the returned function is called. Errors are logged
+// and the next tick runs as usual.
+func (e *Escalated) StartRetentionPurger(ctx context.Context, interval time.Duration) func() {
+	if interval <= 0 {
+		interval = 24 * time.Hour
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if _, err := e.PurgeExpired(ctx, false); err != nil {
+					log.Printf("escalated: retention purge: %v", err)
+				}
+			}
+		}
+	}()
+	return cancel
+}
+
 func newGuestAccess(cfg Config) *services.GuestAccess {
 	return services.NewGuestAccess(cfg.DB, cfg.TablePrefix, cfg.GuestAccess, cfg.Mailer, cfg.MailFrom, cfg.GuestRateLimit.Store, nil)
 }

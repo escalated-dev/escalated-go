@@ -104,6 +104,10 @@ point your `route()` names at these paths under your `RoutePrefix`.
 | `Admin/Automations/Index`, `Form` | `GET /admin/automations`, `/create`, `/{id}/edit` |
 | `Admin/Capacity/Index` | `GET /admin/capacity` |
 | `Admin/Settings/PublicTickets` | `GET /admin/settings/public-tickets` |
+| `Admin/Settings/CsatSettings` | `GET /admin/settings/csat` (and `POST`) |
+| `Admin/Settings/DataRetention` | `GET /admin/settings/data-retention` (and `POST`) |
+| `Admin/Settings/DatabaseConnection` | `GET /admin/settings/database` (and `POST`, `POST /database/test`) |
+| `Admin/Settings/EmailSettings` | `GET /admin/settings/email` (and `POST`) |
 | `Admin/Users/Index` | `GET /admin/users` (needs `Config.UserDirectory`) |
 | `Admin/Macros/Index` | `GET /admin/macros` |
 | `Admin/CannedResponses/Index` | `GET /admin/canned-responses` |
@@ -151,6 +155,21 @@ API clients. Agents are named through `Config.UserName`. A ticket here has one
 due dates; tickets keep no channel, so the channel groupings have one
 "unknown" group. `Admin/Reports/AgentDetail` is not rendered: the props
 Laravel passes it do not match what the page reads.
+
+The Settings sub-pages keep their values in the settings store, under
+Laravel's keys. CSAT settings and email addresses (`email_addresses`,
+`default_reply_address`) are stored only, as in Laravel: survey sending and
+outbound mail do not read them yet. Public tickets saves the guest policy keys
+the widget reads, over `POST` (what the page sends) or `PUT`. The data retention
+periods are applied by `Escalated.PurgeExpired` (or `StartRetentionPurger`,
+daily); every period defaults to `never`. Tickets have no soft delete here, so a
+closed ticket past its period is deleted with its replies, attachment rows and
+the other rows pointing at it, without Laravel's 30-day grace period; attachment
+files belong to the host and are left alone. The database page is read-only:
+Escalated's connection is the `Config.DB` the host passes, so it lists that one
+connection (`default`), `pinnedByConfig` is true and a switch is refused.
+Saves have no `success` flash: flash messages are the host's session, so a
+save is a 303 back to the page like the other admin forms.
 
 Macros created in the shared editor use its action names (`status`,
 `priority`, `assign`, `tags`, `department`, `reply`, `note`), which now run
