@@ -66,7 +66,11 @@ func NewAgentHandler(s store.Store, ts *services.TicketService, as *services.Ass
 
 // presenter returns a page presenter for one request.
 func (h *AgentHandler) presenter() *uiPresenter {
-	return newUIPresenter(h.store, h.Users, h.RoutePrefix)
+	p := newUIPresenter(h.store, h.Users, h.RoutePrefix)
+	if h.tickets != nil {
+		p.statuses = h.tickets.Statuses
+	}
+	return p
 }
 
 func (h *AgentHandler) queries() uiQueries {
@@ -199,6 +203,18 @@ func (h *AgentHandler) queueProps(w http.ResponseWriter, r *http.Request) (map[s
 	q := r.URL.Query()
 	pg := uiPageFrom(q, 15)
 	f := agentTicketFilters(q)
+	if v := strings.TrimSpace(q.Get("status")); v != "" && f.Status == nil && h.tickets != nil && h.tickets.Statuses != nil {
+		// A custom status's slug filters by the custom status; an unknown
+		// value is ignored, as before.
+		st, err := h.tickets.Statuses.BySlug(ctx, v)
+		if err != nil {
+			http.Error(w, "could not list tickets", http.StatusInternalServerError)
+			return nil, false
+		}
+		if st != nil && !st.IsSystem {
+			f.TicketStatusID = &st.ID
+		}
+	}
 	f.Limit = pg.PerPage
 	f.Offset = pg.offset()
 

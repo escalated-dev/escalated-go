@@ -32,6 +32,10 @@ type TicketService struct {
 	// Notifications, when set, emails requesters and agents about the
 	// ticket lifecycle (see Notifier). Nil sends nothing.
 	Notifications *Notifier
+
+	// Statuses, when set, lets status inputs name a custom status by slug
+	// (ChangeStatusValue). Nil accepts the built-in statuses only.
+	Statuses *TicketStatusService
 }
 
 // NewTicketService creates a new TicketService.
@@ -163,7 +167,9 @@ func (ts *TicketService) Assign(ctx context.Context, ticketID int64, agentID mod
 	aid := agentID
 	t.AssignedTo = &aid
 	if t.Status == models.StatusOpen {
+		// A built-in status replaces any custom one.
 		t.Status = models.StatusInProgress
+		t.TicketStatusID = nil
 	}
 
 	if err := ts.store.UpdateTicket(ctx, t); err != nil {
@@ -199,8 +205,48 @@ func (ts *TicketService) announceAssigned(t *models.Ticket, agentID models.UserI
 	ts.emitUpdated(t)
 }
 
-// ChangeStatus updates a ticket's status and records the activity.
+// ChangeStatus sets a built-in status, records the activity and announces the
+// change. It clears any custom status the ticket had.
 func (ts *TicketService) ChangeStatus(ctx context.Context, ticketID int64, newStatus int, causerID *models.UserID) error {
+	return ts.changeStatus(ctx, ticketID, newStatus, nil, causerID)
+}
+
+// SetCustomStatus gives the ticket a custom status: its built-in status
+// becomes the status category's anchor through the same path as ChangeStatus
+// (resolved_at/closed_at, activity, events, notifications, workflows), and
+// ticket_status_id records the custom status. A move between custom statuses
+// with the same anchor still saves and announces ticket.status_changed.
+func (ts *TicketService) SetCustomStatus(ctx context.Context, ticketID int64, status *models.TicketStatus, causerID *models.UserID) error {
+	if status == nil || status.IsSystem {
+		return ErrInvalidStatus
+	}
+	return ts.changeStatus(ctx, ticketID, models.CategoryAnchor(status.Category), status, causerID)
+}
+
+// ChangeStatusValue sets the status a status input names: a built-in status
+// (slug or integer) or a custom status's slug. ErrInvalidStatus for anything
+// else.
+func (ts *TicketService) ChangeStatusValue(ctx context.Context, ticketID int64, value any, causerID *models.UserID) error {
+	status, custom, ok, err := ts.Statuses.Resolve(ctx, value)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrInvalidStatus
+	}
+	if custom != nil {
+		return ts.SetCustomStatus(ctx, ticketID, custom, causerID)
+	}
+	return ts.ChangeStatus(ctx, ticketID, status, causerID)
+}
+
+// ResolveStatus reads a status input as ChangeStatusValue does, without
+// changing anything.
+func (ts *TicketService) ResolveStatus(ctx context.Context, value any) (status int, custom *models.TicketStatus, ok bool, err error) {
+	return ts.Statuses.Resolve(ctx, value)
+}
+
+func (ts *TicketService) changeStatus(ctx context.Context, ticketID int64, newStatus int, custom *models.TicketStatus, causerID *models.UserID) error {
 	t, err := ts.store.GetTicket(ctx, ticketID)
 	if err != nil {
 		return err
@@ -210,7 +256,13 @@ func (ts *TicketService) ChangeStatus(ctx context.Context, ticketID int64, newSt
 	}
 
 	oldStatus := t.Status
+	oldCustomID := t.TicketStatusID
 	t.Status = newStatus
+	t.TicketStatusID = nil
+	if custom != nil {
+		id := custom.ID
+		t.TicketStatusID = &id
+	}
 
 	now := time.Now()
 	if newStatus == models.StatusResolved && t.ResolvedAt == nil {
@@ -224,10 +276,18 @@ func (ts *TicketService) ChangeStatus(ctx context.Context, ticketID int64, newSt
 		return err
 	}
 
-	details, _ := json.Marshal(map[string]string{
+	oldCustom := ts.customStatus(ctx, oldCustomID, custom)
+	activity := map[string]string{
 		"from": models.StatusName[oldStatus],
 		"to":   models.StatusName[newStatus],
-	})
+	}
+	if oldCustom != nil {
+		activity["from_custom_status"] = oldCustom.Slug
+	}
+	if custom != nil {
+		activity["to_custom_status"] = custom.Slug
+	}
+	details, _ := json.Marshal(activity)
 	var causerType *string
 	if causerID != nil {
 		ct := "User"
@@ -242,6 +302,12 @@ func (ts *TicketService) ChangeStatus(ctx context.Context, ticketID int64, newSt
 	})
 
 	payload := ticketWebhookPayload(t)
+	// The payload is an open map: the custom statuses and categories go
+	// beside the existing keys, which keep their values.
+	payload["old_custom_status"] = customSlug(oldCustom)
+	payload["new_custom_status"] = customSlug(custom)
+	payload["old_category"] = StatusCategoryOf(&models.Ticket{Status: oldStatus}, oldCustom)
+	payload["new_category"] = StatusCategoryOf(t, custom)
 	ts.dispatchWebhook("ticket.status_changed", payload)
 	ts.runWorkflows("ticket.status_changed", t)
 	// Faithful to the Laravel reference, which fires dedicated lifecycle
@@ -259,6 +325,29 @@ func (ts *TicketService) ChangeStatus(ctx context.Context, ticketID int64, newSt
 	ts.emitUpdated(t)
 
 	return nil
+}
+
+// customStatus loads the custom status with id (the one being set when it is
+// that one). Nil when id is nil or the status is gone.
+func (ts *TicketService) customStatus(ctx context.Context, id *int64, setting *models.TicketStatus) *models.TicketStatus {
+	if id == nil {
+		return nil
+	}
+	if setting != nil && setting.ID == *id {
+		return setting
+	}
+	found, err := ts.Statuses.ByIDs(ctx, []int64{*id})
+	if err != nil {
+		return nil
+	}
+	return found[*id]
+}
+
+func customSlug(st *models.TicketStatus) any {
+	if st == nil {
+		return nil
+	}
+	return st.Slug
 }
 
 // AddReply creates a reply on a ticket and records the activity.

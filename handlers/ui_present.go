@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/escalated-dev/escalated-go/models"
+	"github.com/escalated-dev/escalated-go/services"
 	"github.com/escalated-dev/escalated-go/store"
 )
 
@@ -52,6 +53,40 @@ type uiPresenter struct {
 	routePrefix string
 
 	departments map[int64]*models.Department
+
+	// statuses resolves tickets' custom statuses for staff rows (nil shows
+	// none); customStatuses caches them for the request.
+	statuses       *services.TicketStatusService
+	customStatuses map[int64]*models.TicketStatus
+}
+
+// customStatus is the ticket's custom status, or nil.
+func (p *uiPresenter) customStatus(ctx context.Context, t *models.Ticket) *models.TicketStatus {
+	if t.TicketStatusID == nil || p.statuses == nil {
+		return nil
+	}
+	id := *t.TicketStatusID
+	if st, ok := p.customStatuses[id]; ok {
+		return st
+	}
+	found, err := p.statuses.ByIDs(ctx, []int64{id})
+	if err != nil {
+		return nil
+	}
+	if p.customStatuses == nil {
+		p.customStatuses = map[int64]*models.TicketStatus{}
+	}
+	p.customStatuses[id] = found[id]
+	return found[id]
+}
+
+// staffStatus adds custom_status ({id, label, slug, color, category} or null)
+// and status_category to a staff view of the ticket. Customer views never get
+// them: custom statuses are internal sub-statuses.
+func (p *uiPresenter) staffStatus(ctx context.Context, t *models.Ticket, row map[string]any) {
+	custom := p.customStatus(ctx, t)
+	row["custom_status"] = services.CustomStatusView(custom)
+	row["status_category"] = services.StatusCategoryOf(t, custom)
 }
 
 func newUIPresenter(s store.Store, users UserLookup, routePrefix string) *uiPresenter {
@@ -332,6 +367,7 @@ func (p *uiPresenter) ticketRow(ctx context.Context, t *models.Ticket) map[strin
 		"last_reply_at":               nil,
 		"last_reply_author":           nil,
 	}
+	p.staffStatus(ctx, t, row)
 
 	replies, err := p.store.ListReplies(ctx, models.ReplyFilters{TicketID: t.ID})
 	if err == nil {

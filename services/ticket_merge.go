@@ -97,7 +97,7 @@ func (m *TicketMergeService) Merge(ctx context.Context, sourceID int64, targetRe
 			[]any{target.id, fmt.Sprintf("Ticket %s was merged into this ticket.", source.reference), now, now}},
 		{`INSERT INTO escalated_replies (ticket_id, body, is_internal, is_system, is_pinned, created_at, updated_at) VALUES (?, ?, TRUE, TRUE, FALSE, ?, ?)`,
 			[]any{source.id, fmt.Sprintf("This ticket was merged into %s.", target.reference), now, now}},
-		{`UPDATE escalated_tickets SET status = ?, merged_into_id = ?, closed_at = COALESCE(closed_at, ?), updated_at = ? WHERE id = ?`,
+		{`UPDATE escalated_tickets SET status = ?, ticket_status_id = NULL, merged_into_id = ?, closed_at = COALESCE(closed_at, ?), updated_at = ? WHERE id = ?`,
 			[]any{models.StatusClosed, target.id, now, now, source.id}},
 	}
 	for _, step := range steps {

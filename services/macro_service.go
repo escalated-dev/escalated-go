@@ -204,9 +204,13 @@ func (s *MacroService) runActionContext(ctx context.Context, action models.Macro
 	}
 	switch action.Type {
 	case "change_status", "set_status":
-		_, err := ticketaccess.ExecContext(ctx, s.DB,
-			s.query(`UPDATE escalated_tickets SET status = ?, updated_at = ? WHERE id = ?`),
-			macroToInt(action.Value), time.Now(), ticketID,
+		status, custom, err := resolveStatusDirect(ctx, s.DB, s.query, action.Value)
+		if err != nil {
+			return err
+		}
+		_, err = ticketaccess.ExecContext(ctx, s.DB,
+			s.query(`UPDATE escalated_tickets SET status = ?, ticket_status_id = ?, updated_at = ? WHERE id = ?`),
+			status, custom, time.Now(), ticketID,
 		)
 		return err
 	case "change_priority", "set_priority":
@@ -313,11 +317,8 @@ func (s *MacroService) runViaTicketService(ctx context.Context, action models.Ma
 	}
 	switch action.Type {
 	case "change_status", "set_status", "status":
-		status, ok := StatusFromValue(action.Value)
-		if !ok {
-			return true, ErrInvalidStatus
-		}
-		return true, s.Tickets.ChangeStatus(ctx, ticketID, status, causer)
+		// A built-in status or a custom status's slug.
+		return true, s.Tickets.ChangeStatusValue(ctx, ticketID, action.Value, causer)
 	case "change_priority", "set_priority", "priority":
 		priority, ok := PriorityFromValue(action.Value)
 		if !ok {

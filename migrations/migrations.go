@@ -624,7 +624,31 @@ func migrationStatements(p string) []string {
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%scontact_opt_out ON %s (marketing_opt_out_at)", p, p+"contacts"),
 	}
 
-	return append(append(stmts, indexes...), engineAddonStatements(p)...)
+	return append(append(append(stmts, indexes...), engineAddonStatements(p)...), ticketStatusStatements(p)...)
+}
+
+// ticketStatusStatements create the custom ticket statuses table (Laravel's
+// escalated_ticket_statuses plus is_system). It is created here, before
+// upgradeTicketAccess adds tickets.ticket_status_id, which references it; the
+// system rows are seeded there.
+func ticketStatusStatements(p string) []string {
+	return []string{
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			label VARCHAR(255) NOT NULL,
+			slug VARCHAR(255) NOT NULL,
+			category VARCHAR(32) NOT NULL,
+			color VARCHAR(20) NOT NULL DEFAULT '#6b7280',
+			description TEXT,
+			position INTEGER NOT NULL DEFAULT 0,
+			is_default BOOLEAN NOT NULL DEFAULT FALSE,
+			is_system BOOLEAN NOT NULL DEFAULT FALSE,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"ticket_statuses"),
+		fmt.Sprintf("CREATE UNIQUE INDEX IF NOT EXISTS idx_%sticket_status_slug ON %s (slug)", p, p+"ticket_statuses"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%sticket_status_category ON %s (category, position)", p, p+"ticket_statuses"),
+	}
 }
 
 // engineAddonStatements returns the engine-domain tables (escalation,
@@ -919,6 +943,7 @@ func sqliteMigrationStatements(p string) []string {
 		s = strings.ReplaceAll(s, "VARCHAR(50)", "TEXT")
 		s = strings.ReplaceAll(s, "VARCHAR(45)", "TEXT")
 		s = strings.ReplaceAll(s, "VARCHAR(32)", "TEXT")
+		s = strings.ReplaceAll(s, "VARCHAR(20)", "TEXT")
 		s = strings.ReplaceAll(s, "VARCHAR(7)", "TEXT")
 		s = strings.ReplaceAll(s, "VARCHAR(320)", "TEXT")
 		result = append(result, s)

@@ -289,6 +289,15 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 		mux.Handle("PUT "+prefix+"/admin/custom-objects/{id}/records/{record}", adminMW(http.HandlerFunc(adminH.UpdateCustomObjectRecord)))
 		mux.Handle("PATCH "+prefix+"/admin/custom-objects/{id}/records/{record}", adminMW(http.HandlerFunc(adminH.UpdateCustomObjectRecord)))
 		mux.Handle("DELETE "+prefix+"/admin/custom-objects/{id}/records/{record}", adminMW(http.HandlerFunc(adminH.DeleteCustomObjectRecord)))
+
+		// Custom ticket statuses (escalated.admin.statuses.*).
+		mux.Handle("GET "+prefix+"/admin/statuses", adminMW(http.HandlerFunc(adminH.ListStatuses)))
+		mux.Handle("POST "+prefix+"/admin/statuses", adminMW(http.HandlerFunc(adminH.StoreStatus)))
+		mux.Handle("GET "+prefix+"/admin/statuses/create", adminMW(http.HandlerFunc(adminH.CreateStatusForm)))
+		mux.Handle("GET "+prefix+"/admin/statuses/{id}/edit", adminMW(http.HandlerFunc(adminH.EditStatusForm)))
+		mux.Handle("PUT "+prefix+"/admin/statuses/{id}", adminMW(http.HandlerFunc(adminH.UpdateStatus)))
+		mux.Handle("PATCH "+prefix+"/admin/statuses/{id}", adminMW(http.HandlerFunc(adminH.UpdateStatus)))
+		mux.Handle("DELETE "+prefix+"/admin/statuses/{id}", adminMW(http.HandlerFunc(adminH.DeleteStatus)))
 		mux.Handle("POST "+prefix+"/admin/data-retention/purge", adminMW(http.HandlerFunc(retentionH.Purge)))
 
 		// Event-driven admin Workflows (fire on ticket lifecycle events).

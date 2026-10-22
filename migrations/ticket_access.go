@@ -42,6 +42,9 @@ func upgradeTicketAccess(db *sql.DB, prefix string, postgres bool) error {
 		{"custom_fields", "placeholder", "VARCHAR(255)"},
 		{"custom_fields", "validation_rules", "TEXT"},
 		{"custom_fields", "conditions", "TEXT"},
+		// Custom ticket statuses: the sub-status a ticket is in, if any. The
+		// built-in status column stays as it is; existing tickets get NULL.
+		{"tickets", "ticket_status_id", "BIGINT REFERENCES " + prefix + "ticket_statuses(id) ON DELETE SET NULL"},
 	}
 	for _, column := range columns {
 		exists := false
@@ -85,10 +88,53 @@ func upgradeTicketAccess(db *sql.DB, prefix string, postgres bool) error {
 		// One-time guest email codes (only an HMAC digest of the code).
 		"CREATE TABLE IF NOT EXISTS " + prefix + "guest_verifications (id VARCHAR(64) PRIMARY KEY, email VARCHAR(255) NOT NULL, purpose VARCHAR(16) NOT NULL, code_hash VARCHAR(64) NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, expires_at " + timestamp + " NOT NULL, used_at " + timestamp + ", created_at " + timestamp + " NOT NULL)",
 		"CREATE INDEX IF NOT EXISTS " + prefix + "guest_verifications_expires_idx ON " + prefix + "guest_verifications(expires_at)",
+		"CREATE INDEX IF NOT EXISTS " + prefix + "tickets_ticket_status_idx ON " + prefix + "tickets(ticket_status_id)",
 		"CREATE TABLE IF NOT EXISTS " + prefix + "department_agent (department_id BIGINT NOT NULL REFERENCES " + prefix + "departments(id) ON DELETE CASCADE, agent_id VARCHAR(255) NOT NULL, PRIMARY KEY(department_id,agent_id))",
 	} {
 		if _, err := db.Exec(query); err != nil {
 			return err
+		}
+	}
+	return seedSystemStatuses(db, prefix, postgres)
+}
+
+// systemStatuses are the built-in statuses' system rows. They match
+// models.BuiltInStatuses and models.BuiltInStatusCategory (this package cannot
+// import models); the migration test checks they agree.
+var systemStatuses = []struct{ slug, label, color, category string }{
+	{"open", "Open", "#3B82F6", "open"},
+	{"in_progress", "In Progress", "#8B5CF6", "open"},
+	{"waiting_on_customer", "Waiting on Customer", "#F59E0B", "pending"},
+	{"waiting_on_agent", "Waiting on Agent", "#F97316", "open"},
+	{"escalated", "Escalated", "#EF4444", "open"},
+	{"resolved", "Resolved", "#10B981", "solved"},
+	{"closed", "Closed", "#6B7280", "solved"},
+	{"reopened", "Reopened", "#3B82F6", "open"},
+	{"snoozed", "Snoozed", "#A855F7", "on_hold"},
+	{"live", "Live", "#22C55E", "open"},
+}
+
+// seedSystemStatuses inserts the system row of every built-in status that has
+// none (matched by slug), so it is safe to run on every start. Positions count
+// up within each category.
+func seedSystemStatuses(db *sql.DB, prefix string, postgres bool) error {
+	table := prefix + "ticket_statuses"
+	insert := "INSERT INTO " + table + " (label, slug, category, color, position, is_default, is_system, created_at, updated_at) " +
+		"SELECT ?, ?, ?, ?, ?, FALSE, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP WHERE NOT EXISTS (SELECT 1 FROM " + table + " WHERE slug = ?)"
+	if postgres {
+		insert = "INSERT INTO " + table + " (label, slug, category, color, position, is_default, is_system, created_at, updated_at) " +
+			"SELECT $1, $2::VARCHAR, $3, $4, $5, FALSE, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP WHERE NOT EXISTS (SELECT 1 FROM " + table + " WHERE slug = $2::VARCHAR)"
+	}
+	positions := map[string]int{}
+	for _, builtIn := range systemStatuses {
+		position := positions[builtIn.category]
+		positions[builtIn.category]++
+		args := []any{builtIn.label, builtIn.slug, builtIn.category, builtIn.color, position, builtIn.slug}
+		if postgres {
+			args = args[:5]
+		}
+		if _, err := db.Exec(insert, args...); err != nil {
+			return fmt.Errorf("seeding system statuses: %w", err)
 		}
 	}
 	return nil

@@ -207,14 +207,17 @@ func (r *WorkflowRunner) runAction(wf models.Workflow, t *models.Ticket, td Tick
 	switch a.Type {
 	case "change_status":
 		// The builder sends the slug ("resolved"); older workflows stored the
-		// number. An unknown value is an error rather than a silent reopen.
-		status, ok := StatusFromValue(strings.TrimSpace(a.Value))
-		if !ok {
-			return ErrInvalidStatus
+		// number. A custom status's slug sets its category's anchor and the
+		// custom status; a built-in clears it. An unknown value is an error
+		// rather than a silent reopen. The row is written directly, so the
+		// change does not run workflows again.
+		status, custom, err := resolveStatusDirect(context.Background(), r.DB, r.query, strings.TrimSpace(a.Value))
+		if err != nil {
+			return err
 		}
-		_, err := r.DB.Exec(
-			r.query(`UPDATE escalated_tickets SET status = ?, updated_at = ? WHERE id = ?`),
-			status, time.Now(), t.ID,
+		_, err = r.DB.Exec(
+			r.query(`UPDATE escalated_tickets SET status = ?, ticket_status_id = ?, updated_at = ? WHERE id = ?`),
+			status, custom, time.Now(), t.ID,
 		)
 		return err
 	case "change_priority":

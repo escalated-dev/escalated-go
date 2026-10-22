@@ -339,6 +339,15 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Patch("/custom-objects/{id}/records/{record}", adminH.UpdateCustomObjectRecord)
 				r.Delete("/custom-objects/{id}/records/{record}", adminH.DeleteCustomObjectRecord)
 
+				// Custom ticket statuses (escalated.admin.statuses.*).
+				r.Get("/statuses", adminH.ListStatuses)
+				r.Post("/statuses", adminH.StoreStatus)
+				r.Get("/statuses/create", adminH.CreateStatusForm)
+				r.Get("/statuses/{id}/edit", adminH.EditStatusForm)
+				r.Put("/statuses/{id}", adminH.UpdateStatus)
+				r.Patch("/statuses/{id}", adminH.UpdateStatus)
+				r.Delete("/statuses/{id}", adminH.DeleteStatus)
+
 				// Data-retention purge (attachments + audit logs per policy).
 				r.Post("/data-retention/purge", retentionH.Purge)
 

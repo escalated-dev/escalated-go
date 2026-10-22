@@ -42,6 +42,7 @@ func (ss *SnoozeService) SnoozeTicket(ctx context.Context, ticketID int64, until
 	prevStatus := t.Status
 	t.StatusBeforeSnooze = &prevStatus
 	t.Status = models.StatusSnoozed
+	t.TicketStatusID = nil // a built-in status replaces any custom one
 	t.SnoozedUntil = &until
 	t.SnoozedBy = snoozedBy
 
@@ -91,6 +92,7 @@ func (ss *SnoozeService) UnsnoozeTicket(ctx context.Context, ticketID int64, cau
 	t.SnoozedUntil = nil
 	t.SnoozedBy = nil
 	t.StatusBeforeSnooze = nil
+	t.TicketStatusID = nil
 
 	if err := ss.store.UpdateTicket(ctx, t); err != nil {
 		return fmt.Errorf("updating ticket: %w", err)
