@@ -1,76 +1,105 @@
 package models
 
 import (
-	"strings"
+	"encoding/json"
 	"time"
 )
 
-// DaySchedule represents business hours for a single day.
+// DaySchedule is one weekday's opening hours as wall-clock "HH:MM" times in
+// the schedule's time zone (Laravel's schedule JSON: {"start":"09:00",
+// "end":"17:00"}). A day with an empty start or end is closed. End "24:00"
+// means midnight at the end of the day, and an end earlier than the start is
+// an overnight window that closes on the following day. Enabled is optional:
+// only an explicit false closes a day that has hours.
 type DaySchedule struct {
 	Start   string `json:"start"`
 	End     string `json:"end"`
-	Enabled bool   `json:"enabled"`
+	Enabled *bool  `json:"enabled,omitempty"`
 }
 
-// DefaultBusinessHours returns the default Mon-Fri 9-5 schedule.
+// Open reports whether the day has opening hours at all.
+func (d DaySchedule) Open() bool {
+	if d.Enabled != nil && !*d.Enabled {
+		return false
+	}
+	return d.Start != "" && d.End != ""
+}
+
+// DefaultBusinessHours returns the default Mon-Fri 9-5 schedule (the shared
+// form's default).
 func DefaultBusinessHours() map[string]DaySchedule {
+	open := DaySchedule{Start: "09:00", End: "17:00"}
 	return map[string]DaySchedule{
-		"monday":    {Start: "09:00", End: "17:00", Enabled: true},
-		"tuesday":   {Start: "09:00", End: "17:00", Enabled: true},
-		"wednesday": {Start: "09:00", End: "17:00", Enabled: true},
-		"thursday":  {Start: "09:00", End: "17:00", Enabled: true},
-		"friday":    {Start: "09:00", End: "17:00", Enabled: true},
-		"saturday":  {Start: "09:00", End: "17:00", Enabled: false},
-		"sunday":    {Start: "09:00", End: "17:00", Enabled: false},
+		"monday":    open,
+		"tuesday":   open,
+		"wednesday": open,
+		"thursday":  open,
+		"friday":    open,
+		"saturday":  {Start: "", End: ""},
+		"sunday":    {Start: "", End: ""},
 	}
 }
 
-// BusinessSchedule defines business operating hours and holidays.
+// BusinessSchedule defines business operating hours and holidays (Laravel
+// BusinessSchedule). Hours is stored in the hours column and serialised as
+// "schedule", the key the shared admin pages read.
 type BusinessSchedule struct {
 	ID        int64                  `json:"id"`
 	Name      string                 `json:"name"`
 	Timezone  string                 `json:"timezone"`
-	Hours     map[string]DaySchedule `json:"hours"`
+	Hours     map[string]DaySchedule `json:"schedule"`
 	IsDefault bool                   `json:"is_default"`
 	IsActive  bool                   `json:"is_active"`
 
-	Holidays []Holiday `json:"holidays,omitempty"`
+	Holidays []Holiday `json:"holidays"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// IsWithinBusinessHours checks if a given time falls within the schedule.
+// IsWithinBusinessHours reports whether t falls inside one of the schedule's
+// opening windows (start inclusive, end exclusive).
 func (bs *BusinessSchedule) IsWithinBusinessHours(t time.Time) bool {
-	loc, err := time.LoadLocation(bs.Timezone)
-	if err != nil {
-		return false
-	}
-	t = t.In(loc)
-
-	dayName := strings.ToLower(t.Weekday().String())
-	dayConfig, ok := bs.Hours[dayName]
-	if !ok || !dayConfig.Enabled {
-		return false
-	}
-
-	dateStr := t.Format("2006-01-02")
-	for _, h := range bs.Holidays {
-		if h.Date.Format("2006-01-02") == dateStr {
-			return false
+	loc := bs.location()
+	local := t.In(loc)
+	day := civilDate(local.Year(), local.Month(), local.Day()-1)
+	for i := 0; i < 2; i++ {
+		if start, end, ok := bs.window(day, loc); ok && !t.Before(start) && t.Before(end) {
+			return true
 		}
+		day = day.AddDate(0, 0, 1)
 	}
-
-	timeStr := t.Format("15:04")
-	return timeStr >= dayConfig.Start && timeStr <= dayConfig.End
+	return false
 }
 
-// Holiday represents a day excluded from business hours.
+// Holiday is a date on which a schedule's windows do not open. A recurring
+// holiday matches its month and day in every year.
 type Holiday struct {
 	ID                 int64     `json:"id"`
-	BusinessScheduleID int64     `json:"business_schedule_id"`
+	BusinessScheduleID int64     `json:"schedule_id"`
 	Name               string    `json:"name"`
 	Date               time.Time `json:"date"`
-	IsRecurring        bool      `json:"is_recurring"`
+	IsRecurring        bool      `json:"recurring"`
 	CreatedAt          time.Time `json:"created_at"`
+}
+
+// MarshalJSON writes the date as YYYY-MM-DD, as Laravel's date cast reads in
+// the shared form.
+func (h Holiday) MarshalJSON() ([]byte, error) {
+	return json.Marshal(map[string]any{
+		"id":          h.ID,
+		"schedule_id": h.BusinessScheduleID,
+		"name":        h.Name,
+		"date":        h.Date.Format("2006-01-02"),
+		"recurring":   h.IsRecurring,
+		"created_at":  h.CreatedAt,
+	})
+}
+
+// matches reports whether the holiday falls on the civil date day.
+func (h Holiday) matches(day time.Time) bool {
+	if h.IsRecurring {
+		return h.Date.Month() == day.Month() && h.Date.Day() == day.Day()
+	}
+	return h.Date.Year() == day.Year() && h.Date.Month() == day.Month() && h.Date.Day() == day.Day()
 }

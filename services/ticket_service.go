@@ -491,7 +491,6 @@ func (ts *TicketService) applySLA(ctx context.Context, t *models.Ticket) error {
 	}
 
 	t.SLAPolicyID = &policy.ID
-	priority := models.PriorityName[t.Priority]
 	base := time.Now()
 	if targeted {
 		if !t.CreatedAt.IsZero() {
@@ -501,14 +500,7 @@ func (ts *TicketService) applySLA(ctx context.Context, t *models.Ticket) error {
 		t.SLAResolutionDueAt = nil
 	}
 
-	if hours, ok := policy.FirstResponseHoursFor(priority); ok {
-		due := base.Add(time.Duration(hours * float64(time.Hour)))
-		t.SLAFirstResponseDueAt = &due
-	}
-	if hours, ok := policy.ResolutionHoursFor(priority); ok {
-		due := base.Add(time.Duration(hours * float64(time.Hour)))
-		t.SLAResolutionDueAt = &due
-	}
+	setSLADeadlines(ctx, ts.store, policy, t, base)
 
 	return nil
 }

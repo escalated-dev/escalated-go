@@ -21,6 +21,12 @@ type SLAPolicy struct {
 	IsActive  bool `json:"is_active"`
 	IsDefault bool `json:"is_default"`
 
+	// BusinessHoursOnly counts the targets in business hours (Laravel
+	// business_hours_only). The schedule is BusinessScheduleID, else the
+	// ticket department's, else the default one; with none, calendar hours.
+	BusinessHoursOnly  bool   `json:"business_hours_only"`
+	BusinessScheduleID *int64 `json:"business_schedule_id"`
+
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

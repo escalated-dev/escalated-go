@@ -187,8 +187,6 @@ func TestTheGuardSeesUnprefixedRenderCalls(t *testing.T) {
 // page the frontend adds must be listed or rendered.
 var notYetRendered = []string{
 	"Escalated/Admin/ApiTokens/Index",
-	"Escalated/Admin/BusinessHours/Form",
-	"Escalated/Admin/BusinessHours/Index",
 	"Escalated/Admin/CustomFields/Form",
 	"Escalated/Admin/CustomFields/Index",
 	"Escalated/Admin/CustomObjects/Form",

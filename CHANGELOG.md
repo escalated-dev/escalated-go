@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Upgrading
+- Business hours (additive, nothing changes until you opt in): `Migrate` /
+  `MigrateSQLite` add `sla_policies.business_hours_only` (default false),
+  `sla_policies.business_schedule_id` and `departments.business_schedule_id`
+  (nullable). A policy with `business_hours_only` counts its targets in
+  business time against its own schedule, else the ticket department's, else
+  the default schedule; with no schedule configured it keeps calendar hours,
+  so existing installs see no change. The SLA policy form's
+  `business_hours_only` switch is now stored (it was ignored) and
+  `business_schedule_id` is accepted on SLA policy and department writes; a
+  write that leaves the key out leaves the stored value alone.
+- `models.BusinessSchedule` now serialises its hours as `schedule` and
+  holidays as `schedule_id` / `recurring` / `YYYY-MM-DD` dates (Laravel's
+  keys). `DaySchedule.Enabled` is now `*bool`: a day is open when it has a
+  start and end, unless `enabled` is explicitly false.
 - Automation `change_status` / `change_priority` actions and `status` /
   `priority` conditions read slugs (`closed`, `urgent`), as the shared editor
   sends them. Actions stored 0 for a slug; conditions compared the slug with
@@ -46,6 +60,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for a page visit), and redirects a page visit to the new ticket.
 
 ### Added
+- Business hours and holidays (Laravel `BusinessHoursCalculator`,
+  `Admin\BusinessHoursController`): `Escalated/Admin/BusinessHours/Index`
+  and `Form` at `/admin/business-hours` (`escalated.admin.business-hours.*`),
+  with per-weekday hours in an IANA time zone and fixed or recurring
+  holidays. `BusinessSchedule.AddBusinessMinutes` / `IsWithinBusinessHours`
+  handle overnight windows (end before start), a `24:00` end, holidays on
+  the local date a window opens, and daylight-saving days (time is counted in
+  real minutes). `store.BusinessSchedulesFor` exposes the schedules on the
+  built-in stores; custom stores without it keep calendar hours.
 - `Admin/Departments/Form`, `Admin/Automations/Index` and `Form`,
   `Admin/Capacity/Index` and `Admin/Settings/PublicTickets`, and the
   departments and tags lists now carry `tickets_count`. Departments, tags,

@@ -257,6 +257,14 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 		mux.Handle("PUT "+prefix+"/admin/sla-policies/{id}", adminMW(http.HandlerFunc(adminH.UpdateSLAPolicy)))
 		mux.Handle("PATCH "+prefix+"/admin/sla-policies/{id}", adminMW(http.HandlerFunc(adminH.UpdateSLAPolicy)))
 		mux.Handle("DELETE "+prefix+"/admin/sla-policies/{id}", adminMW(http.HandlerFunc(adminH.DeleteSLAPolicy)))
+		// Business hours and holidays (escalated.admin.business-hours.*).
+		mux.Handle("GET "+prefix+"/admin/business-hours", adminMW(http.HandlerFunc(adminH.ListBusinessHours)))
+		mux.Handle("POST "+prefix+"/admin/business-hours", adminMW(http.HandlerFunc(adminH.StoreBusinessHours)))
+		mux.Handle("GET "+prefix+"/admin/business-hours/create", adminMW(http.HandlerFunc(adminH.CreateBusinessHoursForm)))
+		mux.Handle("GET "+prefix+"/admin/business-hours/{id}/edit", adminMW(http.HandlerFunc(adminH.EditBusinessHoursForm)))
+		mux.Handle("PUT "+prefix+"/admin/business-hours/{id}", adminMW(http.HandlerFunc(adminH.UpdateBusinessHours)))
+		mux.Handle("PATCH "+prefix+"/admin/business-hours/{id}", adminMW(http.HandlerFunc(adminH.UpdateBusinessHours)))
+		mux.Handle("DELETE "+prefix+"/admin/business-hours/{id}", adminMW(http.HandlerFunc(adminH.DeleteBusinessHours)))
 		mux.Handle("POST "+prefix+"/admin/data-retention/purge", adminMW(http.HandlerFunc(retentionH.Purge)))
 
 		// Event-driven admin Workflows (fire on ticket lifecycle events).

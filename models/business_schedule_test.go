@@ -49,10 +49,10 @@ func TestBusinessScheduleHolidayExclusion(t *testing.T) {
 func TestDefaultBusinessHours(t *testing.T) {
 	hours := DefaultBusinessHours()
 
-	if !hours["monday"].Enabled {
+	if !hours["monday"].Open() {
 		t.Error("expected monday to be enabled")
 	}
-	if hours["saturday"].Enabled {
+	if hours["saturday"].Open() {
 		t.Error("expected saturday to be disabled")
 	}
 	if hours["wednesday"].Start != "09:00" {

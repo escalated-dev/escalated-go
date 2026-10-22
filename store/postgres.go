@@ -402,21 +402,21 @@ func (s *PostgresStore) CreateDepartment(ctx context.Context, d *models.Departme
 	d.CreatedAt = now
 	d.UpdatedAt = now
 
-	q := fmt.Sprintf(`INSERT INTO %s (name, slug, description, email, is_active, default_sla_policy_id, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`, s.t("departments"))
+	q := fmt.Sprintf(`INSERT INTO %s (name, slug, description, email, is_active, default_sla_policy_id, created_at, updated_at, business_schedule_id)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`, s.t("departments"))
 
 	return ticketaccess.QueryRowContext(ctx, s.db, q,
-		d.Name, d.Slug, d.Description, d.Email, d.IsActive, d.DefaultSLAPolicyID, d.CreatedAt, d.UpdatedAt,
+		d.Name, d.Slug, d.Description, d.Email, d.IsActive, d.DefaultSLAPolicyID, d.CreatedAt, d.UpdatedAt, d.BusinessScheduleID,
 	).Scan(&d.ID)
 }
 
 func (s *PostgresStore) GetDepartment(ctx context.Context, id int64) (*models.Department, error) {
-	q := fmt.Sprintf(`SELECT id, name, slug, description, email, is_active, default_sla_policy_id, created_at, updated_at
+	q := fmt.Sprintf(`SELECT id, name, slug, description, email, is_active, default_sla_policy_id, created_at, updated_at, business_schedule_id
 		FROM %s WHERE id = $1`, s.t("departments"))
 
 	d := &models.Department{}
 	err := ticketaccess.QueryRowContext(ctx, s.db, q, id).Scan(
-		&d.ID, &d.Name, &d.Slug, &d.Description, &d.Email, &d.IsActive, &d.DefaultSLAPolicyID, &d.CreatedAt, &d.UpdatedAt,
+		&d.ID, &d.Name, &d.Slug, &d.Description, &d.Email, &d.IsActive, &d.DefaultSLAPolicyID, &d.CreatedAt, &d.UpdatedAt, &d.BusinessScheduleID,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -425,7 +425,7 @@ func (s *PostgresStore) GetDepartment(ctx context.Context, id int64) (*models.De
 }
 
 func (s *PostgresStore) ListDepartments(ctx context.Context, activeOnly bool) ([]*models.Department, error) {
-	q := fmt.Sprintf(`SELECT id, name, slug, description, email, is_active, default_sla_policy_id, created_at, updated_at
+	q := fmt.Sprintf(`SELECT id, name, slug, description, email, is_active, default_sla_policy_id, created_at, updated_at, business_schedule_id
 		FROM %s`, s.t("departments"))
 	if activeOnly {
 		q += " WHERE is_active = TRUE"
@@ -442,7 +442,7 @@ func (s *PostgresStore) ListDepartments(ctx context.Context, activeOnly bool) ([
 	for rows.Next() {
 		d := &models.Department{}
 		if err := rows.Scan(
-			&d.ID, &d.Name, &d.Slug, &d.Description, &d.Email, &d.IsActive, &d.DefaultSLAPolicyID, &d.CreatedAt, &d.UpdatedAt,
+			&d.ID, &d.Name, &d.Slug, &d.Description, &d.Email, &d.IsActive, &d.DefaultSLAPolicyID, &d.CreatedAt, &d.UpdatedAt, &d.BusinessScheduleID,
 		); err != nil {
 			return nil, err
 		}
@@ -454,9 +454,9 @@ func (s *PostgresStore) ListDepartments(ctx context.Context, activeOnly bool) ([
 func (s *PostgresStore) UpdateDepartment(ctx context.Context, d *models.Department) error {
 	d.UpdatedAt = time.Now()
 	q := fmt.Sprintf(`UPDATE %s SET name=$1, slug=$2, description=$3, email=$4, is_active=$5,
-		default_sla_policy_id=$6, updated_at=$7 WHERE id=$8`, s.t("departments"))
+		default_sla_policy_id=$6, updated_at=$7, business_schedule_id=$8 WHERE id=$9`, s.t("departments"))
 	_, err := ticketaccess.ExecContext(ctx, s.db, q,
-		d.Name, d.Slug, d.Description, d.Email, d.IsActive, d.DefaultSLAPolicyID, d.UpdatedAt, d.ID,
+		d.Name, d.Slug, d.Description, d.Email, d.IsActive, d.DefaultSLAPolicyID, d.UpdatedAt, d.BusinessScheduleID, d.ID,
 	)
 	return err
 }
@@ -582,24 +582,24 @@ func (s *PostgresStore) CreateSLAPolicy(ctx context.Context, p *models.SLAPolicy
 	p.UpdatedAt = now
 
 	q := fmt.Sprintf(`INSERT INTO %s
-		(name, description, first_response_hours, resolution_hours, is_active, is_default, created_at, updated_at, department_id, ticket_type)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`, s.t("sla_policies"))
+		(name, description, first_response_hours, resolution_hours, is_active, is_default, created_at, updated_at, department_id, ticket_type, business_hours_only, business_schedule_id)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`, s.t("sla_policies"))
 
 	return ticketaccess.QueryRowContext(ctx, s.db, q,
 		p.Name, p.Description, p.FirstResponseHours, p.ResolutionHours,
-		p.IsActive, p.IsDefault, p.CreatedAt, p.UpdatedAt, p.DepartmentID, p.TicketType,
+		p.IsActive, p.IsDefault, p.CreatedAt, p.UpdatedAt, p.DepartmentID, p.TicketType, p.BusinessHoursOnly, p.BusinessScheduleID,
 	).Scan(&p.ID)
 }
 
 func (s *PostgresStore) GetSLAPolicy(ctx context.Context, id int64) (*models.SLAPolicy, error) {
 	q := fmt.Sprintf(`SELECT id, name, description, first_response_hours, resolution_hours,
-		is_active, is_default, created_at, updated_at, department_id, ticket_type
+		is_active, is_default, created_at, updated_at, department_id, ticket_type, business_hours_only, business_schedule_id
 		FROM %s WHERE id = $1`, s.t("sla_policies"))
 
 	p := &models.SLAPolicy{}
 	err := ticketaccess.QueryRowContext(ctx, s.db, q, id).Scan(
 		&p.ID, &p.Name, &p.Description, &p.FirstResponseHours, &p.ResolutionHours,
-		&p.IsActive, &p.IsDefault, &p.CreatedAt, &p.UpdatedAt, &p.DepartmentID, &p.TicketType,
+		&p.IsActive, &p.IsDefault, &p.CreatedAt, &p.UpdatedAt, &p.DepartmentID, &p.TicketType, &p.BusinessHoursOnly, &p.BusinessScheduleID,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -609,13 +609,13 @@ func (s *PostgresStore) GetSLAPolicy(ctx context.Context, id int64) (*models.SLA
 
 func (s *PostgresStore) GetDefaultSLAPolicy(ctx context.Context) (*models.SLAPolicy, error) {
 	q := fmt.Sprintf(`SELECT id, name, description, first_response_hours, resolution_hours,
-		is_active, is_default, created_at, updated_at, department_id, ticket_type
+		is_active, is_default, created_at, updated_at, department_id, ticket_type, business_hours_only, business_schedule_id
 		FROM %s WHERE is_default = TRUE AND is_active = TRUE AND department_id IS NULL AND ticket_type IS NULL ORDER BY id LIMIT 1`, s.t("sla_policies"))
 
 	p := &models.SLAPolicy{}
 	err := ticketaccess.QueryRowContext(ctx, s.db, q).Scan(
 		&p.ID, &p.Name, &p.Description, &p.FirstResponseHours, &p.ResolutionHours,
-		&p.IsActive, &p.IsDefault, &p.CreatedAt, &p.UpdatedAt, &p.DepartmentID, &p.TicketType,
+		&p.IsActive, &p.IsDefault, &p.CreatedAt, &p.UpdatedAt, &p.DepartmentID, &p.TicketType, &p.BusinessHoursOnly, &p.BusinessScheduleID,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -625,7 +625,7 @@ func (s *PostgresStore) GetDefaultSLAPolicy(ctx context.Context) (*models.SLAPol
 
 func (s *PostgresStore) ListSLAPolicies(ctx context.Context, activeOnly bool) ([]*models.SLAPolicy, error) {
 	q := fmt.Sprintf(`SELECT id, name, description, first_response_hours, resolution_hours,
-		is_active, is_default, created_at, updated_at, department_id, ticket_type
+		is_active, is_default, created_at, updated_at, department_id, ticket_type, business_hours_only, business_schedule_id
 		FROM %s`, s.t("sla_policies"))
 	if activeOnly {
 		q += " WHERE is_active = TRUE"
@@ -643,7 +643,7 @@ func (s *PostgresStore) ListSLAPolicies(ctx context.Context, activeOnly bool) ([
 		p := &models.SLAPolicy{}
 		if err := rows.Scan(
 			&p.ID, &p.Name, &p.Description, &p.FirstResponseHours, &p.ResolutionHours,
-			&p.IsActive, &p.IsDefault, &p.CreatedAt, &p.UpdatedAt, &p.DepartmentID, &p.TicketType,
+			&p.IsActive, &p.IsDefault, &p.CreatedAt, &p.UpdatedAt, &p.DepartmentID, &p.TicketType, &p.BusinessHoursOnly, &p.BusinessScheduleID,
 		); err != nil {
 			return nil, err
 		}
@@ -655,11 +655,11 @@ func (s *PostgresStore) ListSLAPolicies(ctx context.Context, activeOnly bool) ([
 func (s *PostgresStore) UpdateSLAPolicy(ctx context.Context, p *models.SLAPolicy) error {
 	p.UpdatedAt = time.Now()
 	q := fmt.Sprintf(`UPDATE %s SET name=$1, description=$2, first_response_hours=$3,
-		resolution_hours=$4, is_active=$5, is_default=$6, updated_at=$7, department_id=$8, ticket_type=$9 WHERE id=$10`,
+		resolution_hours=$4, is_active=$5, is_default=$6, updated_at=$7, department_id=$8, ticket_type=$9, business_hours_only=$10, business_schedule_id=$11 WHERE id=$12`,
 		s.t("sla_policies"))
 	_, err := ticketaccess.ExecContext(ctx, s.db, q,
 		p.Name, p.Description, p.FirstResponseHours, p.ResolutionHours,
-		p.IsActive, p.IsDefault, p.UpdatedAt, p.DepartmentID, p.TicketType, p.ID,
+		p.IsActive, p.IsDefault, p.UpdatedAt, p.DepartmentID, p.TicketType, p.BusinessHoursOnly, p.BusinessScheduleID, p.ID,
 	)
 	return err
 }

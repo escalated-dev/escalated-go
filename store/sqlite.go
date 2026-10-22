@@ -402,11 +402,11 @@ func (s *SQLiteStore) CreateDepartment(ctx context.Context, d *models.Department
 	d.CreatedAt = now
 	d.UpdatedAt = now
 
-	q := fmt.Sprintf(`INSERT INTO %s (name, slug, description, email, is_active, default_sla_policy_id, created_at, updated_at)
-		VALUES (?,?,?,?,?,?,?,?)`, s.t("departments"))
+	q := fmt.Sprintf(`INSERT INTO %s (name, slug, description, email, is_active, default_sla_policy_id, created_at, updated_at, business_schedule_id)
+		VALUES (?,?,?,?,?,?,?,?,?)`, s.t("departments"))
 
 	res, err := ticketaccess.ExecContext(ctx, s.db, q,
-		d.Name, d.Slug, d.Description, d.Email, d.IsActive, d.DefaultSLAPolicyID, d.CreatedAt, d.UpdatedAt,
+		d.Name, d.Slug, d.Description, d.Email, d.IsActive, d.DefaultSLAPolicyID, d.CreatedAt, d.UpdatedAt, d.BusinessScheduleID,
 	)
 	if err != nil {
 		return err
@@ -416,12 +416,12 @@ func (s *SQLiteStore) CreateDepartment(ctx context.Context, d *models.Department
 }
 
 func (s *SQLiteStore) GetDepartment(ctx context.Context, id int64) (*models.Department, error) {
-	q := fmt.Sprintf(`SELECT id, name, slug, description, email, is_active, default_sla_policy_id, created_at, updated_at
+	q := fmt.Sprintf(`SELECT id, name, slug, description, email, is_active, default_sla_policy_id, created_at, updated_at, business_schedule_id
 		FROM %s WHERE id = ?`, s.t("departments"))
 
 	d := &models.Department{}
 	err := ticketaccess.QueryRowContext(ctx, s.db, q, id).Scan(
-		&d.ID, &d.Name, &d.Slug, &d.Description, &d.Email, &d.IsActive, &d.DefaultSLAPolicyID, &d.CreatedAt, &d.UpdatedAt,
+		&d.ID, &d.Name, &d.Slug, &d.Description, &d.Email, &d.IsActive, &d.DefaultSLAPolicyID, &d.CreatedAt, &d.UpdatedAt, &d.BusinessScheduleID,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -430,7 +430,7 @@ func (s *SQLiteStore) GetDepartment(ctx context.Context, id int64) (*models.Depa
 }
 
 func (s *SQLiteStore) ListDepartments(ctx context.Context, activeOnly bool) ([]*models.Department, error) {
-	q := fmt.Sprintf(`SELECT id, name, slug, description, email, is_active, default_sla_policy_id, created_at, updated_at
+	q := fmt.Sprintf(`SELECT id, name, slug, description, email, is_active, default_sla_policy_id, created_at, updated_at, business_schedule_id
 		FROM %s`, s.t("departments"))
 	if activeOnly {
 		q += " WHERE is_active = 1"
@@ -447,7 +447,7 @@ func (s *SQLiteStore) ListDepartments(ctx context.Context, activeOnly bool) ([]*
 	for rows.Next() {
 		d := &models.Department{}
 		if err := rows.Scan(
-			&d.ID, &d.Name, &d.Slug, &d.Description, &d.Email, &d.IsActive, &d.DefaultSLAPolicyID, &d.CreatedAt, &d.UpdatedAt,
+			&d.ID, &d.Name, &d.Slug, &d.Description, &d.Email, &d.IsActive, &d.DefaultSLAPolicyID, &d.CreatedAt, &d.UpdatedAt, &d.BusinessScheduleID,
 		); err != nil {
 			return nil, err
 		}
@@ -459,9 +459,9 @@ func (s *SQLiteStore) ListDepartments(ctx context.Context, activeOnly bool) ([]*
 func (s *SQLiteStore) UpdateDepartment(ctx context.Context, d *models.Department) error {
 	d.UpdatedAt = time.Now()
 	q := fmt.Sprintf(`UPDATE %s SET name=?, slug=?, description=?, email=?, is_active=?,
-		default_sla_policy_id=?, updated_at=? WHERE id=?`, s.t("departments"))
+		default_sla_policy_id=?, updated_at=?, business_schedule_id=? WHERE id=?`, s.t("departments"))
 	_, err := ticketaccess.ExecContext(ctx, s.db, q,
-		d.Name, d.Slug, d.Description, d.Email, d.IsActive, d.DefaultSLAPolicyID, d.UpdatedAt, d.ID,
+		d.Name, d.Slug, d.Description, d.Email, d.IsActive, d.DefaultSLAPolicyID, d.UpdatedAt, d.BusinessScheduleID, d.ID,
 	)
 	return err
 }
@@ -591,12 +591,12 @@ func (s *SQLiteStore) CreateSLAPolicy(ctx context.Context, p *models.SLAPolicy) 
 	p.UpdatedAt = now
 
 	q := fmt.Sprintf(`INSERT INTO %s
-		(name, description, first_response_hours, resolution_hours, is_active, is_default, created_at, updated_at, department_id, ticket_type)
-		VALUES (?,?,?,?,?,?,?,?,?,?)`, s.t("sla_policies"))
+		(name, description, first_response_hours, resolution_hours, is_active, is_default, created_at, updated_at, department_id, ticket_type, business_hours_only, business_schedule_id)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`, s.t("sla_policies"))
 
 	res, err := ticketaccess.ExecContext(ctx, s.db, q,
 		p.Name, p.Description, p.FirstResponseHours, p.ResolutionHours,
-		p.IsActive, p.IsDefault, p.CreatedAt, p.UpdatedAt, p.DepartmentID, p.TicketType,
+		p.IsActive, p.IsDefault, p.CreatedAt, p.UpdatedAt, p.DepartmentID, p.TicketType, p.BusinessHoursOnly, p.BusinessScheduleID,
 	)
 	if err != nil {
 		return err
@@ -607,13 +607,13 @@ func (s *SQLiteStore) CreateSLAPolicy(ctx context.Context, p *models.SLAPolicy) 
 
 func (s *SQLiteStore) GetSLAPolicy(ctx context.Context, id int64) (*models.SLAPolicy, error) {
 	q := fmt.Sprintf(`SELECT id, name, description, first_response_hours, resolution_hours,
-		is_active, is_default, created_at, updated_at, department_id, ticket_type
+		is_active, is_default, created_at, updated_at, department_id, ticket_type, business_hours_only, business_schedule_id
 		FROM %s WHERE id = ?`, s.t("sla_policies"))
 
 	p := &models.SLAPolicy{}
 	err := ticketaccess.QueryRowContext(ctx, s.db, q, id).Scan(
 		&p.ID, &p.Name, &p.Description, &p.FirstResponseHours, &p.ResolutionHours,
-		&p.IsActive, &p.IsDefault, &p.CreatedAt, &p.UpdatedAt, &p.DepartmentID, &p.TicketType,
+		&p.IsActive, &p.IsDefault, &p.CreatedAt, &p.UpdatedAt, &p.DepartmentID, &p.TicketType, &p.BusinessHoursOnly, &p.BusinessScheduleID,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -623,13 +623,13 @@ func (s *SQLiteStore) GetSLAPolicy(ctx context.Context, id int64) (*models.SLAPo
 
 func (s *SQLiteStore) GetDefaultSLAPolicy(ctx context.Context) (*models.SLAPolicy, error) {
 	q := fmt.Sprintf(`SELECT id, name, description, first_response_hours, resolution_hours,
-		is_active, is_default, created_at, updated_at, department_id, ticket_type
+		is_active, is_default, created_at, updated_at, department_id, ticket_type, business_hours_only, business_schedule_id
 		FROM %s WHERE is_default = 1 AND is_active = 1 AND department_id IS NULL AND ticket_type IS NULL ORDER BY id LIMIT 1`, s.t("sla_policies"))
 
 	p := &models.SLAPolicy{}
 	err := ticketaccess.QueryRowContext(ctx, s.db, q).Scan(
 		&p.ID, &p.Name, &p.Description, &p.FirstResponseHours, &p.ResolutionHours,
-		&p.IsActive, &p.IsDefault, &p.CreatedAt, &p.UpdatedAt, &p.DepartmentID, &p.TicketType,
+		&p.IsActive, &p.IsDefault, &p.CreatedAt, &p.UpdatedAt, &p.DepartmentID, &p.TicketType, &p.BusinessHoursOnly, &p.BusinessScheduleID,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -639,7 +639,7 @@ func (s *SQLiteStore) GetDefaultSLAPolicy(ctx context.Context) (*models.SLAPolic
 
 func (s *SQLiteStore) ListSLAPolicies(ctx context.Context, activeOnly bool) ([]*models.SLAPolicy, error) {
 	q := fmt.Sprintf(`SELECT id, name, description, first_response_hours, resolution_hours,
-		is_active, is_default, created_at, updated_at, department_id, ticket_type
+		is_active, is_default, created_at, updated_at, department_id, ticket_type, business_hours_only, business_schedule_id
 		FROM %s`, s.t("sla_policies"))
 	if activeOnly {
 		q += " WHERE is_active = 1"
@@ -657,7 +657,7 @@ func (s *SQLiteStore) ListSLAPolicies(ctx context.Context, activeOnly bool) ([]*
 		p := &models.SLAPolicy{}
 		if err := rows.Scan(
 			&p.ID, &p.Name, &p.Description, &p.FirstResponseHours, &p.ResolutionHours,
-			&p.IsActive, &p.IsDefault, &p.CreatedAt, &p.UpdatedAt, &p.DepartmentID, &p.TicketType,
+			&p.IsActive, &p.IsDefault, &p.CreatedAt, &p.UpdatedAt, &p.DepartmentID, &p.TicketType, &p.BusinessHoursOnly, &p.BusinessScheduleID,
 		); err != nil {
 			return nil, err
 		}
@@ -669,11 +669,11 @@ func (s *SQLiteStore) ListSLAPolicies(ctx context.Context, activeOnly bool) ([]*
 func (s *SQLiteStore) UpdateSLAPolicy(ctx context.Context, p *models.SLAPolicy) error {
 	p.UpdatedAt = time.Now()
 	q := fmt.Sprintf(`UPDATE %s SET name=?, description=?, first_response_hours=?,
-		resolution_hours=?, is_active=?, is_default=?, updated_at=?, department_id=?, ticket_type=? WHERE id=?`,
+		resolution_hours=?, is_active=?, is_default=?, updated_at=?, department_id=?, ticket_type=?, business_hours_only=?, business_schedule_id=? WHERE id=?`,
 		s.t("sla_policies"))
 	_, err := ticketaccess.ExecContext(ctx, s.db, q,
 		p.Name, p.Description, p.FirstResponseHours, p.ResolutionHours,
-		p.IsActive, p.IsDefault, p.UpdatedAt, p.DepartmentID, p.TicketType, p.ID,
+		p.IsActive, p.IsDefault, p.UpdatedAt, p.DepartmentID, p.TicketType, p.BusinessHoursOnly, p.BusinessScheduleID, p.ID,
 	)
 	return err
 }
