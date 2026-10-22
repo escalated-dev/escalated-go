@@ -78,6 +78,9 @@ func (ss *SLAService) openTickets(ctx context.Context, fn func(*models.Ticket) e
 // activity and fires sla.breached once per ticket (the breach flag keeps a
 // ticket from being announced twice).
 func (ss *SLAService) CheckBreaches(ctx context.Context) (int, error) {
+	if IsImporting(ctx) {
+		return 0, nil
+	}
 	breached := 0
 	now := ss.now()
 	err := ss.openTickets(ctx, func(t *models.Ticket) error {
@@ -123,6 +126,9 @@ func (ss *SLAService) CheckBreaches(ctx context.Context) (int, error) {
 // no record of having warned: each run inside the window warns again, so pick
 // the schedule with that in mind.
 func (ss *SLAService) CheckWarnings(ctx context.Context, warningMinutes int) (int, error) {
+	if IsImporting(ctx) {
+		return 0, nil
+	}
 	if warningMinutes <= 0 {
 		warningMinutes = DefaultSLAWarningMinutes
 	}
@@ -162,6 +168,10 @@ func (ss *SLAService) CheckWarnings(ctx context.Context, warningMinutes int) (in
 
 // ApplyPolicy applies an SLA policy to a ticket based on its priority.
 func (ss *SLAService) ApplyPolicy(ctx context.Context, ticketID, policyID int64) error {
+	// Import mode: imported history gets no SLA clock.
+	if IsImporting(ctx) {
+		return nil
+	}
 	t, err := ss.store.GetTicket(ctx, ticketID)
 	if err != nil || t == nil {
 		return err
@@ -186,6 +196,9 @@ func (ss *SLAService) ApplyPolicy(ctx context.Context, ticketID, policyID int64)
 
 // ApplyDefaultPolicy explicitly reselects a policy, retaining the creation clock in targeted mode.
 func (ss *SLAService) ApplyDefaultPolicy(ctx context.Context, ticketID int64) error {
+	if IsImporting(ctx) {
+		return nil
+	}
 	ticket, err := ss.store.GetTicket(ctx, ticketID)
 	if err != nil || ticket == nil {
 		return err

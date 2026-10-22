@@ -553,6 +553,9 @@ func statusLifecycleEvent(oldStatus, newStatus int) string {
 }
 
 func (ts *TicketService) applySLA(ctx context.Context, t *models.Ticket) error {
+	if IsImporting(ctx) {
+		return nil
+	}
 	// Try department default SLA, then global default
 	var policy *models.SLAPolicy
 	targeted := false

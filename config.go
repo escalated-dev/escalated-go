@@ -236,6 +236,23 @@ type Config struct {
 	// grants and the legacy-token transition. Set Secret in production. See
 	// docs/guest-access.md.
 	GuestAccess services.GuestAccessConfig
+
+	// ImportAdapters are the sources the admin Import wizard imports from
+	// (escalated-laravel's import.adapters filter). Escalated ships none: a
+	// Zendesk or Freshdesk adapter is the host's, or a plugin package's.
+	ImportAdapters []services.ImportAdapter
+
+	// ImportSecret seals import credentials while they wait between the
+	// wizard's steps and on the import job. Empty uses GuestAccess.Secret.
+	ImportSecret string
+
+	// UserIDByEmail finds a host user by email for imports: agents must
+	// exist; contacts that do import as that user, others as guests.
+	UserIDByEmail func(ctx context.Context, email string) (models.UserID, error)
+
+	// ImportDispatcher hands a started import job's id to the host's queue,
+	// whose worker calls Escalated.Imports().Run. Nil runs it in a goroutine.
+	ImportDispatcher func(jobID string)
 }
 
 // DefaultConfig returns a Config with sensible defaults.

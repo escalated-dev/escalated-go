@@ -624,7 +624,41 @@ func migrationStatements(p string) []string {
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%scontact_opt_out ON %s (marketing_opt_out_at)", p, p+"contacts"),
 	}
 
-	return append(append(append(stmts, indexes...), engineAddonStatements(p)...), ticketStatusStatements(p)...)
+	stmts = append(append(append(stmts, indexes...), engineAddonStatements(p)...), ticketStatusStatements(p)...)
+	return append(stmts, importStatements(p)...)
+}
+
+// importStatements create the import framework's tables, as escalated-laravel's:
+// import_jobs (status, sealed credentials, mappings, progress, error log) and
+// import_source_maps (which Escalated record each source record became). The
+// job id is a UUID string made by services.ImportService.
+func importStatements(p string) []string {
+	return []string{
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id VARCHAR(36) PRIMARY KEY,
+			user_id %s,
+			platform VARCHAR(50) NOT NULL,
+			status VARCHAR(30) NOT NULL DEFAULT 'pending',
+			credentials TEXT,
+			field_mappings TEXT,
+			progress TEXT,
+			error_log TEXT,
+			started_at TIMESTAMPTZ,
+			completed_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"import_jobs", UserIDColumnType()),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%simport_job_status ON %s (status)", p, p+"import_jobs"),
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			import_job_id VARCHAR(36) NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
+			entity_type VARCHAR(50) NOT NULL,
+			source_id VARCHAR(191) NOT NULL,
+			escalated_id VARCHAR(191) NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"import_source_maps", p+"import_jobs"),
+		fmt.Sprintf("CREATE UNIQUE INDEX IF NOT EXISTS idx_%simport_source_map ON %s (import_job_id, entity_type, source_id)", p, p+"import_source_maps"),
+	}
 }
 
 // ticketStatusStatements create the custom ticket statuses table (Laravel's

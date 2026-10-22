@@ -39,6 +39,16 @@ func customFieldService(esc *escalated.Escalated) *services.CustomFieldService {
 	return &services.CustomFieldService{DB: esc.Config.DB, Prefix: esc.Config.TablePrefix}
 }
 
+// newImportHandler is the admin Import wizard over esc.Imports().
+func newImportHandler(esc *escalated.Escalated) *handlers.ImportHandler {
+	return &handlers.ImportHandler{
+		Svc:         esc.Imports(),
+		Renderer:    esc.Renderer,
+		RoutePrefix: esc.Config.RoutePrefix,
+		UserID:      esc.Config.UserIDFunc,
+	}
+}
+
 // wireUIPages gives the page handlers what they need to build the props the
 // shared Vue pages read: the database for counts, the host's user lookups,
 // the route prefix for links, and the ticket screen's panels.

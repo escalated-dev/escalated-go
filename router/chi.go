@@ -348,6 +348,12 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Patch("/statuses/{id}", adminH.UpdateStatus)
 				r.Delete("/statuses/{id}", adminH.DeleteStatus)
 
+				// Import wizard (escalated.admin.import.*, Laravel's paths).
+				importH := newImportHandler(esc)
+				r.Get("/import", importH.Index)
+				r.Get("/import/{a}/{b}", importH.Get)
+				r.Post("/import/{a}/{b}", importH.Post)
+
 				// Data-retention purge (attachments + audit logs per policy).
 				r.Post("/data-retention/purge", retentionH.Purge)
 
