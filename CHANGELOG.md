@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-10-22
+
 ### Upgrading
 - Updating a webhook with the secret left blank (or left out) now keeps the
   stored secret, because the form no longer receives it; it used to remove
