@@ -64,7 +64,7 @@ func TestAdminWebhookPages(t *testing.T) {
 
 			edit := visit(t, h, index+"/"+itoa(id)+"/edit", uiAgent, "admin")
 			hasKeys(t, "edit props", edit.Props, "webhook", "availableEvents")
-			hasKeys(t, "webhook", obj(t, edit.Props, "webhook"), "id", "url", "events", "secret", "active")
+			hasKeys(t, "webhook", obj(t, edit.Props, "webhook"), "id", "url", "events", "has_secret", "active")
 
 			wantRedirect(t, pageJSON(h, http.MethodPut, index+"/"+itoa(id), `{"url":"`+url+`","events":["ticket.created","ticket.assigned"],"secret":"","active":false}`), "update", index)
 			var active bool

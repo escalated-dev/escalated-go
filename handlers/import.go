@@ -349,25 +349,24 @@ func (h *ImportHandler) control(w http.ResponseWriter, r *http.Request, action, 
 	seeOther(w, r, h.base()+"/progress/"+job.ID)
 }
 
-// importJobProps is the job as the screens read it. Laravel sends the model
-// as is; its credentials are left out here: they are a secret, and no screen
-// reads them.
+// importJobProps is the job as the screens read it, as Laravel's
+// ImportJob::toPageProps(): an explicit field list, so a column added later
+// is not sent to the browser by default. The credentials are never sent; the
+// run reads them server-side.
 func importJobProps(j *services.ImportJob) map[string]any {
-	var userID any
-	if j.UserID != nil {
-		userID = string(*j.UserID)
+	errs := j.ErrorLog
+	if len(errs) > 50 {
+		errs = errs[len(errs)-50:]
 	}
 	return map[string]any{
 		"id":             j.ID,
-		"user_id":        userID,
 		"platform":       j.Platform,
 		"status":         j.Status,
-		"field_mappings": j.FieldMappings,
 		"progress":       j.Progress,
-		"error_log":      j.ErrorLog,
+		"field_mappings": j.FieldMappings,
+		"error_log":      errs,
 		"started_at":     j.StartedAt,
 		"completed_at":   j.CompletedAt,
 		"created_at":     uiTimeValue(j.CreatedAt),
-		"updated_at":     uiTimeValue(j.UpdatedAt),
 	}
 }

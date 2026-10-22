@@ -74,7 +74,9 @@ type Ticket struct {
 	// Guest ticket fields (Pattern A, preserved for backwards compat)
 	GuestName  *string `json:"guest_name,omitempty"`
 	GuestEmail *string `json:"guest_email,omitempty"`
-	GuestToken *string `json:"guest_token,omitempty"`
+	// GuestToken is a bearer credential; never serialized. The guest flows
+	// that hand it to its owner name it explicitly.
+	GuestToken *string `json:"-"`
 
 	// First-class Contact FK (Pattern B convergence). Populated for
 	// new public submissions; backfilled from GuestEmail for existing

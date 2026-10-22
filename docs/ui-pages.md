@@ -124,6 +124,10 @@ for anyone else. Their writes (`store`, `update` as `PUT` or `PATCH`,
 back, for a retry), or the page again with an `errors` prop; API clients get
 the answers they always had.
 
+A webhook's signing secret is never sent back: the pages and the JSON list
+carry `has_secret` instead. On update a blank or missing `secret` keeps the
+stored one, a non-blank one replaces it and `clear_secret: true` removes it.
+
 The knowledge base admin pages are at Laravel's resource paths
 (`/admin/kb-articles`, `/admin/kb-categories`); the older `/admin/kb/...` JSON
 routes stay. Their forms send ids as `""` when unset, which is read as none.
