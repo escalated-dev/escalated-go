@@ -30,6 +30,11 @@ func reportFixture(t *testing.T) *uiFixture {
 	exec(`UPDATE escalated_tickets SET created_at = ?, first_response_at = ?, resolved_at = ?, status = 5,
 		sla_first_response_due_at = ?, sla_resolution_due_at = ? WHERE id = ?`,
 		created, created.Add(30*time.Minute), created.Add(2*time.Hour), created.Add(time.Hour), created.Add(time.Hour), f.ticket.ID)
+	// The rating's created_at defaults to the database's clock, which can run
+	// ahead of this process's (a Docker Postgres on Windows does by seconds),
+	// putting the rating after the report's "now" and out of the period. Pin
+	// it to the fixture's own times: rated once resolved.
+	exec(`UPDATE escalated_satisfaction_ratings SET created_at = ? WHERE ticket_id = ?`, created.Add(2*time.Hour), f.ticket.ID)
 	exec(`UPDATE escalated_tickets SET first_response_at = NULL, sla_first_response_due_at = ? WHERE id = ?`, time.Now().Add(-time.Hour).UTC(), f.other.ID)
 	third, err := services.NewTicketService(f.esc.Store).Create(context.Background(), services.CreateTicketInput{Subject: "Due soon", Description: "x", GuestName: ptr("S"), GuestEmail: ptr("s@example.com")})
 	if err != nil {
