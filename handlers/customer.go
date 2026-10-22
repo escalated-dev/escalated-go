@@ -28,6 +28,10 @@ type CustomerHandler struct {
 	Users       UserLookup
 	DB          *sql.DB
 	TablePrefix string
+
+	// CustomFields validates and stores custom_fields on create and lists
+	// them on the create and show pages. Optional.
+	CustomFields *services.CustomFieldService
 }
 
 // NewCustomerHandler creates a new CustomerHandler.
@@ -178,6 +182,8 @@ func (h *CustomerHandler) renderCreate(w http.ResponseWriter, r *http.Request, e
 	props := map[string]any{
 		"departments": uiDepartments(r.Context(), h.store),
 		"priorities":  uiPriorities(),
+		// The active ticket custom fields the form collects.
+		"custom_fields": h.CustomFields.TicketFieldDefinitions(r.Context()),
 	}
 	if errs != nil {
 		props["errors"] = pageErrors(errs)
@@ -206,7 +212,8 @@ func (h *CustomerHandler) Show(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = h.renderer.Render(w, r, "Escalated/Customer/Show", map[string]any{
-		"ticket": h.customerPayload(r, t),
+		"ticket":        h.customerPayload(r, t),
+		"custom_fields": h.CustomFields.TicketFieldValues(ctx, t.ID),
 	})
 }
 
@@ -325,6 +332,20 @@ func (h *CustomerHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if ticketType != "" && !slices.Contains(models.TicketTypes, ticketType) {
 		errs["ticket_type"] = "The selected ticket type is invalid."
 	}
+	// Custom field values are validated before the ticket is written, so a
+	// failed create leaves no ticket behind.
+	fieldInput, _, fieldsOK := ticketCustomFieldsInput(in)
+	var fieldValues services.FieldValues
+	if !fieldsOK {
+		errs["custom_fields"] = "The custom fields must be an object."
+	} else {
+		values, err := validateTicketCustomFields(r, h.CustomFields, fieldInput, true, errs)
+		if err != nil {
+			http.Error(w, "could not read the custom fields", http.StatusInternalServerError)
+			return
+		}
+		fieldValues = values
+	}
 	if len(errs) > 0 {
 		validationErrors(w, r, errs, func(errs map[string]string) { h.renderCreate(w, r, errs) })
 		return
@@ -344,6 +365,10 @@ func (h *CustomerHandler) Create(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		http.Error(w, "could not create the ticket", http.StatusInternalServerError)
+		return
+	}
+	if err := h.CustomFields.SaveTicketValues(r.Context(), t.ID, fieldValues); err != nil {
+		http.Error(w, "could not save the custom fields", http.StatusInternalServerError)
 		return
 	}
 

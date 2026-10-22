@@ -47,6 +47,10 @@ type AgentHandler struct {
 	// gates the bulk delete. Both optional.
 	Agents  SkillAgentDirectory
 	IsAdmin func(r *http.Request) bool
+
+	// CustomFields validates and stores the ticket's custom_fields and
+	// lists them on the ticket screen. Optional.
+	CustomFields *services.CustomFieldService
 }
 
 // NewAgentHandler creates a new AgentHandler.
@@ -271,6 +275,7 @@ func (h *AgentHandler) renderShow(w http.ResponseWriter, r *http.Request, t *mod
 		"macros":          macros,
 		"is_following":    q.isFollowing(ctx, t.ID, uid),
 		"followers_count": q.followersCount(ctx, t.ID),
+		"custom_fields":   h.CustomFields.TicketFieldValues(ctx, t.ID),
 	}
 	if errs != nil {
 		props["errors"] = pageErrors(errs)

@@ -39,6 +39,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 
 	apiH := handlers.NewAPIHandler(s, ticketSvc, rend, cfg.UserIDFunc)
 	apiH.Subjects = subjectSvc
+	apiH.CustomFields = customFieldService(esc)
 	subjectH := handlers.NewTicketSubjectHandler(subjectSvc, ticketSvc)
 	apiH.Actions = actionRegistry
 	apiH.OnCustomAction = cfg.OnCustomAction
@@ -314,6 +315,29 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Put("/business-hours/{id}", adminH.UpdateBusinessHours)
 				r.Patch("/business-hours/{id}", adminH.UpdateBusinessHours)
 				r.Delete("/business-hours/{id}", adminH.DeleteBusinessHours)
+
+				// Custom fields (escalated.admin.custom-fields.*) and custom
+				// objects with their records (escalated.admin.custom-objects.*).
+				r.Get("/custom-fields", adminH.ListCustomFields)
+				r.Post("/custom-fields", adminH.StoreCustomField)
+				r.Get("/custom-fields/create", adminH.CreateCustomFieldForm)
+				r.Post("/custom-fields/reorder", adminH.ReorderCustomFields)
+				r.Get("/custom-fields/{id}/edit", adminH.EditCustomFieldForm)
+				r.Put("/custom-fields/{id}", adminH.UpdateCustomField)
+				r.Patch("/custom-fields/{id}", adminH.UpdateCustomField)
+				r.Delete("/custom-fields/{id}", adminH.DeleteCustomField)
+				r.Get("/custom-objects", adminH.ListCustomObjects)
+				r.Post("/custom-objects", adminH.StoreCustomObject)
+				r.Get("/custom-objects/create", adminH.CreateCustomObjectForm)
+				r.Get("/custom-objects/{id}/edit", adminH.EditCustomObjectForm)
+				r.Put("/custom-objects/{id}", adminH.UpdateCustomObject)
+				r.Patch("/custom-objects/{id}", adminH.UpdateCustomObject)
+				r.Delete("/custom-objects/{id}", adminH.DeleteCustomObject)
+				r.Get("/custom-objects/{id}/records", adminH.CustomObjectRecords)
+				r.Post("/custom-objects/{id}/records", adminH.StoreCustomObjectRecord)
+				r.Put("/custom-objects/{id}/records/{record}", adminH.UpdateCustomObjectRecord)
+				r.Patch("/custom-objects/{id}/records/{record}", adminH.UpdateCustomObjectRecord)
+				r.Delete("/custom-objects/{id}/records/{record}", adminH.DeleteCustomObjectRecord)
 
 				// Data-retention purge (attachments + audit logs per policy).
 				r.Post("/data-retention/purge", retentionH.Purge)

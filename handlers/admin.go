@@ -33,6 +33,10 @@ type AdminHandler struct {
 	// targeted switch (Config.TargetedSLAs). Set by the router.
 	RoutePrefix  string
 	TargetedSLAs bool
+
+	// CustomFields backs the custom field and custom object admin. Set by
+	// the router.
+	CustomFields *services.CustomFieldService
 }
 
 func (h *AdminHandler) slaIndexURL() string {

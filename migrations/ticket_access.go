@@ -37,6 +37,11 @@ func upgradeTicketAccess(db *sql.DB, prefix string, postgres bool) error {
 		{"sla_policies", "business_hours_only", boolFalse},
 		{"sla_policies", "business_schedule_id", "BIGINT REFERENCES " + prefix + "business_schedules(id) ON DELETE SET NULL"},
 		{"departments", "business_schedule_id", "BIGINT REFERENCES " + prefix + "business_schedules(id) ON DELETE SET NULL"},
+		// Custom field columns Laravel has and the original table lacked.
+		// Nullable, so existing fields are untouched.
+		{"custom_fields", "placeholder", "VARCHAR(255)"},
+		{"custom_fields", "validation_rules", "TEXT"},
+		{"custom_fields", "conditions", "TEXT"},
 	}
 	for _, column := range columns {
 		exists := false

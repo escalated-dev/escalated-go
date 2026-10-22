@@ -29,6 +29,10 @@ type APIHandler struct {
 	Actions        *actions.Registry
 	OnCustomAction func(ctx context.Context, e actions.CustomActionEvent) error
 	RoutePrefix    string
+
+	// CustomFields validates and stores custom_fields on create and update
+	// and adds them to the ticket detail. Optional.
+	CustomFields *services.CustomFieldService
 }
 
 // NewAPIHandler creates a new APIHandler.
@@ -174,8 +178,19 @@ func (h *APIHandler) ShowTicket(w http.ResponseWriter, r *http.Request) {
 	t.CustomActions = h.customActionsFor(t, h.userID(r))
 	populateTicketSubjects(r.Context(), h, t)
 
+	// The ticket payload gains custom_fields: the active ticket fields with
+	// this ticket's values.
+	var ticket any = t
+	if b, err := json.Marshal(t); err == nil {
+		payload := map[string]any{}
+		if json.Unmarshal(b, &payload) == nil {
+			payload["custom_fields"] = h.CustomFields.TicketFieldValues(r.Context(), t.ID)
+			ticket = payload
+		}
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
-		"ticket":      t,
+		"ticket":      ticket,
 		"replies":     replies,
 		"activities":  activities,
 		"attachments": ticketAttachments,
@@ -259,6 +274,8 @@ func (h *APIHandler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 		Priority     int    `json:"priority"`
 		TicketType   string `json:"ticket_type"`
 		DepartmentID *int64 `json:"department_id"`
+
+		CustomFields map[string]any `json:"custom_fields"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
@@ -267,6 +284,19 @@ func (h *APIHandler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 
 	if in.Subject == "" || in.Description == "" {
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "subject and description are required"})
+		return
+	}
+
+	// Custom field values are validated before the ticket is written, so a
+	// failed create leaves no ticket behind.
+	fieldErrs := map[string]string{}
+	values, err := validateTicketCustomFields(r, h.CustomFields, in.CustomFields, true, fieldErrs)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not read the custom fields"})
+		return
+	}
+	if len(fieldErrs) > 0 {
+		validationErrors(w, r, fieldErrs, nil)
 		return
 	}
 
@@ -290,6 +320,10 @@ func (h *APIHandler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	if err := h.CustomFields.SaveTicketValues(r.Context(), t.ID, values); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not save the custom fields"})
 		return
 	}
 
@@ -364,6 +398,26 @@ func (h *APIHandler) UpdateTicket(w http.ResponseWriter, r *http.Request) {
 			departmentID = &v
 		}
 	}
+	// custom_fields: an object keyed by field slug; only the keys sent are
+	// checked, and omitting it changes nothing.
+	var fieldValues services.FieldValues
+	if raw, sent := updates["custom_fields"]; sent && raw != nil {
+		input, isObject := raw.(map[string]any)
+		if !isObject {
+			errs["custom_fields"] = []string{"The custom fields must be an object."}
+		} else {
+			fieldErrs := map[string]string{}
+			values, err := validateTicketCustomFields(r, h.CustomFields, input, false, fieldErrs)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not read the custom fields"})
+				return
+			}
+			for k, v := range fieldErrs {
+				errs[k] = []string{v}
+			}
+			fieldValues = values
+		}
+	}
 	if len(errs) > 0 {
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{"message": "The given data was invalid.", "errors": errs})
 		return
@@ -400,6 +454,10 @@ func (h *APIHandler) UpdateTicket(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not update ticket"})
 			return
 		}
+	}
+	if err := h.CustomFields.SaveTicketValues(ctx, id, fieldValues); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not update ticket"})
+		return
 	}
 
 	t, err = h.store.GetTicket(ctx, id)

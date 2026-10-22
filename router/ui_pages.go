@@ -30,6 +30,15 @@ type uiPageDeps struct {
 	capacity    *handlers.CapacityHandler
 }
 
+// customFieldService is the custom fields store over the host database, with
+// every table name built from Config.TablePrefix. Nil without a database.
+func customFieldService(esc *escalated.Escalated) *services.CustomFieldService {
+	if esc.Config.DB == nil {
+		return nil
+	}
+	return &services.CustomFieldService{DB: esc.Config.DB, Prefix: esc.Config.TablePrefix}
+}
+
 // wireUIPages gives the page handlers what they need to build the props the
 // shared Vue pages read: the database for counts, the host's user lookups,
 // the route prefix for links, and the ticket screen's panels.
@@ -56,6 +65,12 @@ func wireUIPages(esc *escalated.Escalated, agentH *handlers.AgentHandler, custom
 	adminH.TablePrefix = cfg.TablePrefix
 	adminH.RoutePrefix = cfg.RoutePrefix
 	adminH.TargetedSLAs = cfg.TargetedSLAs
+
+	// Custom fields: the admin, and ticket values on the ticket pages.
+	fields := customFieldService(esc)
+	adminH.CustomFields = fields
+	agentH.CustomFields = fields
+	customerH.CustomFields = fields
 
 	pages := handlers.PageSupport{Renderer: esc.Renderer, RoutePrefix: cfg.RoutePrefix, UserID: cfg.UserIDFunc, Users: users}
 	if deps.escalations != nil {
