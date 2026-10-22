@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `Escalated/Admin/Reports/AgentDetail` at `GET /admin/reports/agent/{id}/detail`
+  (`escalated.admin.reports.agent-detail`, which the agent ranking links to), on
+  both routers: one agent's tickets, response percentiles, productivity (replies
+  and notes written, tickets resolved), workload and CSAT breakdown over `days`,
+  against the period before. The props are the ones the page declares;
+  escalated-laravel's controller passes `agent_id`, `metrics` and `percentiles`,
+  which the page does not read.
+
 ## [0.2.4] - 2026-10-22
 
 ### Upgrading
