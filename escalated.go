@@ -77,14 +77,16 @@ func (e *Escalated) Imports() *services.ImportService {
 			secret = e.Config.GuestAccess.Secret
 		}
 		e.imports = &services.ImportService{
-			DB:            e.Config.DB,
-			Prefix:        e.Config.TablePrefix,
-			Store:         e.Store,
-			Adapters:      e.Config.ImportAdapters,
-			Secret:        secret,
-			UserIDByEmail: e.Config.UserIDByEmail,
-			UserType:      "User",
-			Dispatch:      e.Config.ImportDispatcher,
+			DB:                 e.Config.DB,
+			Prefix:             e.Config.TablePrefix,
+			Store:              e.Store,
+			Adapters:           e.Config.ImportAdapters,
+			Secret:             secret,
+			UserIDByEmail:      e.Config.UserIDByEmail,
+			UserType:           "User",
+			Dispatch:           e.Config.ImportDispatcher,
+			AttachmentStorage:  e.Config.ImportAttachmentStorage,
+			AttachmentMaxBytes: e.Config.ImportAttachmentMaxBytes,
 		}
 	})
 	return e.imports
