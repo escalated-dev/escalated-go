@@ -85,7 +85,7 @@ var TriggerEvents = []string{
 	"ticket.tag_added", "ticket.tag_removed",
 	"reply.created", "note.created",
 	"sla.warning", "sla.breached",
-	"chat.started", "chat.assigned", "chat.message", "chat.ended",
+	"chat.started", "chat.assigned", "chat.transferred", "chat.message", "chat.ended",
 }
 
 // TicketData holds ticket fields for condition evaluation

@@ -40,6 +40,7 @@ var SupportedWebhookEvents = []string{
 	"ticket.tag_removed",
 	"chat.started",
 	"chat.assigned",
+	"chat.transferred",
 	"chat.message",
 	"chat.ended",
 }

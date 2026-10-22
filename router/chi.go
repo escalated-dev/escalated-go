@@ -272,6 +272,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Post("/chat/sessions/{id}/accept", chatH.AcceptSession)
 				r.Post("/chat/sessions/{id}/message", chatH.SendMessage)
 				r.Post("/chat/sessions/{id}/end", chatH.EndSession)
+				r.Post("/chat/sessions/{id}/transfer", chatH.TransferSession)
 			})
 
 			// Admin routes

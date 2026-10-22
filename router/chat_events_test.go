@@ -14,8 +14,8 @@ import (
 	"github.com/escalated-dev/escalated-go/services"
 )
 
-// The live chat events this package produces (ADR 2026-10-21). There is no
-// chat transfer here, so chat.transferred is neither offered nor sent.
+// The live chat events this package produces (ADR 2026-10-21).
+// chat.transferred is covered by chat_transfer_test.go.
 var chatEvents = []string{"chat.started", "chat.assigned", "chat.message", "chat.ended"}
 
 const chatVisitorEmail = "visitor@example.com"
@@ -124,16 +124,13 @@ func TestChatEventsAreOfferedToWebhooksAndWorkflows(t *testing.T) {
 		}
 		return false
 	}
-	for _, e := range chatEvents {
+	for _, e := range append(chatEvents, "chat.transferred") {
 		if !offered(services.SupportedWebhookEvents, e) {
 			t.Errorf("webhook form does not offer %s", e)
 		}
 		if !offered(services.TriggerEvents, e) {
 			t.Errorf("workflow builder does not offer %s", e)
 		}
-	}
-	if offered(services.SupportedWebhookEvents, "chat.transferred") || offered(services.TriggerEvents, "chat.transferred") {
-		t.Error("chat.transferred is offered, but nothing here can transfer a chat")
 	}
 }
 
