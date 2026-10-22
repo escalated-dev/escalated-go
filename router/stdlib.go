@@ -55,6 +55,7 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 
 	apiH := handlers.NewAPIHandler(s, ticketSvc, rend, cfg.UserIDFunc)
 	apiH.Subjects = subjectSvc
+	apiH.CustomFields = customFieldService(esc)
 	subjectH := handlers.NewTicketSubjectHandler(subjectSvc, ticketSvc)
 	agentH := handlers.NewAgentHandler(s, ticketSvc, assignSvc, rend, cfg.UserIDFunc)
 	customerH := handlers.NewCustomerHandler(s, ticketSvc, rend, cfg.UserIDFunc)
@@ -265,6 +266,29 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 		mux.Handle("PUT "+prefix+"/admin/business-hours/{id}", adminMW(http.HandlerFunc(adminH.UpdateBusinessHours)))
 		mux.Handle("PATCH "+prefix+"/admin/business-hours/{id}", adminMW(http.HandlerFunc(adminH.UpdateBusinessHours)))
 		mux.Handle("DELETE "+prefix+"/admin/business-hours/{id}", adminMW(http.HandlerFunc(adminH.DeleteBusinessHours)))
+
+		// Custom fields (escalated.admin.custom-fields.*) and custom objects
+		// with their records (escalated.admin.custom-objects.*).
+		mux.Handle("GET "+prefix+"/admin/custom-fields", adminMW(http.HandlerFunc(adminH.ListCustomFields)))
+		mux.Handle("POST "+prefix+"/admin/custom-fields", adminMW(http.HandlerFunc(adminH.StoreCustomField)))
+		mux.Handle("GET "+prefix+"/admin/custom-fields/create", adminMW(http.HandlerFunc(adminH.CreateCustomFieldForm)))
+		mux.Handle("POST "+prefix+"/admin/custom-fields/reorder", adminMW(http.HandlerFunc(adminH.ReorderCustomFields)))
+		mux.Handle("GET "+prefix+"/admin/custom-fields/{id}/edit", adminMW(http.HandlerFunc(adminH.EditCustomFieldForm)))
+		mux.Handle("PUT "+prefix+"/admin/custom-fields/{id}", adminMW(http.HandlerFunc(adminH.UpdateCustomField)))
+		mux.Handle("PATCH "+prefix+"/admin/custom-fields/{id}", adminMW(http.HandlerFunc(adminH.UpdateCustomField)))
+		mux.Handle("DELETE "+prefix+"/admin/custom-fields/{id}", adminMW(http.HandlerFunc(adminH.DeleteCustomField)))
+		mux.Handle("GET "+prefix+"/admin/custom-objects", adminMW(http.HandlerFunc(adminH.ListCustomObjects)))
+		mux.Handle("POST "+prefix+"/admin/custom-objects", adminMW(http.HandlerFunc(adminH.StoreCustomObject)))
+		mux.Handle("GET "+prefix+"/admin/custom-objects/create", adminMW(http.HandlerFunc(adminH.CreateCustomObjectForm)))
+		mux.Handle("GET "+prefix+"/admin/custom-objects/{id}/edit", adminMW(http.HandlerFunc(adminH.EditCustomObjectForm)))
+		mux.Handle("PUT "+prefix+"/admin/custom-objects/{id}", adminMW(http.HandlerFunc(adminH.UpdateCustomObject)))
+		mux.Handle("PATCH "+prefix+"/admin/custom-objects/{id}", adminMW(http.HandlerFunc(adminH.UpdateCustomObject)))
+		mux.Handle("DELETE "+prefix+"/admin/custom-objects/{id}", adminMW(http.HandlerFunc(adminH.DeleteCustomObject)))
+		mux.Handle("GET "+prefix+"/admin/custom-objects/{id}/records", adminMW(http.HandlerFunc(adminH.CustomObjectRecords)))
+		mux.Handle("POST "+prefix+"/admin/custom-objects/{id}/records", adminMW(http.HandlerFunc(adminH.StoreCustomObjectRecord)))
+		mux.Handle("PUT "+prefix+"/admin/custom-objects/{id}/records/{record}", adminMW(http.HandlerFunc(adminH.UpdateCustomObjectRecord)))
+		mux.Handle("PATCH "+prefix+"/admin/custom-objects/{id}/records/{record}", adminMW(http.HandlerFunc(adminH.UpdateCustomObjectRecord)))
+		mux.Handle("DELETE "+prefix+"/admin/custom-objects/{id}/records/{record}", adminMW(http.HandlerFunc(adminH.DeleteCustomObjectRecord)))
 		mux.Handle("POST "+prefix+"/admin/data-retention/purge", adminMW(http.HandlerFunc(retentionH.Purge)))
 
 		// Event-driven admin Workflows (fire on ticket lifecycle events).

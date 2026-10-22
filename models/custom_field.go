@@ -14,6 +14,16 @@ const (
 	FieldTypeURL         = "url"
 )
 
+// TicketFieldTypes are the types the custom field admin accepts (Laravel's
+// list). FieldTypeURL predates it and is kept for existing rows.
+var TicketFieldTypes = []string{
+	FieldTypeText, FieldTypeTextarea, FieldTypeSelect, FieldTypeMultiSelect,
+	FieldTypeCheckbox, FieldTypeDate, FieldTypeNumber,
+}
+
+// CustomFieldContexts are the entities a custom field can belong to.
+var CustomFieldContexts = []string{"ticket", "user", "organization"}
+
 // FieldTypes lists all valid custom field types.
 var FieldTypes = []string{
 	FieldTypeText, FieldTypeTextarea, FieldTypeNumber, FieldTypeSelect,
@@ -30,9 +40,13 @@ type CustomField struct {
 	IsRequired   bool     `json:"is_required"`
 	Options      []string `json:"options,omitempty"`
 	DefaultValue *string  `json:"default_value,omitempty"`
-	EntityType   string   `json:"entity_type"`
-	Position     int      `json:"position"`
-	IsActive     bool     `json:"is_active"`
+	Placeholder  *string  `json:"placeholder,omitempty"`
+	// ValidationRules and Conditions are stored JSON, kept as sent.
+	ValidationRules JSONText `json:"validation_rules,omitempty"`
+	Conditions      JSONText `json:"conditions,omitempty"`
+	EntityType      string   `json:"entity_type"`
+	Position        int      `json:"position"`
+	IsActive        bool     `json:"is_active"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

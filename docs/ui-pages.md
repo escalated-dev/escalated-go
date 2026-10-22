@@ -107,6 +107,8 @@ point your `route()` names at these paths under your `RoutePrefix`.
 | `Admin/Users/Index` | `GET /admin/users` (needs `Config.UserDirectory`) |
 | `Admin/Macros/Index` | `GET /admin/macros` |
 | `Admin/CannedResponses/Index` | `GET /admin/canned-responses` |
+| `Admin/CustomFields/Index`, `Form` | `GET /admin/custom-fields`, `/create`, `/{id}/edit` |
+| `Admin/CustomObjects/Index`, `Form`, `Records` | `GET /admin/custom-objects`, `/create`, `/{id}/edit`, `/{id}/records` |
 | `Admin/Webhooks/Index`, `Form`, `DeliveryLog` | `GET /admin/webhooks`, `/create`, `/{id}/edit`, `/{id}/deliveries` |
 
 The admin config lists (escalation rules, macros, canned responses, webhooks

@@ -414,6 +414,19 @@ func (h *AgentHandler) UpdateTicket(w http.ResponseWriter, r *http.Request) {
 	if ticketType != nil && !validTicketType(*ticketType) {
 		errs["ticket_type"] = "The selected ticket type is invalid."
 	}
+	// custom_fields: only the keys sent are checked; omitting it changes
+	// nothing.
+	var fieldValues services.FieldValues
+	if input, present, ok := ticketCustomFieldsInput(in); !ok {
+		errs["custom_fields"] = "The custom fields must be an object."
+	} else if present {
+		values, err := validateTicketCustomFields(r, h.CustomFields, input, false, errs)
+		if err != nil {
+			h.failed(w, "update the ticket")
+			return
+		}
+		fieldValues = values
+	}
 	if len(errs) > 0 {
 		h.invalid(w, r, t, errs)
 		return
@@ -421,6 +434,10 @@ func (h *AgentHandler) UpdateTicket(w http.ResponseWriter, r *http.Request) {
 	uid := h.userID(r)
 	updated, err := h.tickets.UpdateDetails(r.Context(), t.ID, subject, description, ticketType, &uid)
 	if err != nil {
+		h.failed(w, "update the ticket")
+		return
+	}
+	if err := h.CustomFields.SaveTicketValues(r.Context(), t.ID, fieldValues); err != nil {
 		h.failed(w, "update the ticket")
 		return
 	}

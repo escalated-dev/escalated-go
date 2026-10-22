@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Upgrading
+- Custom fields (additive): `Migrate` / `MigrateSQLite` add the nullable
+  `custom_fields.placeholder`, `validation_rules` and `conditions` columns.
+  Existing fields and values are kept. With no custom fields defined, every
+  ticket request behaves as before. Once an active ticket field is
+  `required`, ticket creates (`POST /api/tickets`, `POST /tickets`) must send
+  it in `custom_fields`, or they get a validation error and no ticket.
 - Business hours (additive, nothing changes until you opt in): `Migrate` /
   `MigrateSQLite` add `sla_policies.business_hours_only` (default false),
   `sla_policies.business_schedule_id` and `departments.business_schedule_id`
@@ -60,6 +66,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for a page visit), and redirects a page visit to the new ticket.
 
 ### Added
+- Custom field admin (Laravel's routes and props):
+  `Escalated/Admin/CustomFields/Index` and `Form` at `/admin/custom-fields`
+  (`escalated.admin.custom-fields.*`, including `reorder`). Fields have a
+  type (text, textarea, select, multi_select, checkbox, date, number), a
+  context (ticket, user, organization), options, required, placeholder,
+  description, validation rules, position and active. A slug is generated
+  from the name and de-duplicated (`_2`, `_3`). A select or multi-select
+  field needs at least one option. Deleting a field deletes its values.
+- Ticket custom field values: the ticket create and update endpoints
+  (`POST /api/tickets`, `PATCH /api/tickets/{id}`, the customer `POST
+  /tickets`, the agent and admin `PUT /tickets/{id}`) accept a
+  `custom_fields` object keyed by field slug (form posts can use
+  `custom_fields[slug]` and `custom_fields[slug][]`). Only active
+  ticket-context fields are accepted, and unknown keys are rejected. Values
+  are checked by type, with errors keyed `custom_fields.<slug>`. On update,
+  only the keys sent are checked, and a blank optional value clears it. The
+  customer create page gets a `custom_fields` prop (the definitions). The
+  agent, admin and customer ticket pages get `custom_fields` (the definitions
+  with each decoded `value`), and `GET /api/tickets/{id}` adds
+  `ticket.custom_fields`. The guest and widget ticket forms do not take
+  custom fields yet.
+- Custom objects and records: `Escalated/Admin/CustomObjects/Index`, `Form`
+  and `Records` at `/admin/custom-objects` (`escalated.admin.custom-objects.*`,
+  `records`, `records.store`, `records.update`, `records.destroy`). Records
+  are validated against the object's `fields_schema`, with errors keyed
+  `data.<name>`. Deleting an object deletes its records. A record id from
+  another object returns 404.
+- Every custom field and custom object query builds its table names from
+  `Config.TablePrefix`.
 - Business hours and holidays (Laravel `BusinessHoursCalculator`,
   `Admin\BusinessHoursController`): `Escalated/Admin/BusinessHours/Index`
   and `Form` at `/admin/business-hours` (`escalated.admin.business-hours.*`),
