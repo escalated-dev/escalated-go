@@ -429,6 +429,8 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 		mux.Handle("PUT "+prefix+"/admin/settings/public-tickets", adminMW(http.HandlerFunc(adminH.UpdatePublicTicketsSettings)))
 		mux.Handle("POST "+prefix+"/admin/settings/public-tickets", adminMW(http.HandlerFunc(adminH.UpdatePublicTicketsSettings)))
 		// The Settings sub-pages (escalated.admin.settings.*).
+		mux.Handle("GET "+prefix+"/admin/settings", adminMW(http.HandlerFunc(adminH.SettingsPage)))
+		mux.Handle("POST "+prefix+"/admin/settings", adminMW(http.HandlerFunc(adminH.UpdateSettings)))
 		mux.Handle("GET "+prefix+"/admin/settings/csat", adminMW(http.HandlerFunc(adminH.CsatSettingsPage)))
 		mux.Handle("POST "+prefix+"/admin/settings/csat", adminMW(http.HandlerFunc(adminH.UpdateCsatSettings)))
 		mux.Handle("GET "+prefix+"/admin/settings/data-retention", adminMW(http.HandlerFunc(adminH.DataRetentionPage)))

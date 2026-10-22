@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/escalated-dev/escalated-go"
 	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
 )
@@ -293,5 +294,72 @@ func TestPurgeExpiredAppliesTheDataRetentionPage(t *testing.T) {
 	}
 	if got, _ := f.esc.Store.GetTicket(ctx, f.other.ID); got == nil {
 		t.Error("the open ticket was purged")
+	}
+}
+
+// The main Settings page (Laravel SettingsController): the settings this
+// package honours, named in supported_settings so the page hides the rest.
+// A save stores only those keys, and what it stores is what the knowledge base
+// and the widget read.
+func TestAdminSettingsPage(t *testing.T) {
+	for _, name := range []string{"chi", "stdlib"} {
+		t.Run(name, func(t *testing.T) {
+			f := newUIFixture(t, func(cfg *escalated.Config) {
+				cfg.EnableWidget = true
+				cfg.Widget.Enabled = true
+			})
+			h := f.mounts()[name]
+			path := "/escalated/admin/settings"
+
+			page := visit(t, h, path, uiAgent, "admin")
+			if page.Component != "Escalated/Admin/Settings" {
+				t.Fatalf("component %q", page.Component)
+			}
+			hasKeys(t, "props", page.Props, "settings", "supported_settings")
+			settings := obj(t, page.Props, "settings")
+			hasKeys(t, "settings", settings, "knowledge_base_enabled", "knowledge_base_public", "widget_allowed_origins")
+			if settings["knowledge_base_enabled"] != true || settings["knowledge_base_public"] != true || settings["widget_allowed_origins"] != "" {
+				t.Errorf("defaults %v", settings)
+			}
+			supported := list(t, page.Props, "supported_settings")
+			if len(supported) != 3 || supported[0] != "knowledge_base_enabled" || supported[1] != "knowledge_base_public" || supported[2] != "widget_allowed_origins" {
+				t.Errorf("supported_settings %v", supported)
+			}
+
+			wantRedirect(t, pageJSON(h, http.MethodPost, path,
+				`{"knowledge_base_enabled":false,"knowledge_base_public":true,"widget_allowed_origins":"https://shop.example.com","guest_tickets_enabled":false,"ticket_reference_prefix":"XX"}`),
+				"update", path)
+			if f.setting(t, "knowledge_base_enabled") != "0" || f.setting(t, "knowledge_base_public") != "1" ||
+				f.setting(t, "widget_allowed_origins") != "https://shop.example.com" {
+				t.Error("settings not stored")
+			}
+			if f.setting(t, "guest_tickets_enabled") != "" || f.setting(t, "ticket_reference_prefix") != "" {
+				t.Error("a setting this package does not honour was stored")
+			}
+			again := obj(t, visit(t, h, path, uiAgent, "admin").Props, "settings")
+			if again["knowledge_base_enabled"] != false || again["widget_allowed_origins"] != "https://shop.example.com" {
+				t.Errorf("read back %v", again)
+			}
+			// The widget honours the switch.
+			if rec, config := widgetCall(t, h, http.MethodGet, "/config", nil); rec.Code != http.StatusOK || config["kb_enabled"] != false {
+				t.Errorf("widget config with the knowledge base off: %d %v", rec.Code, config["kb_enabled"])
+			}
+
+			// A key left out keeps its value.
+			wantRedirect(t, pageJSON(h, http.MethodPost, path, `{"knowledge_base_public":false}`), "partial update", path)
+			if f.setting(t, "knowledge_base_enabled") != "0" || f.setting(t, "knowledge_base_public") != "0" {
+				t.Error("a partial save changed another setting")
+			}
+
+			wantPageErrors(t, pageJSON(h, http.MethodPost, path, `{"knowledge_base_enabled":"maybe"}`), "not a boolean", "Escalated/Admin/Settings", "knowledge_base_enabled")
+			wantPageErrors(t, pageJSON(h, http.MethodPost, path, `{"widget_allowed_origins":"https://ok.example.com, not-an-origin"}`), "bad origin", "Escalated/Admin/Settings", "widget_allowed_origins")
+			if f.setting(t, "widget_allowed_origins") != "https://shop.example.com" {
+				t.Error("a refused save changed the settings")
+			}
+
+			if rec := send(h, http.MethodGet, path, uiAgent, "agent", ""); rec.Code != http.StatusForbidden {
+				t.Errorf("an agent who is not an admin: %d", rec.Code)
+			}
+		})
 	}
 }

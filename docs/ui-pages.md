@@ -104,6 +104,7 @@ point your `route()` names at these paths under your `RoutePrefix`.
 | `Admin/Tags/Index` | `GET /admin/tags` |
 | `Admin/Automations/Index`, `Form` | `GET /admin/automations`, `/create`, `/{id}/edit` |
 | `Admin/Capacity/Index` | `GET /admin/capacity` |
+| `Admin/Settings` | `GET /admin/settings` (and `POST`): `knowledge_base_enabled`, `knowledge_base_public` and `widget_allowed_origins` only, listed in `supported_settings`; the page hides its other controls, which Config sets here |
 | `Admin/Settings/PublicTickets` | `GET /admin/settings/public-tickets` |
 | `Admin/Settings/CsatSettings` | `GET /admin/settings/csat` (and `POST`) |
 | `Admin/Settings/DataRetention` | `GET /admin/settings/data-retention` (and `POST`) |

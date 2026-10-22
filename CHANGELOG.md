@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `Escalated/Admin/Settings` at `GET /admin/settings` (`escalated.admin.settings`;
+  `POST` saves, `escalated.admin.settings.update`), on both routers. It carries
+  only the settings this package stores and honours, named in
+  `supported_settings` so the shared page hides the rest:
+  `knowledge_base_enabled` and `knowledge_base_public` (read by the widget) and
+  `widget_allowed_origins` (as `PUT /admin/settings/widget` saves it). Each is
+  optional on save; any other key is ignored. Guest tickets, attachments, the
+  reference prefix, inbound mail and the widget's appearance stay in `Config`.
 - `Escalated/Admin/Reports/AgentDetail` at `GET /admin/reports/agent/{id}/detail`
   (`escalated.admin.reports.agent-detail`, which the agent ranking links to), on
   both routers: one agent's tickets, response percentiles, productivity (replies
