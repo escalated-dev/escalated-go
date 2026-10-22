@@ -486,6 +486,8 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Put("/settings/public-tickets", adminH.UpdatePublicTicketsSettings)
 				r.Post("/settings/public-tickets", adminH.UpdatePublicTicketsSettings)
 				// The Settings sub-pages (escalated.admin.settings.*).
+				r.Get("/settings", adminH.SettingsPage)
+				r.Post("/settings", adminH.UpdateSettings)
 				r.Get("/settings/csat", adminH.CsatSettingsPage)
 				r.Post("/settings/csat", adminH.UpdateCsatSettings)
 				r.Get("/settings/data-retention", adminH.DataRetentionPage)

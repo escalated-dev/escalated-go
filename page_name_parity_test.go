@@ -191,7 +191,6 @@ var notYetRendered = []string{
 	"Escalated/Admin/Reports/AgentDetail",
 	"Escalated/Admin/Roles/Form",
 	"Escalated/Admin/Roles/Index",
-	"Escalated/Admin/Settings",
 	"Escalated/Admin/Settings/Sandbox",
 	"Escalated/Admin/Settings/SsoSettings",
 	"Escalated/Admin/Settings/TwoFactor",
