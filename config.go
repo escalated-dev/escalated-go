@@ -253,6 +253,17 @@ type Config struct {
 	// ImportDispatcher hands a started import job's id to the host's queue,
 	// whose worker calls Escalated.Imports().Run. Nil runs it in a goroutine.
 	ImportDispatcher func(jobID string)
+
+	// ImportAttachmentStorage stores the bytes of imported attachments (an
+	// email.LocalFileStorage rooted outside anything the web server serves,
+	// or the host's S3/GCS AttachmentStorage). Files are served only through
+	// the authorised attachment download route. Nil fails every imported
+	// attachment, so nothing is written to an unknown place.
+	ImportAttachmentStorage services.ImportAttachmentStorage
+
+	// ImportAttachmentMaxBytes caps one imported attachment. Zero uses
+	// Laravel's live-upload limit, 10240 KB.
+	ImportAttachmentMaxBytes int64
 }
 
 // DefaultConfig returns a Config with sensible defaults.

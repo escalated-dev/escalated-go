@@ -2,6 +2,7 @@ package router_test
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/services"
+	"github.com/escalated-dev/escalated-go/services/email"
 )
 
 // The admin Import wizard the shared frontend drives
@@ -40,13 +42,22 @@ type extractCall struct {
 }
 
 // fakeImportAdapter serves fixed records: two contacts (one a host user),
-// one tag, three tickets two to a page, and two replies.
+// one tag, two custom fields, three tickets two to a page, two replies, two
+// attachments and a satisfaction rating. records, when set, replaces them.
 type fakeImportAdapter struct {
 	mu        sync.Mutex
 	calls     []extractCall
 	onExtract func(entityType string, cursor *string)
 	fieldsCtx map[string]string
+	records   map[string][]map[string]any
 }
+
+// A real PDF header and PNG signature, so the content checks see the files
+// they claim to be.
+var (
+	fakePDF = []byte("%PDF-1.4\n1 0 obj << >> endobj\ntrailer << >>\n%%EOF\n")
+	fakePNG = []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00")
+)
 
 var fakeRecords = map[string][]map[string]any{
 	"contacts": {
@@ -54,15 +65,28 @@ var fakeRecords = map[string][]map[string]any{
 		{"source_id": "c2", "email": "bob@customer.test", "name": "Bob Customer"},
 	},
 	"tags": {{"source_id": "t1", "name": "Billing"}},
+	"custom_fields": {
+		{"source_id": "f1", "name": "Plan", "type": "select", "options": []any{"free", "pro"}},
+		{"source_id": "f2", "name": "Seats", "type": "number"},
+	},
 	"tickets": {
 		{"source_id": "k1", "title": "Refund please", "description": "Charged twice.", "status": "open", "priority": "high",
-			"requester_source_id": "c1", "tag_source_ids": []any{"t1"}, "created_at": "2024-01-02T03:04:05Z"},
+			"requester_source_id": "c1", "tag_source_ids": []any{"t1"}, "created_at": "2024-01-02T03:04:05Z",
+			"custom_fields": map[string]any{"f1": "pro", "f2": 12.0}},
 		{"source_id": "k2", "title": "Login broken", "status": "resolved", "priority": "urgent", "requester_source_id": "c2"},
 		{"source_id": "k3", "title": "Feature idea", "status": "not-a-status", "requester_source_id": "c1"},
 	},
 	"replies": {
 		{"source_id": "r1", "ticket_source_id": "k1", "body": "Looking into it", "author_source_id": "c1"},
 		{"source_id": "r2", "ticket_source_id": "k2", "body": "Internal note", "is_internal_note": true},
+	},
+	"attachments": {
+		{"source_id": "a1", "parent_type": "ticket", "parent_source_id": "k1", "filename": "receipt.pdf",
+			"mime_type": "application/pdf", "content": base64.StdEncoding.EncodeToString(fakePDF)},
+		{"source_id": "a2", "parent_source_id": "r1", "filename": "screen.png", "content": fakePNG},
+	},
+	"satisfaction_ratings": {
+		{"source_id": "s1", "ticket_source_id": "k2", "rating": 4.0, "comment": "Quick fix", "created_at": "2024-02-03T04:05:06Z"},
 	},
 }
 
@@ -83,7 +107,7 @@ func (f *fakeImportAdapter) TestConnection(_ context.Context, c map[string]strin
 }
 
 func (f *fakeImportAdapter) EntityTypes() []string {
-	return []string{"contacts", "tags", "tickets", "replies"}
+	return []string{"contacts", "tags", "custom_fields", "tickets", "replies", "attachments", "satisfaction_ratings"}
 }
 
 func (f *fakeImportAdapter) DefaultFieldMappings(entityType string) map[string]string {
@@ -121,7 +145,13 @@ func (f *fakeImportAdapter) Extract(ctx context.Context, entityType string, c ma
 	if hook != nil {
 		hook(entityType, cursor)
 	}
-	records := fakeRecords[entityType]
+	f.mu.Lock()
+	all := f.records
+	f.mu.Unlock()
+	if all == nil {
+		all = fakeRecords
+	}
+	records := all[entityType]
 	offset := 0
 	if cursor != nil {
 		offset, _ = strconv.Atoi(*cursor)
@@ -147,11 +177,19 @@ func (f *fakeImportAdapter) takeCalls() []extractCall {
 	return out
 }
 
-func newImportFixture(t *testing.T) (*uiFixture, *fakeImportAdapter) {
+func newImportFixture(t *testing.T, configure ...func(*escalated.Config)) (*uiFixture, *fakeImportAdapter) {
 	t.Helper()
 	fake := &fakeImportAdapter{}
+	storage, err := email.NewLocalFileStorage(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	f := newUIFixture(t, func(cfg *escalated.Config) {
 		cfg.ImportAdapters = []services.ImportAdapter{fake}
+		cfg.ImportAttachmentStorage = storage
+		for _, c := range configure {
+			c(cfg)
+		}
 		cfg.ImportSecret = "an import secret for the tests"
 		cfg.UserIDByEmail = func(_ context.Context, email string) (models.UserID, error) {
 			if email == "ada@customer.test" {
@@ -266,10 +304,16 @@ func (c *importClient) connect(creds map[string]string) (int, map[string]any) {
 
 func (c *importClient) start(f *uiFixture) *services.ImportJob {
 	c.t.Helper()
+	return c.startWith(f, `{"tickets":{"subject":"title","state":"status"}}`)
+}
+
+// startWith starts an import with the given field_mappings JSON.
+func (c *importClient) startWith(f *uiFixture, fieldMappings string) *services.ImportJob {
+	c.t.Helper()
 	if code, body := c.connect(fakeCredentials); code != 200 || body["success"] != true {
 		c.t.Fatalf("test-connection: %d %v", code, body)
 	}
-	rec := c.do(http.MethodPost, importBase+"/fakedesk/start", `{"field_mappings":{"tickets":{"subject":"title","state":"status"}}}`)
+	rec := c.do(http.MethodPost, importBase+"/fakedesk/start", `{"field_mappings":`+fieldMappings+`}`)
 	if rec.Code != http.StatusSeeOther || !strings.HasPrefix(rec.Header().Get("Location"), importBase+"/progress/") {
 		c.t.Fatalf("start: %d %q %s", rec.Code, rec.Header().Get("Location"), rec.Body.String())
 	}
@@ -346,7 +390,7 @@ func TestImportWizardPages(t *testing.T) {
 
 			c.connect(fakeCredentials)
 			mapping := c.page(importBase+"/fakedesk/mapping", "Escalated/Admin/Import/Mapping", "credentials")
-			if fmt.Sprint(mapping["entity_types"]) != "[contacts tags tickets replies]" {
+			if fmt.Sprint(mapping["entity_types"]) != "[contacts tags custom_fields tickets replies attachments satisfaction_ratings]" {
 				t.Errorf("entity types %v", mapping["entity_types"])
 			}
 			tickets := obj(t, obj(t, mapping, "mappings"), "tickets")
@@ -440,6 +484,7 @@ func TestImportRunsEndToEnd(t *testing.T) {
 			if n := f.count(t, "replies", "ticket_id = ? AND is_internal = ?", tickets[1].ID, true); n != 1 {
 				t.Errorf("internal notes %d", n)
 			}
+			assertImportedRecords(t, f, h, job, tickets)
 
 			// Import mode: in the run only.
 			calls := fake.takeCalls()

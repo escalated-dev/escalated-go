@@ -186,6 +186,12 @@ type ImportService struct {
 	// Dispatch hands a started job to the host's queue, which calls Run.
 	// Nil runs it in a goroutine.
 	Dispatch func(jobID string)
+	// AttachmentStorage stores imported attachment bytes. Nil fails every
+	// imported attachment.
+	AttachmentStorage ImportAttachmentStorage
+	// AttachmentMaxBytes caps one imported attachment; zero is
+	// DefaultImportAttachmentMaxBytes.
+	AttachmentMaxBytes int64
 
 	wg sync.WaitGroup
 }
@@ -539,6 +545,12 @@ func (s *ImportService) persist(ctx context.Context, job *ImportJob, entityType 
 		return s.persistTicket(ctx, job, record)
 	case "replies":
 		return s.persistReply(ctx, job, record)
+	case "custom_fields":
+		return s.persistCustomField(ctx, record)
+	case "attachments":
+		return s.persistAttachment(ctx, job, record)
+	case "satisfaction_ratings":
+		return s.persistSatisfactionRating(ctx, job, record)
 	}
 	return "", fmt.Errorf("unknown entity type: %s", entityType)
 }
@@ -691,6 +703,9 @@ func (s *ImportService) persistTicket(ctx context.Context, job *ImportJob, recor
 				}
 			}
 		}
+	}
+	if err := s.importFieldValues(ctx, job, t.ID, record); err != nil {
+		return "", err
 	}
 	if err := s.keepTimestamps(ctx, "tickets", t.ID, record); err != nil {
 		return "", err
