@@ -831,7 +831,25 @@ func engineAddonStatements(p string) []string {
 			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"chat_routing_rules"),
 
+		// REST API bearer tokens (escalated-laravel api_tokens). token is the
+		// SHA-256 digest of the token, never the token itself; abilities is a
+		// JSON list of agent, admin and *.
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			user_id %s NOT NULL,
+			name VARCHAR(255) NOT NULL,
+			token VARCHAR(64) NOT NULL,
+			abilities TEXT,
+			last_used_at TIMESTAMPTZ,
+			last_used_ip VARCHAR(45),
+			expires_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"api_tokens", userCol),
+
 		// Indexes
+		fmt.Sprintf("CREATE UNIQUE INDEX IF NOT EXISTS idx_%sapitok_token ON %s (token)", p, p+"api_tokens"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%sapitok_user ON %s (user_id)", p, p+"api_tokens"),
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%schat_ticket ON %s (ticket_id)", p, p+"chat_sessions"),
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%schat_agent_status ON %s (agent_id, status)", p, p+"chat_sessions"),
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%schatmsg_session ON %s (chat_session_id)", p, p+"chat_messages"),

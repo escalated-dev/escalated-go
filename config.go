@@ -184,6 +184,25 @@ type Config struct {
 	// handlers.APIAuth.
 	APIAuth handlers.APIAuth
 
+	// APITokensEnabled lets the REST API (/api/tickets, /api/departments,
+	// /api/tags) authenticate with an API token an admin issued on the API
+	// Tokens page, sent as `Authorization: Bearer <token>`. A token acts as
+	// its owner, narrowed by its abilities: it needs the agent ability (or *)
+	// to reach the API, and its owner must still be staff (APITokenOwner).
+	//
+	// Off by default: the page still issues tokens, but they authenticate
+	// nothing and the API is left to AgentCheck and AdminCheck as before. A
+	// bearer header the package did not issue is always left to those checks,
+	// so a host that authenticates the API with tokens of its own keeps
+	// working with this on. See docs/api-tokens.md.
+	APITokensEnabled bool
+
+	// APITokenOwner reports whether a token's owner still exists and is an
+	// agent or admin, checked on every token request. Defaults to
+	// UserDirectory.GetUser (integer user ids). With neither, tokens cannot be
+	// issued or used.
+	APITokenOwner handlers.APITokenOwnerFunc
+
 	// GuestRateLimit caps the unauthenticated guest endpoints per client IP:
 	// ticket submissions (POST /api/guest/tickets) at 5 a minute and guest
 	// replies at 10 a minute by default, answering 429 with Retry-After. The

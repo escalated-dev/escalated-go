@@ -19,7 +19,8 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	inner := http.NewServeMux()
 	ticketSvc := mountStdlib(inner, esc)
 	prefix := esc.Config.RoutePrefix
-	mux.Handle(prefix+"/", esc.TicketAccessMiddleware(inner))
+	// API tokens authenticate first, so ticket visibility is the token owner's.
+	mux.Handle(prefix+"/", esc.APITokenMiddleware(esc.TicketAccessMiddleware(inner)))
 
 	if esc.Config.EnableWidget {
 		stack := newWidgetStack(esc, ticketSvc)
@@ -384,6 +385,15 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 		mux.Handle("DELETE "+prefix+"/admin/kb/categories/{id}", adminMW(http.HandlerFunc(articleH.DeleteCategory)))
 
 		// Outbound webhooks admin CRUD + per-delivery retry.
+		// API tokens (escalated.admin.api-tokens.*).
+		if tokenH := newAPITokenHandler(esc); tokenH != nil {
+			mux.Handle("GET "+prefix+"/admin/api-tokens", adminMW(http.HandlerFunc(tokenH.Index)))
+			mux.Handle("POST "+prefix+"/admin/api-tokens", adminMW(http.HandlerFunc(tokenH.Store)))
+			mux.Handle("PATCH "+prefix+"/admin/api-tokens/{id}", adminMW(http.HandlerFunc(tokenH.Update)))
+			mux.Handle("PUT "+prefix+"/admin/api-tokens/{id}", adminMW(http.HandlerFunc(tokenH.Update)))
+			mux.Handle("DELETE "+prefix+"/admin/api-tokens/{id}", adminMW(http.HandlerFunc(tokenH.Destroy)))
+		}
+
 		mux.Handle("GET "+prefix+"/admin/webhooks", adminMW(http.HandlerFunc(webhookH.List)))
 		mux.Handle("POST "+prefix+"/admin/webhooks", adminMW(http.HandlerFunc(webhookH.Create)))
 		mux.Handle("PATCH "+prefix+"/admin/webhooks/{id}", adminMW(http.HandlerFunc(webhookH.Update)))

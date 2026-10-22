@@ -186,7 +186,6 @@ func TestTheGuardSeesUnprefixedRenderCalls(t *testing.T) {
 // is the to-do list: render a page and its name must leave the list, and a
 // page the frontend adds must be listed or rendered.
 var notYetRendered = []string{
-	"Escalated/Admin/ApiTokens/Index",
 	"Escalated/Admin/Plugins/Index",
 	"Escalated/Admin/Roles/Form",
 	"Escalated/Admin/Roles/Index",

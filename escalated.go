@@ -285,6 +285,76 @@ func applyDefaults(cfg *Config) {
 	if cfg.UserIDFunc == nil {
 		cfg.UserIDFunc = func(_ *http.Request) models.UserID { return "" }
 	}
+	if cfg.APITokenOwner == nil {
+		cfg.APITokenOwner = handlers.APITokenOwnerFromDirectory(cfg.UserDirectory)
+	}
+	tokenAwareChecks(cfg)
+}
+
+// tokenAwareChecks makes AgentCheck, AdminCheck and UserIDFunc answer for a
+// request that authenticated with an API token (APITokenMiddleware): the
+// token's owner, narrowed by its abilities. Every other request gets the
+// host's answer, unchanged.
+func tokenAwareChecks(cfg *Config) {
+	agent, admin, userID := cfg.AgentCheck, cfg.AdminCheck, cfg.UserIDFunc
+	cfg.AgentCheck = func(r *http.Request) bool {
+		if id := handlers.APITokenFrom(r.Context()); id != nil {
+			return id.Agent()
+		}
+		return agent(r)
+	}
+	cfg.AdminCheck = func(r *http.Request) bool {
+		if id := handlers.APITokenFrom(r.Context()); id != nil {
+			return id.Admin()
+		}
+		return admin(r)
+	}
+	cfg.UserIDFunc = func(r *http.Request) models.UserID {
+		if id := handlers.APITokenFrom(r.Context()); id != nil {
+			return id.Token.UserID
+		}
+		return userID(r)
+	}
+}
+
+// APITokens returns the API token store over the host database, with the
+// table name built from Config.TablePrefix. Nil without a database.
+func (e *Escalated) APITokens() *services.APITokenService {
+	if e.Config.DB == nil {
+		return nil
+	}
+	return &services.APITokenService{DB: e.Config.DB, Prefix: e.Config.TablePrefix}
+}
+
+// APITokenMiddleware authenticates the REST API's agent routes
+// ({RoutePrefix}/api/tickets, /api/departments and /api/tags) with API tokens
+// when Config.APITokensEnabled is set, and does nothing otherwise. The routers
+// mount it ahead of TicketAccessMiddleware, so ticket visibility is the token
+// owner's.
+func (e *Escalated) APITokenMiddleware(next http.Handler) http.Handler {
+	if !e.Config.APITokensEnabled || e.Config.DB == nil {
+		return next
+	}
+	api := strings.TrimRight(e.Config.RoutePrefix, "/") + "/api/"
+	auth := &handlers.APITokenAuth{
+		Tokens:    e.APITokens(),
+		Owner:     e.Config.APITokenOwner,
+		HostAgent: e.Config.AgentCheck,
+		HostAdmin: e.Config.AdminCheck,
+		Applies: func(path string) bool {
+			rest, ok := strings.CutPrefix(path, api)
+			if !ok {
+				return false
+			}
+			for _, root := range []string{"tickets", "departments", "tags"} {
+				if rest == root || strings.HasPrefix(rest, root+"/") {
+					return true
+				}
+			}
+			return false
+		},
+	}
+	return auth.Middleware(next)
 }
 
 // TicketAccessMiddleware scopes all package query paths after host authentication.

@@ -124,6 +124,8 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	}
 
 	r.Route(cfg.RoutePrefix, func(r chi.Router) {
+		// API tokens authenticate first, so ticket visibility is the token owner's.
+		r.Use(esc.APITokenMiddleware)
 		r.Use(esc.TicketAccessMiddleware)
 		// Inertia protocol middleware scopes to the UI routes below, but chi
 		// requires every middleware to be registered before any route is added
@@ -441,6 +443,15 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Delete("/kb/categories/{id}", articleH.DeleteCategory)
 
 				// Outbound webhooks admin CRUD + per-delivery retry.
+				// API tokens (escalated.admin.api-tokens.*).
+				if tokenH := newAPITokenHandler(esc); tokenH != nil {
+					r.Get("/api-tokens", tokenH.Index)
+					r.Post("/api-tokens", tokenH.Store)
+					r.Patch("/api-tokens/{id}", tokenH.Update)
+					r.Put("/api-tokens/{id}", tokenH.Update)
+					r.Delete("/api-tokens/{id}", tokenH.Destroy)
+				}
+
 				r.Get("/webhooks", webhookH.List)
 				r.Post("/webhooks", webhookH.Create)
 				r.Get("/webhooks/create", webhookH.CreateForm)
