@@ -122,6 +122,36 @@ func (h *ChatHandler) EndSession(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ended"})
 }
 
+// EndChat handles POST /agent/chat/{session}/end (escalated-laravel
+// escalated.admin.chat.end). Unlike the console routes, {session} is the chat
+// SESSION id, which is what the shared Agent/TicketShow page passes. The body
+// is ignored. An already-ended chat is a 422.
+func (h *ChatHandler) EndChat(w http.ResponseWriter, r *http.Request) {
+	id, err := idFromPathName(r, "session")
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"message": "Chat session not found."})
+		return
+	}
+
+	session, err := h.store.GetChatSession(r.Context(), id)
+	if err != nil || session == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"message": "Chat session not found."})
+		return
+	}
+	if !session.IsActive() && !session.IsWaiting() {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": "Chat is already ended."})
+		return
+	}
+
+	agentID := h.userID(r)
+	if err := h.sessions.EndSession(r.Context(), session, &agentID); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"message": "Chat ended."})
+}
+
 // TransferSession handles POST /agent/chat/sessions/{id}/transfer
 // (escalated-laravel escalated.admin.chat.transfer). The body names the new
 // agent and/or department as {"agent_id", "department_id"}; the shared
