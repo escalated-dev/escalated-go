@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-10-22
+
 ### Added
 - Ending a live chat by its session id (escalated-laravel
   `escalated.admin.chat.end`): `POST /agent/chat/{session}/end` on both
