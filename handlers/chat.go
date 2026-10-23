@@ -168,6 +168,29 @@ func (h *ChatHandler) TransferSession(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "session not found"})
 		return
 	}
+	h.transfer(w, r, session)
+}
+
+// TransferChat handles POST /agent/chat/{session}/transfer (escalated-laravel
+// escalated.admin.chat.transfer). Unlike the console route, {session} is the
+// chat SESSION id, which is what the shared Agent/TicketShow page passes. The
+// body and answers are those of TransferSession.
+func (h *ChatHandler) TransferChat(w http.ResponseWriter, r *http.Request) {
+	id, err := idFromPathName(r, "session")
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"message": "Chat session not found."})
+		return
+	}
+	session, err := h.store.GetChatSession(r.Context(), id)
+	if err != nil || session == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"message": "Chat session not found."})
+		return
+	}
+	h.transfer(w, r, session)
+}
+
+// transfer reads the transfer body and moves the chat; shared by both routes.
+func (h *ChatHandler) transfer(w http.ResponseWriter, r *http.Request, session *models.ChatSession) {
 	if !session.IsActive() && !session.IsWaiting() {
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": "Chat is already ended."})
 		return
@@ -226,7 +249,7 @@ func (h *ChatHandler) TransferSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fresh, _ := h.store.GetChatSessionByTicket(r.Context(), id)
+	fresh, _ := h.store.GetChatSession(r.Context(), session.ID)
 	writeJSON(w, http.StatusOK, map[string]any{"message": "Chat transferred.", "session": fresh})
 }
 
