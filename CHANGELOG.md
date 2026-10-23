@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Ending a live chat by its session id (escalated-laravel
+  `escalated.admin.chat.end`): `POST /agent/chat/{session}/end` on both
+  routers, behind the agent check like the rest of the chat console. The shared
+  Agent/TicketShow page POSTs `{}` to `route('escalated.admin.chat.end',
+  ticket.chat_session_id)`, so map that name to this path (see
+  `docs/ui-pages.md`). It answers 200 `{"message": "Chat ended."}`, 404 for an
+  unknown session and, as in Laravel, 422 `{"message": "Chat is already
+  ended."}` for a chat that has already ended. The ticket-id console route
+  `POST /agent/chat/sessions/{id}/end` is unchanged (no already-ended check,
+  200 `{"status": "ended"}`).
 - Live chat transfer (escalated-laravel `escalated.admin.chat.transfer`):
   `POST /agent/chat/sessions/{id}/transfer` on both routers, behind the agent
   check like the rest of the chat console ({id} is the chat ticket's id). The

@@ -59,6 +59,7 @@ with an `attachments` error: this package stores no uploads yet.
 | `escalated.agent.tickets.follow` | `POST /agent/tickets/{ticket}/follow` (toggles) |
 | `escalated.agent.tickets.pin` | `POST /agent/tickets/{ticket}/replies/{reply}/pin` (internal notes) |
 | `escalated.agent.tickets.custom-action` | `POST /agent/tickets/{ticket}/actions/{action}` |
+| `escalated.admin.chat.end` | `POST /agent/chat/{session}/end` (`{session}` is the chat session id, the page's `chat_session_id`; agents only; 422 once ended) |
 | `escalated.customer.tickets.store` | `POST /tickets` (303 to the new ticket) |
 | `escalated.customer.tickets.reply` | `POST /tickets/{ticket}/reply` |
 | `escalated.customer.tickets.close` / `.reopen` | `POST /tickets/{ticket}/close`, `/reopen` |
