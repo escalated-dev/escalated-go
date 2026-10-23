@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Transferring a live chat from the agent ticket page: the shared
+  Agent/TicketShow page POSTs to `route('escalated.admin.chat.transfer',
+  ticket.chat_session_id)`, a chat SESSION id, but the only transfer route,
+  `POST /agent/chat/sessions/{id}/transfer`, takes the chat ticket's id, so the
+  transfer reached the wrong chat or none. New `POST /agent/chat/{session}/transfer`
+  on both routers takes the session id, with the same body, checks and answers
+  (404 `{"message": "Chat session not found."}` for an unknown session).
+  Upgrade: map `escalated.admin.chat.transfer` to this path in your `route()`
+  helper (see `docs/ui-pages.md`). The ticket-id route is unchanged.
+
 ## [0.2.6] - 2026-10-22
 
 ### Added
