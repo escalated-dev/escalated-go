@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-10-22
+
 ### Fixed
 - Transferring a live chat from the agent ticket page: the shared
   Agent/TicketShow page POSTs to `route('escalated.admin.chat.transfer',
