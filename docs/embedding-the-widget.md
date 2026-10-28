@@ -123,7 +123,7 @@ Paths are relative to the widget prefix.
 | `GET /tickets/{reference}` | `Authorization: Bearer <guest_access_token>`. `{reference, subject, status, status_label, created_at, department, replies}`. |
 | `GET /tickets/lookup?ref=&token=` | Legacy permanent guest tokens only, while `GuestAccess.RejectLegacyTokens` is off. |
 | `GET /chat/availability` | `{available, queue_length}`. |
-| `POST /chat/start` | `{name, email, department_id?, message?, subject?, metadata?, verification_id, verification_code}` (a `chat` code). 201 `{id, session_id, status, messages, agent?}`. |
+| `POST /chat/start` | `{name, email, department_id?, message?, subject?, metadata?, verification_id, verification_code}` (a `chat` code). 201 `{id, session_id, guest_token, expires_at, ticket_reference, status, agent_name, messages, agent?}`; `id`, `session_id` and `guest_token` are all the chat token, as in escalated-laravel. |
 | `GET /chat/{id}/messages` | `{messages: [{id, body, is_agent, author: {name}, created_at}], typing: null, agent, ended}`. The opening message comes first. |
 | `POST /chat/{id}/messages` | `{body}`. 422 once the chat has ended. |
 | `POST /chat/{id}/typing`, `/end` | The visitor's typing indicator (broadcast, not stored); ending the chat. |

@@ -178,18 +178,22 @@ func (h *WidgetChatHandler) StartChat(w http.ResponseWriter, r *http.Request) {
 		id, expiresAt = token, expires.UTC().Format(time.RFC3339)
 		ticket.GuestToken = nil
 	}
+	// As in escalated-laravel: id and session_id are both the chat token; the
+	// numeric session id stays internal.
 	resp := map[string]any{
 		"id":               id,
-		"session_id":       session.ID,
+		"session_id":       id,
 		"ticket_reference": ticket.Reference,
 		"guest_token":      id,
 		// The token stops working after this; the visitor starts a new chat.
 		"expires_at": expiresAt,
 		"status":     session.StatusString(),
+		"agent_name": nil,
 		"messages":   h.transcript(r.Context(), ticket, nil),
 	}
 	if agent := h.agent(r.Context(), session); agent != nil {
 		resp["agent"] = agent
+		resp["agent_name"] = agent["name"]
 	}
 	writeJSON(w, http.StatusCreated, resp)
 }

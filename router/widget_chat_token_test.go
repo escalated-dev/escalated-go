@@ -39,6 +39,20 @@ func chatDBExec(t *testing.T, f *widgetContractFixture, query string, args ...an
 	}
 }
 
+// chatSessionID is the numeric id of the chat a widget token opens. The
+// start response carries only the token (as id and session_id, like
+// escalated-laravel).
+func chatSessionID(t *testing.T, f *widgetContractFixture, token string) int64 {
+	t.Helper()
+	db := f.esc.Config.DB
+	var id int64
+	err := db.QueryRow(sqldialect.Rebind(db, `SELECT id FROM `+f.esc.Config.TablePrefix+`chat_sessions WHERE visitor_token_hash = ?`), chatTokenHash(token)).Scan(&id)
+	if err != nil {
+		t.Fatalf("chat session for token: %v", err)
+	}
+	return id
+}
+
 func chatTokenRow(t *testing.T, f *widgetContractFixture, sessionID any) (hash sql.NullString, expires sql.NullTime, guestToken sql.NullString) {
 	t.Helper()
 	db := f.esc.Config.DB
@@ -58,6 +72,7 @@ func TestWidgetChatTokenExpiresAndOnlyItsHashIsStored(t *testing.T) {
 			before := time.Now().Truncate(time.Second)
 			out := startTokenChat(t, f, h)
 			id, _ := out["id"].(string)
+			sid := chatSessionID(t, f, id)
 			expires, err := time.Parse(time.RFC3339, func() string { s, _ := out["expires_at"].(string); return s }())
 			if err != nil {
 				t.Fatalf("expires_at = %#v", out["expires_at"])
@@ -69,7 +84,7 @@ func TestWidgetChatTokenExpiresAndOnlyItsHashIsStored(t *testing.T) {
 				t.Fatalf("guest_token = %#v, want the chat token", out["guest_token"])
 			}
 
-			hash, stored, guestToken := chatTokenRow(t, f, out["session_id"])
+			hash, stored, guestToken := chatTokenRow(t, f, sid)
 			if hash.String != chatTokenHash(id) {
 				t.Fatalf("visitor_token_hash = %q, want the token's SHA-256", hash.String)
 			}
@@ -86,14 +101,47 @@ func TestWidgetChatTokenExpiresAndOnlyItsHashIsStored(t *testing.T) {
 	}
 }
 
+func TestWidgetChatStartAnswersLikeLaravel(t *testing.T) {
+	f := newWidgetContractFixture(t, true)
+	for name, h := range f.mounts() {
+		t.Run(name, func(t *testing.T) {
+			out := startTokenChat(t, f, h)
+			id, _ := out["id"].(string)
+			// id and session_id are both the chat token, as in escalated-laravel.
+			if id == "" || out["session_id"] != id {
+				t.Fatalf("session_id = %#v, want the chat token %q", out["session_id"], id)
+			}
+			var reference string
+			db := f.esc.Config.DB
+			if err := db.QueryRow(sqldialect.Rebind(db, `SELECT t.reference FROM `+f.esc.Config.TablePrefix+`tickets t JOIN `+
+				f.esc.Config.TablePrefix+`chat_sessions s ON s.ticket_id = t.id WHERE s.id = ?`), chatSessionID(t, f, id)).Scan(&reference); err != nil {
+				t.Fatalf("reference: %v", err)
+			}
+			if out["ticket_reference"] != reference {
+				t.Fatalf("ticket_reference = %#v, want %q", out["ticket_reference"], reference)
+			}
+			if out["status"] != "waiting" {
+				t.Fatalf("status = %#v", out["status"])
+			}
+			if name, ok := out["agent_name"]; !ok || name != nil {
+				t.Fatalf("agent_name = %#v (present %v), want null", name, ok)
+			}
+			if _, ok := out["expires_at"].(string); !ok {
+				t.Fatalf("expires_at = %#v", out["expires_at"])
+			}
+		})
+	}
+}
+
 func TestWidgetChatTokenIsRefusedOnceExpired(t *testing.T) {
 	f := newWidgetContractFixture(t, true)
 	for name, h := range f.mounts() {
 		t.Run(name, func(t *testing.T) {
 			out := startTokenChat(t, f, h)
 			id, _ := out["id"].(string)
+			sid := chatSessionID(t, f, id)
 			chatDBExec(t, f, `UPDATE `+f.esc.Config.TablePrefix+`chat_sessions SET visitor_token_expires_at = ? WHERE id = ?`,
-				time.Now().UTC().Add(-time.Minute), out["session_id"])
+				time.Now().UTC().Add(-time.Minute), sid)
 
 			for _, call := range []struct{ method, path string }{
 				{http.MethodGet, "/messages"},
@@ -122,11 +170,12 @@ func TestWidgetChatStartedBeforeTokensExpiredKeepsWorking(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			out := startTokenChat(t, f, h)
 			id, _ := out["id"].(string)
+			sid := chatSessionID(t, f, id)
 			p := f.esc.Config.TablePrefix
 			// The shape such a chat has after the upgrade: the plain token on
 			// the ticket, nothing on the session.
-			chatDBExec(t, f, `UPDATE `+p+`chat_sessions SET visitor_token_hash = NULL, visitor_token_expires_at = NULL WHERE id = ?`, out["session_id"])
-			chatDBExec(t, f, `UPDATE `+p+`tickets SET guest_token = ? WHERE id = (SELECT ticket_id FROM `+p+`chat_sessions WHERE id = ?)`, id, out["session_id"])
+			chatDBExec(t, f, `UPDATE `+p+`chat_sessions SET visitor_token_hash = NULL, visitor_token_expires_at = NULL WHERE id = ?`, sid)
+			chatDBExec(t, f, `UPDATE `+p+`tickets SET guest_token = ? WHERE id = (SELECT ticket_id FROM `+p+`chat_sessions WHERE id = ?)`, id, sid)
 			before := time.Now().Truncate(time.Second)
 
 			if rec, _ := widgetCall(t, h, http.MethodGet, "/chat/"+id+"/messages", nil); rec.Code != http.StatusOK {
@@ -136,7 +185,7 @@ func TestWidgetChatStartedBeforeTokensExpiredKeepsWorking(t *testing.T) {
 				t.Fatalf("send: %d %s", rec.Code, rec.Body.String())
 			}
 
-			hash, expires, guestToken := chatTokenRow(t, f, out["session_id"])
+			hash, expires, guestToken := chatTokenRow(t, f, sid)
 			if hash.String != chatTokenHash(id) || !expires.Valid || expires.Time.Before(before.Add(24*time.Hour)) {
 				t.Fatalf("legacy chat not upgraded: hash=%v expires=%v", hash, expires)
 			}
