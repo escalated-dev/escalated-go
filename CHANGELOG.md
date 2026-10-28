@@ -7,7 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Mobile guest API** under `{RoutePrefix}/api/mobile/guest` (default
+  `/escalated/api/mobile/guest`), per the shared contract
+  (escalated-developer-context `domain-model/mobile-guest-api.md`):
+  `POST verification`, `POST lookup`, `POST tickets`, `GET tickets/{token}` and
+  `POST tickets/{token}/replies`. They reuse the guest API's email codes,
+  expiring grants and per-IP guest budgets, answer with the allow-listed mobile
+  ticket object, and send `Cache-Control: private, no-store` and
+  `Referrer-Policy: no-referrer` on every answer, 429s included. A grant from
+  any guest surface opens the others; anything else is a 404. See
+  `docs/guest-access.md`.
+- `GuestAccess.ResolveGrant` returns a grant's ticket id and expiry (grants
+  only, never a legacy token).
+
 ### Upgrading
+- The widget now counts against the same per-IP guest budgets (and store) as
+  the guest API, the guest pages and the mobile routes on the same mount,
+  instead of a separate in-memory budget of its own.
+- `POST verification` (guest API, widget, mobile) refuses a `chat` code with
+  403 while live chat is switched off (`chat_enabled` setting).
+- Guest responses send `Cache-Control: private, no-store` (was `no-store,
+  private`; same directives).
 - `POST /widget/chat/start` now answers exactly as escalated-laravel: `201
   {id, session_id, expires_at, ticket_reference, status, agent_name}`, where
   `id` and `session_id` are both the chat token (plus `guest_token`,

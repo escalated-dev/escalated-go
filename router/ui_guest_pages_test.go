@@ -48,7 +48,7 @@ func TestGuestPages(t *testing.T) {
 			if rec.Code != http.StatusSeeOther || !strings.HasPrefix(rec.Header().Get("Location"), "/escalated/guest/") {
 				t.Fatalf("store: %d %q %s", rec.Code, rec.Header().Get("Location"), rec.Body.String())
 			}
-			if rec.Header().Get("Cache-Control") != "no-store, private" {
+			if rec.Header().Get("Cache-Control") != "private, no-store" {
 				t.Errorf("guest responses must not be cached: %q", rec.Header().Get("Cache-Control"))
 			}
 			show := rec.Header().Get("Location")

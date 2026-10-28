@@ -129,7 +129,7 @@ func TestGuestVerificationEmailsACodeOnBothSurfaces(t *testing.T) {
 			if len(code) != 8 || strings.Contains(rec.Body.String(), code) {
 				t.Errorf("code %q must be 8 digits and only in the email", code)
 			}
-			if rec.Header().Get("Cache-Control") != "no-store, private" || rec.Header().Get("Referrer-Policy") != "no-referrer" {
+			if rec.Header().Get("Cache-Control") != "private, no-store" || rec.Header().Get("Referrer-Policy") != "no-referrer" {
 				t.Errorf("privacy headers missing: %v", rec.Header())
 			}
 		}
@@ -215,7 +215,7 @@ func TestWidgetVerifiedTicketAndStatus(t *testing.T) {
 		if rec.Code != http.StatusOK || out["reference"] != ref || out["status"] != "open" || out["replies"] == nil {
 			t.Fatalf("status: %d %s", rec.Code, rec.Body.String())
 		}
-		if rec.Header().Get("Cache-Control") != "no-store, private" {
+		if rec.Header().Get("Cache-Control") != "private, no-store" {
 			t.Errorf("status response is cacheable")
 		}
 		for name, h := range map[string][]string{
