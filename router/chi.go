@@ -77,11 +77,13 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	scH := handlers.NewSideConversationHandler(cfg.DB)
 	authH := handlers.NewAuthHandler(cfg.APIAuth)
 	guestH := handlers.NewGuestTicketHandler(s, ticketSvc)
-	// Per-client-IP limits on the unauthenticated guest endpoints.
+	// Per-client-IP limits on the unauthenticated guest endpoints, one
+	// limiter (and store) for every guest surface on this mount.
 	guestLimit := middleware.NewGuestRateLimiter(cfg.GuestRateLimit)
 	guestH.Access = esc.GuestAccess
 	satH.GuestTicketID = esc.GuestAccess.ResolveTicketID
-	guestVerifyH := &handlers.GuestVerificationHandler{Access: esc.GuestAccess, ClientIP: guestLimit.ClientIP}
+	guestVerifyH := &handlers.GuestVerificationHandler{Access: esc.GuestAccess, ClientIP: guestLimit.ClientIP, ChatEnabled: chatEnabled(esc)}
+	mobileGuestH := newMobileGuestHandler(esc, ticketSvc)
 	kbH := handlers.NewKBHandler(cfg.DB)
 	kbGuard := kbPublicGuard(esc)
 	retentionH := handlers.NewRetentionHandler(services.NewRetentionService(cfg.DB, s).WithPrefix(cfg.TablePrefix))
@@ -113,7 +115,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	// allowed cross-origin request is then scoped as a guest) and sees every
 	// OPTIONS preflight. embed.js stays outside WidgetCORS: it is public.
 	if cfg.EnableWidget {
-		stack := newWidgetStack(esc, ticketSvc)
+		stack := newWidgetStack(esc, ticketSvc, guestLimit)
 		r.Get(cfg.RoutePrefix+"/widget/embed.js", handlers.WidgetScript)
 		r.Route(cfg.RoutePrefix+"/widget", func(r chi.Router) {
 			r.Use(stack.wrap)
@@ -181,6 +183,18 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 			r.With(guestLimit.Middleware(middleware.GuestRequestScope)).Get("/guest/tickets/{token}", guestH.Show)
 			r.With(guestLimit.Middleware(middleware.GuestReplyScope)).Post("/guest/tickets/{token}/replies", guestH.Reply)
 			r.With(guestLimit.Middleware(middleware.GuestReplyScope)).Post("/guest/tickets/{token}/rate", satH.GuestRate)
+
+			// The mobile guest API (docs/guest-access.md): the same handlers,
+			// grants and per-IP budgets as the guest routes above, plus the
+			// general request budget on every route.
+			r.Route("/mobile/guest", func(r chi.Router) {
+				r.Use(handlers.GuestPrivacyHeaders, guestLimit.Middleware(middleware.GuestRequestScope))
+				r.With(guestLimit.Middleware(middleware.GuestTicketScope)).Post("/verification", guestVerifyH.Request)
+				r.With(guestLimit.Middleware(middleware.GuestReplyScope)).Post("/lookup", guestVerifyH.Lookup)
+				r.With(guestLimit.Middleware(middleware.GuestTicketScope)).Post("/tickets", mobileGuestH.Create)
+				r.Get("/tickets/{token}", mobileGuestH.Show)
+				r.With(guestLimit.Middleware(middleware.GuestReplyScope)).Post("/tickets/{token}/replies", mobileGuestH.Reply)
+			})
 
 			// Public knowledge base (published only), behind the KB enabled
 			// and public settings.

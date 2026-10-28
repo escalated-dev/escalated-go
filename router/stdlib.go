@@ -17,13 +17,16 @@ import (
 // handlers.WidgetCORS (outside the ticket-access middleware).
 func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	inner := http.NewServeMux()
-	ticketSvc := mountStdlib(inner, esc)
+	// Per-client-IP limits on the unauthenticated guest endpoints, one
+	// limiter (and store) for every guest surface on this mount.
+	guestLimit := middleware.NewGuestRateLimiter(esc.Config.GuestRateLimit)
+	ticketSvc := mountStdlib(inner, esc, guestLimit)
 	prefix := esc.Config.RoutePrefix
 	// API tokens authenticate first, so ticket visibility is the token owner's.
 	mux.Handle(prefix+"/", esc.APITokenMiddleware(esc.TicketAccessMiddleware(inner)))
 
 	if esc.Config.EnableWidget {
-		stack := newWidgetStack(esc, ticketSvc)
+		stack := newWidgetStack(esc, ticketSvc, guestLimit)
 		widget := http.NewServeMux()
 		for _, route := range stack.routes {
 			widget.HandleFunc(route.method+" "+prefix+"/widget"+route.path, route.handler)
@@ -33,7 +36,7 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	}
 }
 
-func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketService {
+func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated, guestLimit *middleware.GuestRateLimiter) *services.TicketService {
 	cfg := esc.Config
 	s := esc.Store
 	rend := esc.Renderer
@@ -87,11 +90,10 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 	scH := handlers.NewSideConversationHandler(cfg.DB)
 	authH := handlers.NewAuthHandler(cfg.APIAuth)
 	guestH := handlers.NewGuestTicketHandler(s, ticketSvc)
-	// Per-client-IP limits on the unauthenticated guest endpoints.
-	guestLimit := middleware.NewGuestRateLimiter(cfg.GuestRateLimit)
 	guestH.Access = esc.GuestAccess
 	satH.GuestTicketID = esc.GuestAccess.ResolveTicketID
-	guestVerifyH := &handlers.GuestVerificationHandler{Access: esc.GuestAccess, ClientIP: guestLimit.ClientIP}
+	guestVerifyH := &handlers.GuestVerificationHandler{Access: esc.GuestAccess, ClientIP: guestLimit.ClientIP, ChatEnabled: chatEnabled(esc)}
+	mobileGuestH := newMobileGuestHandler(esc, ticketSvc)
 	kbH := handlers.NewKBHandler(cfg.DB)
 	kbGuard := kbPublicGuard(esc)
 	retentionH := handlers.NewRetentionHandler(services.NewRetentionService(cfg.DB, s).WithPrefix(cfg.TablePrefix))
@@ -157,6 +159,22 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated) *services.TicketS
 	mux.Handle("GET "+prefix+"/api/guest/tickets/{token}", guestLimit.Middleware(middleware.GuestRequestScope)(http.HandlerFunc(guestH.Show)))
 	mux.Handle("POST "+prefix+"/api/guest/tickets/{token}/replies", guestLimit.Middleware(middleware.GuestReplyScope)(http.HandlerFunc(guestH.Reply)))
 	mux.Handle("POST "+prefix+"/api/guest/tickets/{token}/rate", guestLimit.Middleware(middleware.GuestReplyScope)(http.HandlerFunc(satH.GuestRate)))
+
+	// The mobile guest API (docs/guest-access.md): the same handlers, grants
+	// and per-IP budgets as the guest routes above, plus the general request
+	// budget on every route.
+	mobileGuest := func(scope middleware.GuestScope, h http.HandlerFunc) http.Handler {
+		var next http.Handler = h
+		if scope != "" {
+			next = guestLimit.Middleware(scope)(next)
+		}
+		return handlers.GuestPrivacyHeaders(guestLimit.Middleware(middleware.GuestRequestScope)(next))
+	}
+	mux.Handle("POST "+prefix+"/api/mobile/guest/verification", mobileGuest(middleware.GuestTicketScope, guestVerifyH.Request))
+	mux.Handle("POST "+prefix+"/api/mobile/guest/lookup", mobileGuest(middleware.GuestReplyScope, guestVerifyH.Lookup))
+	mux.Handle("POST "+prefix+"/api/mobile/guest/tickets", mobileGuest(middleware.GuestTicketScope, mobileGuestH.Create))
+	mux.Handle("GET "+prefix+"/api/mobile/guest/tickets/{token}", mobileGuest("", mobileGuestH.Show))
+	mux.Handle("POST "+prefix+"/api/mobile/guest/tickets/{token}/replies", mobileGuest(middleware.GuestReplyScope, mobileGuestH.Reply))
 
 	// Public knowledge base (published only).
 	mux.Handle("GET "+prefix+"/api/kb/articles", kbGuard(http.HandlerFunc(kbH.ListArticles)))

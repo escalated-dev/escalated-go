@@ -26,7 +26,9 @@ type widgetStack struct {
 	wrap func(http.Handler) http.Handler
 }
 
-func newWidgetStack(esc *escalated.Escalated, ticketSvc *services.TicketService) widgetStack {
+// guestLimit is the mount's guest limiter: the widget counts against the same
+// per-IP budgets (and store) as the guest API, guest pages and mobile routes.
+func newWidgetStack(esc *escalated.Escalated, ticketSvc *services.TicketService, guestLimit *middleware.GuestRateLimiter) widgetStack {
 	cfg := esc.Config
 	s := esc.Store
 
@@ -45,15 +47,16 @@ func newWidgetStack(esc *escalated.Escalated, ticketSvc *services.TicketService)
 	// Every widget route is throttled per client IP with the guest limiter
 	// config (ClientIP, Store, Disabled), so behind a trusted proxy each
 	// visitor gets their own budget instead of sharing the proxy's.
-	limiter := middleware.NewGuestRateLimiter(cfg.GuestRateLimit).WithRequestsPerMinute(cfg.Widget.RateLimitPerMin)
+	limiter := guestLimit.WithRequestsPerMinute(cfg.Widget.RateLimitPerMin)
 	widget.Limiter = limiter
 	chat.Limiter = limiter
 	widget.Access = esc.GuestAccess
 	chat.Access = esc.GuestAccess
 	verify := &handlers.GuestVerificationHandler{
-		Access:   esc.GuestAccess,
-		ClientIP: limiter.ClientIP,
-		Enabled:  func() bool { return cfg.Widget.Enabled },
+		Access:      esc.GuestAccess,
+		ClientIP:    limiter.ClientIP,
+		Enabled:     func() bool { return cfg.Widget.Enabled },
+		ChatEnabled: chatEnabled(esc),
 		Allow: func(w http.ResponseWriter, r *http.Request, scope middleware.GuestScope) bool {
 			return limiter.Allow(w, r, middleware.GuestRequestScope, scope)
 		},
@@ -86,6 +89,24 @@ func newWidgetStack(esc *escalated.Escalated, ticketSvc *services.TicketService)
 			{http.MethodPost, "/chat/sessions/{ref}/messages", chat.SendMessage},
 			{http.MethodPost, "/chat/sessions/{ref}/end", chat.EndChat},
 		},
+	}
+}
+
+// chatEnabled reads the chat_enabled setting for the verification handlers:
+// a chat code is refused while live chat is off.
+func chatEnabled(esc *escalated.Escalated) func(r *http.Request) bool {
+	availability := services.NewChatAvailabilityService(esc.Store)
+	return func(r *http.Request) bool { return availability.ChatEnabled(r.Context()) }
+}
+
+// newMobileGuestHandler builds the mobile guest API's create/show/reply
+// handler on the shared guest access and ticket service.
+func newMobileGuestHandler(esc *escalated.Escalated, ticketSvc *services.TicketService) *handlers.MobileGuestHandler {
+	return &handlers.MobileGuestHandler{
+		Store:   esc.Store,
+		Tickets: ticketSvc,
+		Access:  esc.GuestAccess,
+		Users:   handlers.UserLookup{Name: esc.Config.UserName, Email: esc.Config.UserEmail},
 	}
 }
 

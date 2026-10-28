@@ -3,8 +3,9 @@
 Guests (people without an account in your app) create tickets, start live
 chats and look tickets up only after proving they can read the mailbox they
 give. This follows escalated-laravel's `docs/guest-access.md`. It covers the
-guest JSON API under `{RoutePrefix}/api/guest` and the widget under
-`{RoutePrefix}/widget`.
+guest JSON API under `{RoutePrefix}/api/guest`, the mobile guest API under
+`{RoutePrefix}/api/mobile/guest`, the guest pages under `{RoutePrefix}/guest`
+and the widget under `{RoutePrefix}/widget`.
 
 ## What you must configure
 
@@ -46,7 +47,10 @@ eight-digit code.
   counters use `Config.GuestRateLimit.Store` (in memory per process when nil)
   and its `ClientIP`.
 - The routes also count against the per-IP guest limits: `verification`
-  against submissions, `lookup` against replies.
+  against submissions, `lookup` against replies. One limiter (and store) per
+  mount serves the guest API, the guest pages, the widget and the mobile
+  routes, so a client IP has one budget across them.
+- A `chat` code is refused with 403 while live chat is off (`chat_enabled`).
 
 ## Tickets and grants
 
@@ -73,12 +77,48 @@ Where a grant is read:
   `{reference, subject, status, status_label, created_at, department,
   replies}`. The grant must belong to that reference; anything else is 404.
 
-Guest responses send `Cache-Control: no-store, private` and
+Guest responses send `Cache-Control: private, no-store` and
 `Referrer-Policy: no-referrer`. Redact grant path segments and
 `Authorization` headers from your access logs.
 
 `esc.GuestAccess.Revoke(ctx, ticketID)` invalidates every grant for a ticket.
 Call it when your own code changes a ticket's guest email.
+
+## Mobile guest API
+
+The routes a mobile app uses for guests, under `{RoutePrefix}/api/mobile/guest`
+(default `/escalated/api/mobile/guest`). The canonical contract is
+<https://github.com/escalated-dev/escalated-developer-context/blob/main/domain-model/mobile-guest-api.md>.
+
+| Method | Path | Per-IP guest budget |
+|---|---|---|
+| POST | `/verification` | requests + submissions |
+| POST | `/lookup` | requests + replies |
+| POST | `/tickets` | requests + submissions |
+| GET | `/tickets/{token}` | requests |
+| POST | `/tickets/{token}/replies` | requests + replies |
+
+- `verification` and `lookup` are the same handlers as on the guest API and the
+  widget (see above).
+- `POST tickets` takes JSON or a form: `name`, `email`, `subject`,
+  `description`, optional `priority` (`low`, `medium`, `high`, `urgent`,
+  `critical`; default `medium`) and `department_id`, plus `verification_id`
+  (a UUID) and `verification_code`. Field errors are 422 before the code is
+  checked; a wrong, spent, expired or other-purpose code is 422 on
+  `verification_code` and creates nothing. Other fields (status, assignee,
+  metadata, ...) are ignored. 201 `{data: <mobile ticket>, message}` with
+  `guest_access_token` and `guest_access_expires_at`.
+- `GET tickets/{token}`: 200 `{data: <mobile ticket>}` with the public replies,
+  newest first. Staff appear as `{id: 0, name, email: ""}`; internal notes
+  never appear.
+- `POST tickets/{token}/replies` with `{email, body}`: a closed ticket is 422,
+  missing fields 422, an email (trimmed, case-insensitive) other than the
+  ticket's guest email 403, else 201 `{message: "Reply sent."}`.
+- `{token}` must be a live ticket grant from any guest surface. An expired,
+  rotated, malformed or over-long grant, a chat token or a legacy guest token
+  is a 404.
+- The routes are registered with the rest of the JSON API, which this package
+  always mounts: there is no switch to turn the API off.
 
 ## Lookup
 
@@ -114,4 +154,12 @@ accepting them now; Laravel no longer accepts them at all.
 - Consuming a code and the ticket write are not one database transaction: the
   code is consumed first and handed back if the write fails.
 - There is no `external_reference`; lookup matches the ticket reference.
-- There is no browser guest page; the guest surface is the JSON API.
+- There is no API-layer rate limiter (no `X-RateLimit-*` headers); the per-IP
+  guest budgets apply. The mobile routes cannot be switched off with the API.
+- Guest tickets have no on/off switch, so the contract's 403 for disabled guest
+  tickets never applies.
+- Uploads are not stored yet: a mobile create or reply that sends files is a
+  422 on `attachments`. Reply attachments (from email or imports) are listed
+  with `url: null`, as there is no guest-authorized download route.
+- There is no guest identity policy and no ticket channel column: guest
+  tickets get no policy applied, and the mobile ticket reports channel `web`.

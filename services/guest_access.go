@@ -380,24 +380,31 @@ var guestTokenPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 // Resolve returns the ticket id a grant opens, or ErrGuestGrantInvalid.
 func (g *GuestAccess) Resolve(ctx context.Context, token string) (int64, error) {
+	id, _, err := g.ResolveGrant(ctx, token)
+	return id, err
+}
+
+// ResolveGrant is Resolve that also returns when the grant expires. Legacy
+// guest tokens are not grants: they never resolve here.
+func (g *GuestAccess) ResolveGrant(ctx context.Context, token string) (int64, time.Time, error) {
 	if len(token) > 4096 || !guestTokenPattern.MatchString(token) {
-		return 0, ErrGuestGrantInvalid
+		return 0, time.Time{}, ErrGuestGrantInvalid
 	}
 	raw, err := g.open(token)
 	if err != nil {
-		return 0, ErrGuestGrantInvalid
+		return 0, time.Time{}, ErrGuestGrantInvalid
 	}
 	var c guestClaims
 	if json.Unmarshal(raw, &c) != nil || c.Version != 1 || c.Purpose != GuestPurposeTicket || len(c.Nonce) != 64 {
-		return 0, ErrGuestGrantInvalid
+		return 0, time.Time{}, ErrGuestGrantInvalid
 	}
 	now := g.clock()
 	if c.Expires <= now.Unix() {
-		return 0, ErrGuestGrantInvalid
+		return 0, time.Time{}, ErrGuestGrantInvalid
 	}
 	id, err := strconv.ParseInt(c.Ticket, 10, 64)
 	if err != nil || id <= 0 {
-		return 0, ErrGuestGrantInvalid
+		return 0, time.Time{}, ErrGuestGrantInvalid
 	}
 
 	var hash, verified, guestEmail sql.NullString
@@ -405,16 +412,16 @@ func (g *GuestAccess) Resolve(ctx context.Context, token string) (int64, error) 
 	err = g.DB.QueryRowContext(ctx, g.q(`SELECT guest_access_hash, guest_access_expires_at, guest_verified_email, guest_email_verified_at, guest_email
 		FROM `+g.t("tickets")+` WHERE id = ?`), id).Scan(&hash, &expires, &verified, &verifiedAt, &guestEmail)
 	if err != nil {
-		return 0, ErrGuestGrantInvalid
+		return 0, time.Time{}, ErrGuestGrantInvalid
 	}
 	if !hash.Valid || !expires.Valid || !verified.Valid || !verifiedAt.Valid || !guestEmail.Valid ||
 		NormalizeGuestEmail(guestEmail.String) != verified.String ||
 		!expires.Time.After(now) || expires.Time.Unix() != c.Expires ||
 		!hmac.Equal([]byte(hash.String), []byte(sha256Hex(c.Nonce))) ||
 		!hmac.Equal([]byte(c.Email), []byte(sha256Hex(verified.String))) {
-		return 0, ErrGuestGrantInvalid
+		return 0, time.Time{}, ErrGuestGrantInvalid
 	}
-	return id, nil
+	return id, time.Unix(c.Expires, 0).UTC(), nil
 }
 
 // ResolveTicketID opens a ticket from a guest grant or, unless

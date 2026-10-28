@@ -30,6 +30,10 @@ type GuestVerificationHandler struct {
 
 	// ClientIP keys the per-client code budget. Nil means RemoteAddr's host.
 	ClientIP func(r *http.Request) string
+
+	// ChatEnabled reports whether live chat is on; a chat code is refused
+	// with 403 while it is off. Nil means on.
+	ChatEnabled func(r *http.Request) bool
 }
 
 // Request handles POST verification: {email, purpose} -> 202
@@ -56,6 +60,10 @@ func (h *GuestVerificationHandler) Request(w http.ResponseWriter, r *http.Reques
 	}
 	if len(errs) > 0 {
 		writeGuestValidation(w, errs)
+		return
+	}
+	if in.Purpose == services.GuestPurposeChat && h.ChatEnabled != nil && !h.ChatEnabled(r) {
+		writeJSON(w, http.StatusForbidden, map[string]string{"message": "Live chat is not enabled."})
 		return
 	}
 
@@ -206,8 +214,18 @@ func writeGuestValidation(w http.ResponseWriter, errs map[string][]string) {
 // setGuestPrivacyHeaders keeps guest responses (which can carry grants) out
 // of caches and referrers (Laravel GuestPrivacyHeaders).
 func setGuestPrivacyHeaders(w http.ResponseWriter) {
-	w.Header().Set("Cache-Control", "no-store, private")
+	w.Header().Set("Cache-Control", "private, no-store")
 	w.Header().Set("Referrer-Policy", "no-referrer")
+}
+
+// GuestPrivacyHeaders sets the guest privacy headers before the wrapped
+// handler runs, so every answer carries them: errors and 429s from the rate
+// limiter included.
+func GuestPrivacyHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		setGuestPrivacyHeaders(w)
+		next.ServeHTTP(w, r)
+	})
 }
 
 // bearerToken returns the Authorization: Bearer value.

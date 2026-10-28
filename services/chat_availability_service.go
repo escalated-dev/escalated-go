@@ -104,6 +104,14 @@ func (as *ChatAvailabilityService) agentOnline(ctx context.Context, agentID mode
 	return err == nil && online
 }
 
+// ChatEnabled reports whether live chat is switched on (the chat_enabled
+// setting; unset means on). A settings read error counts as on, so a database
+// hiccup does not refuse chat codes.
+func (as *ChatAvailabilityService) ChatEnabled(ctx context.Context) bool {
+	enabled, err := as.chatEnabled(ctx)
+	return err != nil || enabled
+}
+
 func (as *ChatAvailabilityService) chatEnabled(ctx context.Context) (bool, error) {
 	v, err := as.store.GetSetting(ctx, ChatEnabledSetting)
 	if err != nil {
