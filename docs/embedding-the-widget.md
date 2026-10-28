@@ -129,10 +129,12 @@ Paths are relative to the widget prefix.
 | `POST /chat/{id}/typing`, `/end` | The visitor's typing indicator (broadcast, not stored); ending the chat. |
 | `POST /chat/{id}/rate` | `{rating: 1-5, comment?}`, once, after the chat ended. Stored on the chat ticket's metadata as `chat_rating`. |
 
-The chat `id` is the chat ticket's guest token: a random string, never a
+The chat `id` is a random chat token (also returned as `guest_token`), never a
 sequential number. It is the only credential the `/chat/{id}/...` routes take,
-so treat it like a password. Unknown ids, and the guest token of a ticket that
-is not a chat, are 404.
+so treat it like a password. Only its SHA-256 is stored, and it expires the
+guest grant lifetime after the chat starts (`expires_at`;
+`GuestAccessConfig.TTL`, default 24 hours). Unknown and expired ids, and the
+guest token of a ticket that is not a chat, are 404.
 
 Validation errors are 422 `{message, errors: {field: [message]}}` (the
 original `error` key stays). Every widget route counts against a general

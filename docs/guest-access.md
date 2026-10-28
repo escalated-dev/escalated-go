@@ -90,9 +90,14 @@ grant. The result may be empty, and the code is consumed either way.
 
 ## Live chat
 
-`POST /widget/chat/start` needs a `chat` code for the visitor's email. The chat
-keeps its server-issued id (the chat ticket's random guest token) as the
-credential for `/chat/{id}/...`; it is not an expiring grant as in Laravel.
+`POST /widget/chat/start` needs a `chat` code for the visitor's email. Its `id`
+is a random chat token that works like Laravel's chat grant: only its SHA-256
+is stored (on the chat session), it expires `GuestAccessConfig.TTL` after the
+chat starts (`expires_at`), and after that every `/chat/{id}/...` route, and
+`/chat/sessions/{ref}/...` with it as `X-Guest-Token`, answers 404. The chat's
+ticket keeps no guest token, so a chat token cannot open ticket routes. Chats
+started before this release keep working: their next request moves the
+token's hash to the session with a full lifetime.
 
 ## Legacy guest tokens
 
@@ -105,7 +110,7 @@ accepting them now; Laravel no longer accepts them at all.
 ## Differences from Laravel
 
 - Legacy tokens are not cut off at once (see above).
-- Chat keeps its server-issued token rather than an expiring chat grant.
+- The chat token is a random token rather than a sealed grant, so a ticket link does not rotate it.
 - Consuming a code and the ticket write are not one database transaction: the
   code is consumed first and handed back if the write fails.
 - There is no `external_reference`; lookup matches the ticket reference.

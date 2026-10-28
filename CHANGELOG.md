@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Upgrading
+- The startup migration adds nullable `visitor_token_hash` (unique) and
+  `visitor_token_expires_at` to the chat sessions table. Chats already in
+  progress keep working: the next widget request with their token (still the
+  chat ticket's `guest_token`) moves the token's hash to the session with a
+  full lifetime and clears the ticket's copy.
+- Widget chat tokens now expire `GuestAccessConfig.TTL` after the chat starts
+  (default 24 hours, clamped to 5 minutes .. 7 days), as in escalated-laravel.
+  After that every `/widget/chat/{id}/...` route, and
+  `/widget/chat/sessions/{ref}/...` with it as `X-Guest-Token`, answers 404 and
+  the visitor starts a new chat.
+- New chat tickets no longer carry the chat token as their `guest_token`.
+  `GuestAccess.IssueChatToken` and `GuestAccess.ChatSessionForToken` issue and
+  resolve chat tokens for host code.
+
+### Security
+- **Widget chat tokens are stored hashed and expire.** The token returned by
+  `POST /widget/chat/start` (`id`, `guest_token`) was the chat ticket's plain
+  `guest_token`, never expired, and (with legacy tokens accepted) also opened
+  the ticket's guest routes. It is now kept only as a SHA-256 on the chat
+  session, the start answer carries `expires_at`, and an unknown or expired
+  token is a 404 on every chat route.
+
 ## [0.2.7] - 2026-10-22
 
 ### Fixed
