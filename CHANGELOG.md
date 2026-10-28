@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Upgrading
+- `POST /widget/chat/start` now answers exactly as escalated-laravel: `201
+  {id, session_id, expires_at, ticket_reference, status, agent_name}`, where
+  `id` and `session_id` are both the chat token (plus `guest_token`,
+  `messages` and `agent`). The numeric `session_id` is no longer returned; use
+  `id` for the widget chat routes and `ticket_reference` to name the ticket.
 - The startup migration adds nullable `visitor_token_hash` (unique) and
   `visitor_token_expires_at` to the chat sessions table. Chats already in
   progress keep working: the next widget request with their token (still the
