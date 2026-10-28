@@ -45,6 +45,11 @@ func upgradeTicketAccess(db *sql.DB, prefix string, postgres bool) error {
 		// Custom ticket statuses: the sub-status a ticket is in, if any. The
 		// built-in status column stays as it is; existing tickets get NULL.
 		{"tickets", "ticket_status_id", "BIGINT REFERENCES " + prefix + "ticket_statuses(id) ON DELETE SET NULL"},
+		// Widget chat tokens (services.GuestAccess.IssueChatToken): only the
+		// token's SHA-256 and when it expires. Chats in progress keep NULLs
+		// until their next request moves their token here.
+		{"chat_sessions", "visitor_token_hash", "VARCHAR(64)"},
+		{"chat_sessions", "visitor_token_expires_at", timestamp},
 	}
 	for _, column := range columns {
 		exists := false
@@ -89,6 +94,7 @@ func upgradeTicketAccess(db *sql.DB, prefix string, postgres bool) error {
 		"CREATE TABLE IF NOT EXISTS " + prefix + "guest_verifications (id VARCHAR(64) PRIMARY KEY, email VARCHAR(255) NOT NULL, purpose VARCHAR(16) NOT NULL, code_hash VARCHAR(64) NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, expires_at " + timestamp + " NOT NULL, used_at " + timestamp + ", created_at " + timestamp + " NOT NULL)",
 		"CREATE INDEX IF NOT EXISTS " + prefix + "guest_verifications_expires_idx ON " + prefix + "guest_verifications(expires_at)",
 		"CREATE INDEX IF NOT EXISTS " + prefix + "tickets_ticket_status_idx ON " + prefix + "tickets(ticket_status_id)",
+		"CREATE UNIQUE INDEX IF NOT EXISTS " + prefix + "chat_sessions_visitor_token_idx ON " + prefix + "chat_sessions(visitor_token_hash)",
 		"CREATE TABLE IF NOT EXISTS " + prefix + "department_agent (department_id BIGINT NOT NULL REFERENCES " + prefix + "departments(id) ON DELETE CASCADE, agent_id VARCHAR(255) NOT NULL, PRIMARY KEY(department_id,agent_id))",
 	} {
 		if _, err := db.Exec(query); err != nil {

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/escalated-dev/escalated-go/middleware"
 	"github.com/escalated-dev/escalated-go/models"
@@ -165,13 +166,27 @@ func (h *WidgetChatHandler) StartChat(w http.ResponseWriter, r *http.Request) {
 	if ticket.GuestToken != nil {
 		id = *ticket.GuestToken
 	}
+	var expiresAt any
+	if h.Access != nil {
+		// The visitor's key: random, expiring, stored hashed (as in
+		// escalated-laravel). The chat ticket keeps no guest token.
+		token, expires, err := h.Access.IssueChatToken(r.Context(), session.ID, ticket.ID)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not start the chat", "message": "Could not start the chat."})
+			return
+		}
+		id, expiresAt = token, expires.UTC().Format(time.RFC3339)
+		ticket.GuestToken = nil
+	}
 	resp := map[string]any{
 		"id":               id,
 		"session_id":       session.ID,
 		"ticket_reference": ticket.Reference,
-		"guest_token":      ticket.GuestToken,
-		"status":           session.StatusString(),
-		"messages":         h.transcript(r.Context(), ticket, nil),
+		"guest_token":      id,
+		// The token stops working after this; the visitor starts a new chat.
+		"expires_at": expiresAt,
+		"status":     session.StatusString(),
+		"messages":   h.transcript(r.Context(), ticket, nil),
 	}
 	if agent := h.agent(r.Context(), session); agent != nil {
 		resp["agent"] = agent
@@ -395,6 +410,18 @@ func (h *WidgetChatHandler) chatByID(w http.ResponseWriter, r *http.Request) (*m
 	}
 
 	token := pathParam(r, "id")
+	if h.Access != nil {
+		// Unknown and expired tokens are both 404, as in escalated-laravel.
+		session, err := h.chatForToken(r, token)
+		if err != nil || session == nil {
+			return notFound()
+		}
+		t, err := h.store.GetTicket(r.Context(), session.TicketID)
+		if err != nil || t == nil {
+			return notFound()
+		}
+		return t, session, true
+	}
 	lookup, ok := h.store.(guestTokenLookup)
 	if token == "" || !ok {
 		return notFound()
@@ -488,7 +515,27 @@ func chatRefFromPath(r *http.Request) string {
 	return refFromPath(r)
 }
 
+// chatForToken is the chat session an unexpired visitor token unlocks, or nil.
+func (h *WidgetChatHandler) chatForToken(r *http.Request, token string) (*models.ChatSession, error) {
+	id, ok, err := h.Access.ChatSessionForToken(r.Context(), token)
+	if err != nil || !ok {
+		return nil, err
+	}
+	return h.store.GetChatSession(r.Context(), id)
+}
+
 func (h *WidgetChatHandler) findSessionByRef(r *http.Request, ref, token string) (*models.ChatSession, error) {
+	if h.Access != nil {
+		session, err := h.chatForToken(r, token)
+		if err != nil || session == nil {
+			return nil, err
+		}
+		t, err := h.store.GetTicket(r.Context(), session.TicketID)
+		if err != nil || t == nil || t.Reference != ref {
+			return nil, err
+		}
+		return session, nil
+	}
 	t, err := h.store.GetTicketByReference(r.Context(), ref)
 	if err != nil || t == nil {
 		return nil, err

@@ -427,15 +427,18 @@ func TestWidgetContractChatRejectsUnknownIDs(t *testing.T) {
 
 func refForChat(t *testing.T, f *widgetContractFixture, token string) string {
 	t.Helper()
-	lookup, ok := f.esc.Store.(interface {
-		GetTicketByGuestToken(context.Context, string) (*models.Ticket, error)
-	})
-	if !ok {
-		t.Fatal("store has no guest token lookup")
+	ctx := context.Background()
+	id, ok, err := f.esc.GuestAccess.ChatSessionForToken(ctx, token)
+	if err != nil || !ok {
+		t.Fatalf("chat for token: %v", err)
 	}
-	tk, err := lookup.GetTicketByGuestToken(context.Background(), token)
+	session, err := f.esc.Store.GetChatSession(ctx, id)
+	if err != nil || session == nil {
+		t.Fatalf("chat session: %v", err)
+	}
+	tk, err := f.esc.Store.GetTicket(ctx, session.TicketID)
 	if err != nil || tk == nil {
-		t.Fatalf("chat ticket for token: %v", err)
+		t.Fatalf("chat ticket: %v", err)
 	}
 	return tk.Reference
 }
