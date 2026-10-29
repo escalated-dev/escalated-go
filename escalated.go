@@ -37,6 +37,7 @@ import (
 
 	"github.com/escalated-dev/escalated-go/handlers"
 	"github.com/escalated-dev/escalated-go/models"
+	"github.com/escalated-dev/escalated-go/plugins"
 	"github.com/escalated-dev/escalated-go/renderer"
 	"github.com/escalated-dev/escalated-go/services"
 	"github.com/escalated-dev/escalated-go/services/newsletter"
@@ -60,6 +61,10 @@ type Escalated struct {
 	// Notifier sends the ticket notification emails; nil while Config.Mailer
 	// is nil or Config.Notifications.Disabled is set.
 	Notifier *services.Notifier
+	// Plugins is the plugin registry: Config.Plugins' native plugins and the
+	// SDK plugins the runtime reports, their activation and their hooks. Host
+	// code applies its own filter points with Plugins.ApplyFilter.
+	Plugins *plugins.Host
 
 	importsOnce sync.Once
 	imports     *services.ImportService
@@ -162,6 +167,10 @@ func New(cfg Config) (*Escalated, error) {
 	if configured, ok := s.(interface{ ConfigureTicketAccess(*ticketaccess.Access) }); ok {
 		configured.ConfigureTicketAccess(access)
 	}
+	pluginHost, err := newPluginHost(cfg)
+	if err != nil {
+		return nil, err
+	}
 	return &Escalated{
 		Access:      access,
 		Config:      cfg,
@@ -169,6 +178,7 @@ func New(cfg Config) (*Escalated, error) {
 		Renderer:    rend,
 		GuestAccess: newGuestAccess(cfg),
 		Notifier:    newNotifier(cfg, access),
+		Plugins:     pluginHost,
 	}, nil
 }
 
@@ -196,6 +206,10 @@ func NewSQLite(cfg Config) (*Escalated, error) {
 		return nil, err
 	}
 	s.ConfigureTicketAccess(access)
+	pluginHost, err := newPluginHost(cfg)
+	if err != nil {
+		return nil, err
+	}
 	return &Escalated{
 		Access:      access,
 		Config:      cfg,
@@ -203,7 +217,34 @@ func NewSQLite(cfg Config) (*Escalated, error) {
 		Renderer:    rend,
 		GuestAccess: newGuestAccess(cfg),
 		Notifier:    newNotifier(cfg, access),
+		Plugins:     pluginHost,
 	}, nil
+}
+
+// newPluginHost builds the plugin registry. A malformed native plugin, or two
+// plugins with one slug, is an error here, at startup.
+func newPluginHost(cfg Config) (*plugins.Host, error) {
+	reserved := append([]string{}, services.SupportedWebhookEvents...)
+	for legacy := range models.LegacyEventNames {
+		reserved = append(reserved, legacy)
+	}
+	return plugins.New(cfg.Plugins, plugins.Options{
+		DB:          cfg.DB,
+		TablePrefix: cfg.TablePrefix,
+		RoutePrefix: cfg.RoutePrefix,
+		AdminCheck:  cfg.AdminCheck,
+		UserID:      cfg.UserIDFunc,
+		UserName:    cfg.UserName,
+		UserEmail:   cfg.UserEmail,
+		ClientIP:    cfg.GuestRateLimit.ClientIP,
+		Reserved:    reserved,
+		Version:     Version,
+	})
+}
+
+// Close stops what New started in the background: the plugin runtime.
+func (e *Escalated) Close() {
+	e.Plugins.Close()
 }
 
 // StartNewsletterDispatcher starts the optional minute-cadence newsletter

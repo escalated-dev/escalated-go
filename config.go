@@ -11,6 +11,7 @@ import (
 	"github.com/escalated-dev/escalated-go/handlers"
 	"github.com/escalated-dev/escalated-go/middleware"
 	"github.com/escalated-dev/escalated-go/models"
+	"github.com/escalated-dev/escalated-go/plugins"
 	"github.com/escalated-dev/escalated-go/services"
 )
 
@@ -283,6 +284,11 @@ type Config struct {
 	// ImportAttachmentMaxBytes caps one imported attachment. Zero uses
 	// Laravel's live-upload limit, 10240 KB.
 	ImportAttachmentMaxBytes int64
+
+	// Plugins registers native plugins (Go code implementing plugins.Plugin)
+	// and switches on the SDK plugin runtime. Every plugin is listed on Admin >
+	// Plugins, inactive until an admin activates it. See docs/plugins.md.
+	Plugins plugins.Config
 }
 
 // DefaultConfig returns a Config with sensible defaults.

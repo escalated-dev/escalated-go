@@ -2,12 +2,15 @@
 package router
 
 import (
+	"net/http"
+
 	"github.com/go-chi/chi/v5"
 
 	escalated "github.com/escalated-dev/escalated-go"
 	"github.com/escalated-dev/escalated-go/actions"
 	"github.com/escalated-dev/escalated-go/handlers"
 	"github.com/escalated-dev/escalated-go/middleware"
+	"github.com/escalated-dev/escalated-go/plugins"
 	"github.com/escalated-dev/escalated-go/services"
 )
 
@@ -109,6 +112,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	if cfg.EnableNewsletters {
 		newsletterH, _ = newNewsletterStack(esc)
 	}
+	pluginH := &plugins.Handler{Host: esc.Plugins, Renderer: rend}
 
 	// Support widget — only with EnableWidget. Mounted beside the main prefix
 	// router so WidgetCORS runs before the ticket-access middleware (an
@@ -204,7 +208,15 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Get("/kb/categories", kbH.ListCategories)
 				r.Get("/kb/articles/{slug}", kbH.ShowArticle)
 			})
+
+			// Active plugins' endpoints (escalated.plugin.*), admin only plus
+			// the endpoint's capability (docs/plugins.md).
+			r.With(middleware.RequireAdmin(cfg.AdminCheck)).Handle("/plugins/*", http.HandlerFunc(pluginH.Endpoint))
 		})
+
+		// Active plugins' webhooks: no guard, the plugin authenticates the
+		// sender.
+		r.Handle("/webhooks/plugins/*", http.HandlerFunc(pluginH.Webhook))
 
 		if cfg.EnableNewsletters {
 			r.Route("/n", func(r chi.Router) {
@@ -296,6 +308,11 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 			// Admin routes
 			r.Route("/admin", func(r chi.Router) {
 				r.Use(middleware.RequireAdmin(cfg.AdminCheck))
+				// Admin > Plugins, the plugin lifecycle routes and the pages
+				// active plugins declare (escalated.admin.plugins.*,
+				// escalated.plugin.{slug}.page.*).
+				r.Handle("/plugins", http.HandlerFunc(pluginH.Admin))
+				r.Handle("/plugins/*", http.HandlerFunc(pluginH.Admin))
 				r.Get("/departments", adminH.ListDepartments)
 				r.Post("/departments", adminH.CreateDepartment)
 				r.Get("/departments/create", adminH.CreateDepartmentForm)
