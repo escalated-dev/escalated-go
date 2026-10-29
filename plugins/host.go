@@ -123,6 +123,10 @@ type entry struct {
 	sdkFilters  map[string]int
 	cron        []string
 	badges      map[string]bool
+
+	// Native plugins: CronPlugin and BadgePlugin.
+	cronFuncs  map[string]CronFunc
+	badgeFuncs map[string]BadgeFunc
 }
 
 type nativeFilter struct {
@@ -223,6 +227,24 @@ func nativeEntry(p Plugin) (*entry, error) {
 				priority = 10
 			}
 			e.filters = append(e.filters, nativeFilter{hook: f.Hook, priority: priority, handler: f.Handler})
+		}
+	}
+	if cp, ok := p.(CronPlugin); ok {
+		e.cronFuncs = map[string]CronFunc{}
+		for schedule, fn := range cp.Cron() {
+			if fn != nil {
+				e.cronFuncs[schedule] = fn
+				e.cron = append(e.cron, schedule)
+			}
+		}
+		sort.Strings(e.cron)
+	}
+	if bp, ok := p.(BadgePlugin); ok {
+		e.badgeFuncs = map[string]BadgeFunc{}
+		for component, fn := range bp.Badges() {
+			if fn != nil {
+				e.badgeFuncs[component] = fn
+			}
 		}
 	}
 	if ap, ok := p.(ActionPlugin); ok {

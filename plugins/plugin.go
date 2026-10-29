@@ -17,7 +17,7 @@ import (
 // Plugin is a native plugin: Go code compiled into the host and listed in
 // Config.Plugins.Native. Manifest is the only required method; the optional
 // interfaces below (Activator, Deactivator, ActionPlugin, FilterPlugin,
-// EndpointPlugin, WebhookPlugin) add behaviour. A plugin runs with the host's
+// EndpointPlugin, WebhookPlugin, CronPlugin, BadgePlugin) add behaviour. A plugin runs with the host's
 // privileges, so only register code you would merge into your own.
 type Plugin interface {
 	Manifest() Manifest
@@ -60,6 +60,31 @@ type EndpointPlugin interface {
 type WebhookPlugin interface {
 	Webhooks() []Route
 }
+
+// CronPlugin declares cron schedules, the native form of an SDK plugin's
+// cron keys: five-field cron expressions (minute hour day-of-month month
+// day-of-week, or @hourly, @daily, ...), evaluated in UTC, each with the
+// function to run. Host.RunDueCron runs the due ones of active plugins once a
+// minute, as no user, within 30 s each.
+type CronPlugin interface {
+	Cron() map[string]CronFunc
+}
+
+// BadgePlugin gives dashboard widgets a live badge, the native form of an SDK
+// widget's badge function: a map of a manifest widget's Component to the
+// function that answers its badge.
+type BadgePlugin interface {
+	Badges() map[string]BadgeFunc
+}
+
+// CronFunc runs one cron schedule. An error or a panic is logged and never
+// stops the other schedules.
+type CronFunc func(ctx context.Context, pc *Context) error
+
+// BadgeFunc answers a widget's badge for the viewer (pc.CurrentUser and
+// pc.Request are the viewer's): a number or a string, or nil for none. It
+// has 5 s; an error, a panic, a slow answer or any other type is null.
+type BadgeFunc func(ctx context.Context, pc *Context) (any, error)
 
 // ActionFunc handles one action. An error is logged; it never reaches the
 // request that caused the event.

@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -104,6 +105,8 @@ type crmPlugin struct {
 	rec            *recorder
 	failActivate   bool
 	panicOnCreated bool
+	// badgeFails makes CrmWidget's badge "error", "panic" or "slow".
+	badgeFails string
 }
 
 func (p *crmPlugin) Manifest() plugins.Manifest {
@@ -168,6 +171,52 @@ func (p *crmPlugin) Actions() map[string]plugins.ActionFunc {
 		}
 	}
 	return actions
+}
+
+// Cron runs on the host scheduler while the plugin is active.
+func (p *crmPlugin) Cron() map[string]plugins.CronFunc {
+	record := func(name string) plugins.CronFunc {
+		return func(ctx context.Context, pc *plugins.Context) error {
+			user, _ := pc.CurrentUser(ctx)
+			p.rec.add(fmt.Sprintf("cron:%s:user=%v", name, user != nil))
+			return nil
+		}
+	}
+	return map[string]plugins.CronFunc{
+		"* * * * *": record("every-minute"),
+		"0 9 * * *": record("nine"),
+		"0 * * * *": func(context.Context, *plugins.Context) error {
+			p.rec.add("cron:hourly-fails")
+			return errors.New("the hourly sync failed")
+		},
+		"*/30 * * * *": func(context.Context, *plugins.Context) error {
+			panic("a plugin bug in cron")
+		},
+		"not a schedule": record("unreadable"),
+	}
+}
+
+// Badges answers CrmWidget's badge as the viewer; CrmForecast has none.
+func (p *crmPlugin) Badges() map[string]plugins.BadgeFunc {
+	return map[string]plugins.BadgeFunc{
+		"CrmWidget": func(ctx context.Context, pc *plugins.Context) (any, error) {
+			switch p.badgeFails {
+			case "error":
+				return nil, errors.New("badge failed")
+			case "panic":
+				panic("a plugin bug in a badge")
+			case "slow":
+				<-ctx.Done()
+				return 1, nil
+			}
+			user, err := pc.CurrentUser(ctx)
+			if err != nil || user == nil {
+				return "for nobody", err
+			}
+			return fmt.Sprintf("for %v", user.ID), nil
+		},
+		"NotAWidget": func(context.Context, *plugins.Context) (any, error) { return 3, nil },
+	}
 }
 
 func legacyNames() []string {

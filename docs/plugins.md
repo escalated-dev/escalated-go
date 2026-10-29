@@ -34,7 +34,8 @@ tables, with your table prefix:
 
 A native plugin is any type with a `Manifest() plugins.Manifest` method. The
 optional interfaces add behaviour: `Activator`, `Deactivator`, `ActionPlugin`,
-`FilterPlugin`, `EndpointPlugin`, `WebhookPlugin`.
+`FilterPlugin`, `EndpointPlugin`, `WebhookPlugin`, `CronPlugin` (see
+[Cron](#cron)) and `BadgePlugin` (see [UI](#ui)).
 
 ```go
 type CRM struct{}
@@ -202,7 +203,11 @@ from active plugins' manifests, in the shape the shared frontend's
 - `dashboardWidgets`: `{id: "{slug}.{component}", title, component, plugin,
   position, width}`; `width` defaults to `half`. An SDK plugin's widget with a
   `badge` function also has `badge`: the runtime is asked for it while the
-  page is built, as the viewer, within 5 s; `null` when that fails.
+  page is built, as the viewer, within 5 s; `null` when that fails. A native
+  plugin gives a widget a badge with `BadgePlugin`: `Badges()` maps a widget's
+  `Component` to a `BadgeFunc`, run the same way (its `pc.CurrentUser` and
+  `pc.Request` are the viewer's) and answering a number, a string or nil; an
+  error, a panic, a slow answer or any other type is `null`.
 
 `plugin` is the slug. Items whose capability the viewer lacks are left out.
 With no active plugin it is `{}`. Plugin settings are never part of it.
@@ -216,7 +221,22 @@ minute, or start `esc.StartPluginCron(ctx)` once (it ticks at the start of each
 minute; call the returned function to stop). Each due schedule of an active
 plugin is sent to the runtime as `cron`, side by side, as no user, within 30 s;
 a failing or unreadable schedule is logged and skipped. Inactive plugins'
-schedules never run. Native plugins schedule their own work.
+schedules never run.
+
+A native plugin declares the same schedules with `CronPlugin`: `Cron()` maps
+each expression to a `CronFunc`, which `RunDueCron` calls in process when it
+is due, under the same rules (as no user: `pc.CurrentUser` is nil; within
+30 s; an error or panic is logged and the others still run).
+
+```go
+func (CRM) Cron() map[string]plugins.CronFunc {
+	return map[string]plugins.CronFunc{
+		"*/15 * * * *": func(ctx context.Context, pc *plugins.Context) error {
+			return syncDeals(ctx, pc)
+		},
+	}
+}
+```
 
 ## The context
 

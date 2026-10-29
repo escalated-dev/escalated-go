@@ -504,3 +504,94 @@ func TestSDKPluginWidgetBadgesAreAskedAsTheViewer(t *testing.T) {
 		t.Errorf("a widget without a badge function carries none: %v", byComponent["Plain"])
 	}
 }
+
+// An active native plugin's due cron schedules run from the same scheduler
+// entry point as SDK ones, as no user; a failing, panicking or unreadable
+// schedule never stops the others, and an inactive plugin's never run.
+func TestNativePluginCronSchedulesRunWhenDue(t *testing.T) {
+	f := newPluginFixture(t)
+	h := f.mounts()["chi"]
+	nine := time.Date(2026, 10, 29, 9, 0, 20, 0, time.UTC)
+
+	f.esc.Plugins.RunDueCron(context.Background(), nine)
+	if got := cronEvents(f.rec.take()); len(got) != 0 {
+		t.Errorf("an inactive plugin ran %v", got)
+	}
+
+	lifecycleCall(t, h, http.MethodPost, "/escalated/admin/plugins/"+crmSlug+"/activate")
+	f.rec.take()
+	f.esc.Plugins.RunDueCron(context.Background(), nine)
+	if got := strings.Join(cronEvents(f.rec.take()), "|"); got != "cron:every-minute:user=false|cron:hourly-fails|cron:nine:user=false" {
+		t.Errorf("at 09:00 ran %q", got)
+	}
+	f.esc.Plugins.RunDueCron(context.Background(), nine.Add(time.Minute))
+	if got := strings.Join(cronEvents(f.rec.take()), "|"); got != "cron:every-minute:user=false" {
+		t.Errorf("at 09:01 ran %q", got)
+	}
+
+	// The scheduler entry point runs the same check for the current minute.
+	f.esc.RunPluginCron(context.Background())
+	if got := cronEvents(f.rec.take()); len(got) == 0 || got[0] != "cron:every-minute:user=false" {
+		t.Errorf("RunPluginCron ran %v", got)
+	}
+
+	lifecycleCall(t, h, http.MethodPost, "/escalated/admin/plugins/"+crmSlug+"/deactivate")
+	f.rec.take()
+	f.esc.Plugins.RunDueCron(context.Background(), nine)
+	if got := cronEvents(f.rec.take()); len(got) != 0 {
+		t.Errorf("a deactivated plugin ran %v", got)
+	}
+}
+
+func cronEvents(events []string) []string {
+	var out []string
+	for _, e := range events {
+		if strings.HasPrefix(e, "cron:") {
+			out = append(out, e)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// A native widget's badge is asked as the viewer while the shared props are
+// built; a failing, panicking or slow badge is null and a widget without a
+// badge function carries none.
+func TestNativePluginWidgetBadgesAreAskedAsTheViewer(t *testing.T) {
+	f := newPluginFixture(t)
+	h := f.mounts()["chi"]
+	lifecycleCall(t, h, http.MethodPost, "/escalated/admin/plugins/"+crmSlug+"/activate")
+
+	widgets := func() map[string]map[string]any {
+		t.Helper()
+		page := pageOf(t, preq(h, http.MethodGet, "/escalated/agent/tickets", "admin", "", map[string]string{"X-Inertia": "true", capHeader: "crm.secret"}))
+		out := map[string]map[string]any{}
+		for _, w := range list(t, obj(t, obj(t, page.Props, "escalated"), "plugins"), "dashboardWidgets") {
+			item := w.(map[string]any)
+			out[fmt.Sprint(item["component"])] = item
+		}
+		return out
+	}
+
+	got := widgets()
+	if b := got["CrmWidget"]["badge"]; b != "for 900" {
+		t.Errorf("CrmWidget badge %v, want the viewer's", b)
+	}
+	if _, ok := got["CrmForecast"]["badge"]; ok {
+		t.Errorf("a widget without a badge function carries none: %v", got["CrmForecast"])
+	}
+	if len(got) != 2 {
+		t.Errorf("a badge for a component that is not a widget adds nothing: %v", got)
+	}
+
+	for _, mode := range []string{"error", "panic", "slow"} {
+		f.crm.badgeFails = mode
+		start := time.Now()
+		if b, ok := widgets()["CrmWidget"]["badge"]; !ok || b != nil {
+			t.Errorf("a %s badge must be null, got %v (present %v)", mode, b, ok)
+		}
+		if mode == "slow" && time.Since(start) > 8*time.Second {
+			t.Errorf("a slow badge held the page for %s", time.Since(start))
+		}
+	}
+}
