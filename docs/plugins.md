@@ -249,9 +249,12 @@ runtime's `ctx.*` calls through the same methods.
   `Config.Plugins.Broadcaster` (a `services.Broadcaster`); without one they do
   nothing.
 
-The runtime's JSON-RPC carries no request id, so when it is serving one SDK
-plugin for two dispatches at once (an endpoint and a background event, say),
-that plugin's `ctx` calls act as nobody until one of them finishes.
+The runtime stamps each `ctx` call with the id of the host call it serves
+(`host_call_id`), so an SDK plugin serving several requests at once acts for
+each request's own user. An older runtime (0.2.0 and before) stamps nothing:
+then, while one SDK plugin is serving two dispatches at once (an endpoint and
+a background event, say), its `ctx` calls act as nobody until one of them
+finishes.
 
 `esc.Plugins.ContextFor(slug)` gives host code the same context, to seed a
 plugin's settings at deploy time.

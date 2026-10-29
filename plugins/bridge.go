@@ -59,6 +59,14 @@ type scope struct {
 	request *http.Request
 }
 
+// scopeKey names a host call: the runtime process and the call's JSON-RPC
+// id, which the runtime stamps on the ctx.* calls it makes while serving it
+// (host_call_id).
+type scopeKey struct {
+	proc *runtimeProc
+	id   int64
+}
+
 type rpcError struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
@@ -88,9 +96,8 @@ type bridge struct {
 	cached       []*entry
 	httpContract bool
 
-	scopesMu  sync.Mutex
-	scopes    map[int64]scope
-	nextScope int64
+	scopesMu sync.Mutex
+	scopes   map[scopeKey]scope
 }
 
 type runtimeProc struct {
@@ -112,7 +119,7 @@ func newBridge(cfg RuntimeConfig, version string, logger *log.Logger, serve serv
 	if len(cfg.Args) == 0 {
 		cfg.Args = []string{DefaultRuntimeScript}
 	}
-	return &bridge{cfg: cfg, version: version, logger: logger, serve: serve, scopes: map[int64]scope{}}
+	return &bridge{cfg: cfg, version: version, logger: logger, serve: serve, scopes: map[scopeKey]scope{}}
 }
 
 func (b *bridge) logf(format string, args ...any) {
@@ -287,12 +294,23 @@ func (p *runtimeProc) write(msg any) error {
 	return err
 }
 
+// nextCallID reserves the JSON-RPC id of the next call to p.
+func (p *runtimeProc) nextCallID() int64 {
+	p.pendingMu.Lock()
+	defer p.pendingMu.Unlock()
+	p.nextID++
+	return p.nextID
+}
+
 // send makes one call and waits for its answer.
 func (b *bridge) send(p *runtimeProc, method string, params any, timeout time.Duration) (json.RawMessage, error) {
-	p.pendingMu.Lock()
-	p.nextID++
-	n := p.nextID
+	return b.sendAs(p, p.nextCallID(), method, params, timeout)
+}
+
+// sendAs makes one call with the id n and waits for its answer.
+func (b *bridge) sendAs(p *runtimeProc, n int64, method string, params any, timeout time.Duration) (json.RawMessage, error) {
 	id := fmt.Sprint(n)
+	p.pendingMu.Lock()
 	ch := make(chan rpcMessage, 1)
 	p.pending[id] = ch
 	p.pendingMu.Unlock()
@@ -327,15 +345,16 @@ func (b *bridge) send(p *runtimeProc, method string, params any, timeout time.Du
 }
 
 // call makes a call on behalf of a dispatch, starting the runtime when
-// needed.
+// needed. The dispatch is remembered under the call's id until it returns, so
+// the runtime's ctx.* calls for it (stamped with that id) act for its plugins
+// and its request.
 func (b *bridge) call(ctx context.Context, sc scope, method string, params any, timeout time.Duration) (json.RawMessage, error) {
 	p, err := b.ensure()
 	if err != nil {
 		return nil, err
 	}
+	key := scopeKey{proc: p, id: p.nextCallID()}
 	b.scopesMu.Lock()
-	b.nextScope++
-	key := b.nextScope
 	b.scopes[key] = sc
 	b.scopesMu.Unlock()
 	defer func() {
@@ -348,7 +367,7 @@ func (b *bridge) call(ctx context.Context, sc scope, method string, params any, 
 			timeout = left
 		}
 	}
-	return b.send(p, method, params, timeout)
+	return b.sendAs(p, key.id, method, params, timeout)
 }
 
 // entries are the SDK plugins the runtime reports, starting it on first use.
@@ -382,13 +401,31 @@ func (b *bridge) close() {
 	}
 }
 
-// resolve decides which plugin a runtime ctx.* call acts for. It must be one
-// the runtime is being asked to serve right now; a call naming any other
-// plugin is refused, never served as the plugin it names. A call that names
-// none acts for the plugin being served when there is exactly one.
-func (b *bridge) resolve(named string) (string, *http.Request, error) {
+// resolve decides which plugin a runtime ctx.* call acts for, and the
+// request it acts in. A call stamped with the id of a host call in flight
+// (host_call_id) belongs to that call: it acts for one of the plugins that
+// call serves, in that call's request, whatever else is in flight. Otherwise
+// (an older runtime, or a call that outlived its host call) it must name a
+// plugin the runtime is being asked to serve right now, and acts in a request
+// only when every call in flight for that plugin shares it. A call naming any
+// other plugin is refused, never served as the plugin it names. A call that
+// names none acts for the plugin being served when there is exactly one.
+func (b *bridge) resolve(p *runtimeProc, named string, hostCall *int64) (string, *http.Request, error) {
 	b.scopesMu.Lock()
 	defer b.scopesMu.Unlock()
+	if hostCall != nil {
+		if sc, ok := b.scopes[scopeKey{proc: p, id: *hostCall}]; ok {
+			if named == "" && len(sc.plugins) == 1 {
+				return sc.plugins[0], sc.request, nil
+			}
+			for _, name := range sc.plugins {
+				if name == named {
+					return named, sc.request, nil
+				}
+			}
+			return "", nil, fmt.Errorf("host call %d is not serving plugin %q", *hostCall, named)
+		}
+	}
 	if named == "" {
 		if len(b.scopes) == 1 {
 			for _, sc := range b.scopes {
@@ -429,8 +466,10 @@ func (b *bridge) answer(p *runtimeProc, msg rpcMessage) {
 		params = map[string]any{}
 	}
 	named, _ := params["plugin"].(string)
+	hostCall := hostCallID(params["host_call_id"])
+	delete(params, "host_call_id")
 	reply := map[string]any{"jsonrpc": "2.0", "id": msg.ID}
-	plugin, r, err := b.resolve(named)
+	plugin, r, err := b.resolve(p, named, hostCall)
 	var result any
 	if err == nil {
 		ctx, cancel := context.WithTimeout(withRequest(context.Background(), r), webhookTimeout)
@@ -445,6 +484,32 @@ func (b *bridge) answer(p *runtimeProc, msg rpcMessage) {
 	if err := p.write(reply); err != nil {
 		b.logf("answering %s: %v", msg.Method, err)
 	}
+}
+
+// hostCallID reads a ctx.* call's host_call_id: the id of the host call it
+// serves, as this bridge sent it (a JSON number). Nil when absent or not one.
+func hostCallID(v any) *int64 {
+	var n int64
+	switch id := v.(type) {
+	case float64:
+		if id != float64(int64(id)) {
+			return nil
+		}
+		n = int64(id)
+	case json.Number:
+		parsed, err := id.Int64()
+		if err != nil {
+			return nil
+		}
+		n = parsed
+	case string:
+		if _, err := fmt.Sscan(id, &n); err != nil {
+			return nil
+		}
+	default:
+		return nil
+	}
+	return &n
 }
 
 // sdkManifest is a plugin as the runtime's manifest method describes it

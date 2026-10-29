@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	escalated "github.com/escalated-dev/escalated-go"
+	"github.com/escalated-dev/escalated-go/internal/pluginruntimetest"
 	"github.com/escalated-dev/escalated-go/models"
 )
 
@@ -355,5 +357,71 @@ func TestEscalatedPluginsIsSharedWithEveryPage(t *testing.T) {
 				t.Error("plugin config reached the shared props")
 			}
 		})
+	}
+}
+
+// Two plugin calls in flight at once, from different signed-in users: each
+// ctx.* call the runtime makes carries host_call_id, so each is answered for
+// its own request's user, for ctx.currentUser and as the actor of a write.
+func TestSDKPluginCallsInFlightAtOnceKeepTheirOwnUser(t *testing.T) {
+	f := newPluginFixture(t, withRuntime, func(cfg *escalated.Config) {
+		cfg.SkillAgentDirectory = uiAgents{}
+	})
+	h := f.mounts()["chi"]
+	lifecycleCall(t, h, http.MethodPost, "/escalated/admin/plugins/"+slackSlug+"/activate")
+	id := createTicketOverHTTP(t, h)
+
+	together := func(method, params string) map[string]map[string]any {
+		t.Helper()
+		out := map[string]map[string]any{}
+		var mu sync.Mutex
+		var wg sync.WaitGroup
+		for _, user := range []string{"900", "901"} {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				rec := preq(h, http.MethodPost, "/escalated/api/plugins/"+slackSlug+"/ctx-together", "admin",
+					`{"method":"`+method+`","params":`+params+`}`,
+					map[string]string{"X-Requested-With": "XMLHttpRequest", headerUser: user})
+				var body map[string]any
+				_ = json.Unmarshal(rec.Body.Bytes(), &body)
+				mu.Lock()
+				out[user] = body
+				mu.Unlock()
+			}()
+		}
+		wg.Wait()
+		return out
+	}
+
+	who := together("ctx.currentUser", `{}`)
+	for user, want := range map[string]float64{"900": 900, "901": 901} {
+		result, _ := who[user]["result"].(map[string]any)
+		if result == nil || result["id"] != want {
+			t.Errorf("ctx.currentUser for %s while another call is in flight: %v", user, who[user])
+		}
+	}
+
+	wrote := together("ctx.replies.create", fmt.Sprintf(`{"data":{"ticket_id":%d,"body":"From Slack"}}`, id))
+	for user, want := range map[string]float64{"900": 900, "901": 901} {
+		result, _ := wrote[user]["result"].(map[string]any)
+		if result == nil || result["user_id"] != want {
+			t.Errorf("ctx.replies.create for %s must act as that user: %v", user, wrote[user])
+		}
+	}
+}
+
+// An older runtime stamps no host_call_id: a lone call still acts for its
+// request's user, as before.
+func TestSDKPluginCallsFromAnOlderRuntimeStillActForTheRequest(t *testing.T) {
+	f := newPluginFixture(t, withRuntime, func(cfg *escalated.Config) {
+		cfg.Plugins.Runtime.Env = append(cfg.Plugins.Runtime.Env, pluginruntimetest.EnvNoHostCallIDs+"=1")
+	})
+	h := f.mounts()["chi"]
+	lifecycleCall(t, h, http.MethodPost, "/escalated/admin/plugins/"+slackSlug+"/activate")
+	rec := preq(h, http.MethodPost, "/escalated/api/plugins/"+slackSlug+"/ctx", "admin",
+		`{"method":"ctx.currentUser","params":{}}`, map[string]string{"X-Requested-With": "XMLHttpRequest"})
+	if user := obj(t, bodyOf(t, rec), "result"); user["id"] != float64(900) {
+		t.Errorf("ctx.currentUser from an older runtime %v", user)
 	}
 }
