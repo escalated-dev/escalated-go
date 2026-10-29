@@ -127,8 +127,9 @@ plugin can therefore neither read nor write through `ctx`.
 | endpoints | `{RoutePrefix}/api/plugins/{slug}{path}` | `AdminCheck`, plus the endpoint's capability (403) |
 | webhooks | `{RoutePrefix}/webhooks/plugins/{slug}{path}` | Anyone. The plugin must authenticate the sender. |
 | `OnActivate`, `OnDeactivate` | Called when an admin activates or deactivates it | |
-| actions | `plugin.activated`, `plugin.deactivated`, `plugin.uninstalling` (`{plugin, slug}`), and whatever active plugins emit | |
-| filters | `esc.Plugins.ApplyFilter(ctx, hook, value)`, for host code that wants a filter point | |
+| actions | The canonical domain events (see [Events](#events)), `plugin.activated`, `plugin.deactivated`, `plugin.uninstalling` (`{plugin, slug}`), and whatever active plugins emit | |
+| filters | `esc.Plugins.ApplyFilter(ctx, hook, value)`, for host code that wants a filter point. The package itself applies none yet. | |
+| `Pages[].Menu`, `Components`, `Widgets` | Shared with every page as `escalated.plugins` (`menuItems`, `pageComponents`, `dashboardWidgets`); see [UI](#ui) | Viewers who hold the item's capability; admin menu items for admins only |
 
 - A **capability** is a permission slug. `Config.Plugins.Capability` decides
   who holds one; left nil, admins hold every capability and nobody else holds
@@ -160,6 +161,50 @@ Every POST and DELETE answers with a 303 to the index and a `success` or
 An unknown slug is an `error` flash, or a 404 for a request that asks for JSON.
 There is no upload (`can_upload: false`).
 
+## Events
+
+Every canonical event of the shared vocabulary (escalated-developer-context
+ADR 2026-10-21: `ticket.created`, `ticket.updated`, `ticket.status_changed`,
+`ticket.resolved`, `ticket.closed`, `ticket.reopened`, `ticket.escalated`,
+`ticket.assigned`, `ticket.unassigned`, `ticket.priority_changed`,
+`ticket.department_changed`, `ticket.tag_added`, `ticket.tag_removed`,
+`reply.created`, `note.created`, `sla.warning`, `sla.breached` and the
+`chat.*` events) reaches active plugins' actions under that name, after the
+change is saved, from the same places that fire outbound webhooks and
+workflows. Legacy names are never delivered. Delivery is in the background: a
+slow, failing or panicking plugin never fails or delays the request.
+
+- Ticket events: the ticket flat (`id`, `reference`, `subject`, `title`,
+  `description`, `status` and `priority` as slugs, `ticket_type`, `channel`,
+  `department_id`, `assigned_to`, `requester_id`, `requester_type`,
+  `contact_id`, `metadata`, `tags`, `created_at`, `updated_at`), plus `ticket`
+  (the same object) and the event's extras: `old_status`/`new_status`,
+  `agent_id`, `previous_agent_id`, `old_priority`/`new_priority`,
+  `old_department_id`/`new_department_id`, `tag` (`{id, name, slug}`), and
+  `type` on the SLA events.
+- `reply.created`, `note.created`: the reply flat (`id`, `ticket_id`, `body`,
+  `type`, `is_internal`, `user_id`, `created_at`, `updated_at`) plus `reply`
+  and `ticket`.
+- `chat.*`: `{session}`: `session_id`, `ticket_id`, `status`, `agent_id`,
+  `department_id` and the event's extras, never the visitor's token or email.
+
+## UI
+
+Every page rendered under the route prefix carries `escalated.plugins`, built
+from active plugins' manifests, in the shape the shared frontend's
+`usePluginExtensions()` reads:
+
+- `menuItems`: one per page with a `Menu`: `{label, route, icon, position,
+  section, plugin}`; `route` is the page's URL, `position` defaults to 100 and
+  `section` to `admin`. Admin items go to admins only.
+- `pageComponents`: `"{page}.{slot}"` to `[{plugin, component, data,
+  position}]`.
+- `dashboardWidgets`: `{id: "{slug}.{component}", title, component, plugin,
+  position, width}`; `width` defaults to `half`.
+
+`plugin` is the slug. Items whose capability the viewer lacks are left out.
+With no active plugin it is `{}`. Plugin settings are never part of it.
+
 ## The context
 
 `*plugins.Context` is everything a plugin may touch, scoped to its own name.
@@ -180,6 +225,33 @@ runtime's `ctx.*` calls through the same methods.
   lifecycle names belong to the host and are dropped.
 - `CurrentUser(ctx)`: the signed-in user of the request being served (named
   through `Config.UserName` and `Config.UserEmail`), or nil.
+- `Tickets().Find/Query/Create/Update` and `Replies().Find/Query/Create` go
+  through the ticket service, so what a plugin writes fires the same events,
+  webhooks, workflows and emails as anything else. `Create` takes `subject`
+  (or `title`), `description` (or `body`), `priority`, `status` (a slug),
+  `department_id`, `ticket_type`, `channel`, `metadata`, and `contact_id` or
+  `requester_email`/`requester_name` (a contact, found or created); `Update`
+  takes the same minus `channel` and the requester. Any other key is an
+  error. `Query` filters on `id`, `reference`, `status`, `priority`,
+  `ticket_type`, `department_id`, `requester_id`, `contact_id` and
+  `assigned_to` (replies: `ticket_id`, `is_internal`, `type`), at most 500
+  rows; any other key is an error, never a column name. Tickets here have no
+  channel column, so `channel` is accepted on create and not stored, and
+  filtering on it is an error. `Replies().Create` needs `ticket_id` and
+  `body`; `is_internal: true` makes a note.
+- Writes act as the signed-in user of the request the plugin is serving, or as
+  nobody outside a request; a plugin never names the actor or the requester.
+  Plugin calls are not narrowed by ticket visibility: a plugin is host code.
+- `Contacts()` are Escalated's contacts (found or created by email), not your
+  users. `Agents()` lists `Config.SkillAgentDirectory`'s agents (none without
+  one). `Tags()` and `Departments()` read and create through the store.
+- `Broadcast().ToChannel/ToUser/ToTicket` publish through
+  `Config.Plugins.Broadcaster` (a `services.Broadcaster`); without one they do
+  nothing.
+
+The runtime's JSON-RPC carries no request id, so when it is serving one SDK
+plugin for two dispatches at once (an endpoint and a background event, say),
+that plugin's `ctx` calls act as nobody until one of them finishes.
 
 `esc.Plugins.ContextFor(slug)` gives host code the same context, to seed a
 plugin's settings at deploy time.

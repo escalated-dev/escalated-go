@@ -133,6 +133,9 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 		// API tokens authenticate first, so ticket visibility is the token owner's.
 		r.Use(esc.APITokenMiddleware)
 		r.Use(esc.TicketAccessMiddleware)
+		// escalated.plugins (active plugins' menus, slots and widgets) on
+		// every page.
+		r.Use(esc.Plugins.ShareMiddleware)
 		// Inertia protocol middleware scopes to the UI routes below, but chi
 		// requires every middleware to be registered before any route is added
 		// to a mux — so it must be declared here, ahead of the always-mounted

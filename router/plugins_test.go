@@ -22,6 +22,7 @@ import (
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/plugins"
 	"github.com/escalated-dev/escalated-go/router"
+	"github.com/escalated-dev/escalated-go/services"
 )
 
 // The port test checklist of the plugin contract
@@ -61,7 +62,7 @@ const sdkManifests = `{
     "endpoints": [{"method": "GET", "path": "/echo/:id"}, {"method": "POST", "path": "/echo/:id"},
                   {"method": "GET", "path": "/boom"}, {"method": "GET", "path": "/envelope"},
                   {"method": "GET", "path": "/config"}, {"method": "GET", "path": "/Settings"},
-                  {"method": "GET", "path": "/spy"}],
+                  {"method": "GET", "path": "/spy"}, {"method": "POST", "path": "/ctx"}],
     "webhooks": [{"method": "POST", "path": "/echo/:id"}],
     "cronSchedules": []
   },
@@ -95,8 +96,9 @@ func (r *recorder) take() []string {
 
 // crmPlugin is the native stand-in: a plugin a host writes in Go.
 type crmPlugin struct {
-	rec          *recorder
-	failActivate bool
+	rec            *recorder
+	failActivate   bool
+	panicOnCreated bool
 }
 
 func (p *crmPlugin) Manifest() plugins.Manifest {
@@ -112,7 +114,10 @@ func (p *crmPlugin) Manifest() plugins.Manifest {
 			{Route: "", Component: "Skipped"},
 		},
 		Components: []plugins.Component{{Page: "ticket.show", Slot: "sidebar", Component: "CrmCard"}},
-		Widgets:    []plugins.Widget{{Component: "CrmWidget", Label: "CRM"}},
+		Widgets: []plugins.Widget{
+			{Component: "CrmWidget", Label: "CRM"},
+			{Component: "CrmForecast", Label: "Forecast", Size: "full", Order: 5, Capability: "crm.secret"},
+		},
 	}
 }
 
@@ -136,16 +141,36 @@ func (p *crmPlugin) Actions() map[string]plugins.ActionFunc {
 			return nil
 		}
 	}
-	return map[string]plugins.ActionFunc{
+	actions := map[string]plugins.ActionFunc{
 		"plugin.activated":    record("plugin.activated"),
 		"plugin.deactivated":  record("plugin.deactivated"),
 		"plugin.uninstalling": record("plugin.uninstalling"),
 		"custom.ping":         record("custom.ping"),
-		"ticket.created":      record("ticket.created"),
+		"ticket.created": func(ctx context.Context, event map[string]any, pc *plugins.Context) error {
+			p.rec.add("action:ticket.created:" + jsonString(event))
+			if p.panicOnCreated {
+				panic("a plugin bug in ticket.created")
+			}
+			return nil
+		},
 		"custom.explode": func(context.Context, map[string]any, *plugins.Context) error {
 			panic("a plugin bug")
 		},
 	}
+	for _, name := range append(append([]string{}, services.SupportedWebhookEvents...), legacyNames()...) {
+		if _, ok := actions[name]; !ok {
+			actions[name] = record(name)
+		}
+	}
+	return actions
+}
+
+func legacyNames() []string {
+	var out []string
+	for name := range models.LegacyEventNames {
+		out = append(out, name)
+	}
+	return out
 }
 
 func (p *crmPlugin) Filters() []plugins.Filter {
@@ -206,6 +231,15 @@ func (p *crmPlugin) Endpoints() []plugins.Route {
 		}},
 		{Method: "GET", Path: "/secret", Capability: "crm.secret", Handler: func(context.Context, *plugins.Context, *plugins.Request) (any, error) {
 			return map[string]any{"secret": true}, nil
+		}},
+		{Method: "POST", Path: "/ticket", Handler: func(ctx context.Context, pc *plugins.Context, req *plugins.Request) (any, error) {
+			body, _ := req.Body.(map[string]any)
+			t, err := pc.Tickets().Create(ctx, body)
+			if err != nil {
+				return nil, err
+			}
+			reply, err := pc.Replies().Create(ctx, map[string]any{"ticket_id": t["id"], "body": "Logged by the CRM", "is_internal": true})
+			return map[string]any{"ticket": t, "note": reply}, err
 		}},
 		{Method: "POST", Path: "/emit", Handler: func(ctx context.Context, pc *plugins.Context, req *plugins.Request) (any, error) {
 			body, _ := req.Body.(map[string]any)
@@ -406,7 +440,7 @@ func TestPluginsAdminIndex(t *testing.T) {
 				t.Errorf("plugin object %v", crm)
 			}
 			provides := obj(t, crm, "provides")
-			if provides["menu_items"] != float64(1) || provides["widgets"] != float64(1) || provides["page_components"] != float64(1) {
+			if provides["menu_items"] != float64(1) || provides["widgets"] != float64(2) || provides["page_components"] != float64(1) {
 				t.Errorf("provides %v", provides)
 			}
 			if strings.Contains(jsonString(page.Props), "api_key") {

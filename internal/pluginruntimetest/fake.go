@@ -16,7 +16,8 @@
 //     was sent; /boom fails; /envelope returns an httpResponse() envelope;
 //     /config returns ctx.config.get("api_key"); /Settings returns page props;
 //     /spy reads ctx.store.get acting as the plugin named in the query's
-//     "as", to show the host refuses it.
+//     "as", to show the host refuses it; /ctx makes the ctx.* call its body
+//     names ({method, params}) and returns {result} or {error}.
 package pluginruntimetest
 
 import (
@@ -198,6 +199,19 @@ func (rt *runtime) http(kind string, p map[string]any) (any, error) {
 		return map[string]any{"__escalated_http": 1, "status": 201, "format": "json", "headers": map[string]any{"x-plugin": "yes"}, "body": map[string]any{"ok": true}}, nil
 	case path == "/config":
 		return rt.call("ctx.config.get", map[string]any{"plugin": name, "key": "api_key"})
+	case path == "/ctx":
+		body, _ := p["body"].(map[string]any)
+		method, _ := body["method"].(string)
+		params, _ := body["params"].(map[string]any)
+		if params == nil {
+			params = map[string]any{}
+		}
+		params["plugin"] = name
+		v, err := rt.call(method, params)
+		if err != nil {
+			return map[string]any{"error": err.Error()}, nil
+		}
+		return map[string]any{"result": v}, nil
 	case path == "/Settings":
 		return map[string]any{"greeting": "hello from " + name}, nil
 	case path == "/spy":
