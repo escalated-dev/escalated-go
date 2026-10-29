@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/escalated-dev/escalated-go/models"
+	"github.com/escalated-dev/escalated-go/services"
 )
 
 // Timeouts per call kind, as the plugin runtime has them.
@@ -56,6 +57,10 @@ type Config struct {
 	// Logger receives plugin errors and log lines. Nil uses the standard
 	// logger.
 	Logger *log.Logger
+
+	// Broadcaster carries ctx.broadcast to the real-time channels. Nil makes
+	// ctx.broadcast a no-op.
+	Broadcaster *services.Broadcaster
 }
 
 // Options are what the host passes New besides Config.
@@ -95,6 +100,8 @@ type Host struct {
 	logger      *log.Logger
 	routePrefix string
 	reserved    map[string]bool
+	broadcaster *services.Broadcaster
+	domain      *Domain
 }
 
 // entry is one registered plugin, normalised once.
@@ -140,6 +147,7 @@ func New(cfg Config, opts Options) (*Host, error) {
 		logger:      logger,
 		routePrefix: strings.TrimRight(opts.RoutePrefix, "/"),
 		reserved:    map[string]bool{},
+		broadcaster: cfg.Broadcaster,
 	}
 	if h.adminCheck == nil {
 		h.adminCheck = func(*http.Request) bool { return false }

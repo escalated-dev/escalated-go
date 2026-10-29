@@ -24,5 +24,5 @@ func NewInertiaRenderer(rootTemplate string) *InertiaRenderer {
 
 // Render writes an Inertia page response.
 func (ir *InertiaRenderer) Render(w http.ResponseWriter, r *http.Request, component string, props map[string]any) error {
-	return ir.engine.Render(w, r, component, props)
+	return ir.engine.Render(w, r, component, withSharedProps(r.Context(), props))
 }

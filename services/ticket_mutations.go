@@ -174,7 +174,7 @@ func (ts *TicketService) changeTag(ctx context.Context, ticketID, tagID int64, c
 
 	ts.logActivity(ctx, ticketID, action, causerID, map[string]any{"tag_id": tagID})
 	payload := ticketWebhookPayload(t)
-	payload["tag"] = map[string]any{"id": tag.ID, "name": tag.Name}
+	payload["tag"] = map[string]any{"id": tag.ID, "name": tag.Name, "slug": tag.Slug}
 	ts.emit(event, payload, t)
 	return nil
 }
@@ -237,10 +237,28 @@ func (ts *TicketService) logActivity(ctx context.Context, ticketID int64, action
 	})
 }
 
-// emit fires an event to both sinks: webhooks and event-driven workflows.
+// emit fires an event to every sink: webhooks, event-driven workflows and
+// plugins.
 func (ts *TicketService) emit(event string, payload map[string]any, t *models.Ticket) {
 	ts.dispatchWebhook(event, payload)
 	ts.runWorkflows(event, t)
+	ts.pluginEvent(event, t, payload)
+}
+
+// UpdateMetadata replaces a ticket's metadata, records the activity and
+// fires ticket.updated.
+func (ts *TicketService) UpdateMetadata(ctx context.Context, ticketID int64, metadata models.JSONText, causerID *models.UserID) (*models.Ticket, error) {
+	t, err := ts.load(ctx, ticketID)
+	if err != nil {
+		return nil, err
+	}
+	t.Metadata = metadata
+	if err := ts.store.UpdateTicket(ctx, t); err != nil {
+		return nil, err
+	}
+	ts.logActivity(ctx, ticketID, models.ActionTicketUpdated, causerID, nil)
+	ts.emitUpdated(t)
+	return t, nil
 }
 
 // emitUpdated fires ticket.updated, which Laravel raises on every ticket save.

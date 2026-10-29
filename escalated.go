@@ -171,7 +171,7 @@ func New(cfg Config) (*Escalated, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Escalated{
+	return wirePlugins(&Escalated{
 		Access:      access,
 		Config:      cfg,
 		Store:       s,
@@ -179,7 +179,7 @@ func New(cfg Config) (*Escalated, error) {
 		GuestAccess: newGuestAccess(cfg),
 		Notifier:    newNotifier(cfg, access),
 		Plugins:     pluginHost,
-	}, nil
+	}), nil
 }
 
 // NewSQLite is New with the SQLite store chosen explicitly, skipping detection.
@@ -210,7 +210,7 @@ func NewSQLite(cfg Config) (*Escalated, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Escalated{
+	return wirePlugins(&Escalated{
 		Access:      access,
 		Config:      cfg,
 		Store:       s,
@@ -218,7 +218,37 @@ func NewSQLite(cfg Config) (*Escalated, error) {
 		GuestAccess: newGuestAccess(cfg),
 		Notifier:    newNotifier(cfg, access),
 		Plugins:     pluginHost,
-	}, nil
+	}), nil
+}
+
+// wirePlugins gives the plugin context its domain: the store, a ticket
+// service that fires events like the routes' one, and the host's agents.
+func wirePlugins(e *Escalated) *Escalated {
+	domain := plugins.Domain{
+		DB:          e.Config.DB,
+		TablePrefix: e.Config.TablePrefix,
+		Store:       e.Store,
+		Tickets:     e.NewTicketService(),
+	}
+	if dir := e.Config.SkillAgentDirectory; dir != nil {
+		domain.Agents = func(ctx context.Context) ([]plugins.Agent, error) {
+			rows, err := dir.ListAgentsForSkillForm(ctx)
+			if err != nil {
+				return nil, err
+			}
+			out := make([]plugins.Agent, 0, len(rows))
+			for _, row := range rows {
+				var email *string
+				if row.Email != "" {
+					email = &row.Email
+				}
+				out = append(out, plugins.Agent{ID: row.ID, Name: row.Name, Email: email})
+			}
+			return out, nil
+		}
+	}
+	e.Plugins.SetDomain(domain)
+	return e
 }
 
 // newPluginHost builds the plugin registry. A malformed native plugin, or two
@@ -426,6 +456,9 @@ func (e *Escalated) NewTicketService() *services.TicketService {
 	ts.Workflows.Tickets = ts
 	ts.Notifications = e.Notifier
 	ts.Statuses = e.TicketStatuses()
+	if e.Plugins != nil {
+		ts.Plugins = e.Plugins
+	}
 	return ts
 }
 

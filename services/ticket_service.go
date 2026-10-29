@@ -36,6 +36,21 @@ type TicketService struct {
 	// Statuses, when set, lets status inputs name a custom status by slug
 	// (ChangeStatusValue). Nil accepts the built-in statuses only.
 	Statuses *TicketStatusService
+
+	// Plugins, when set, receives every canonical domain event after the
+	// change is saved, for active plugins' actions (plugins.Host). Nil
+	// delivers nothing.
+	Plugins PluginEventSink
+}
+
+// PluginEventSink receives the canonical domain events for plugins. It must
+// not block: plugins.Host delivers in the background.
+type PluginEventSink interface {
+	// TicketEvent is a ticket event; extra holds the event's own keys
+	// (agent_id, old_status, tag, chat, ...).
+	TicketEvent(event string, t *models.Ticket, extra map[string]any)
+	// ReplyEvent is reply.created or note.created.
+	ReplyEvent(event string, t *models.Ticket, r *models.Reply)
 }
 
 // NewTicketService creates a new TicketService.
@@ -124,6 +139,7 @@ func (ts *TicketService) Create(ctx context.Context, in CreateTicketInput) (*mod
 
 	ts.dispatchWebhook("ticket.created", ticketWebhookPayload(t))
 	ts.runWorkflows("ticket.created", t)
+	ts.pluginEvent("ticket.created", t, nil)
 	if ts.Notifications != nil {
 		ts.Notifications.TicketCreated(t)
 	}
@@ -199,6 +215,7 @@ func (ts *TicketService) announceAssigned(t *models.Ticket, agentID models.UserI
 	payload["agent_id"] = string(agentID)
 	ts.dispatchWebhook("ticket.assigned", payload)
 	ts.runWorkflows("ticket.assigned", t)
+	ts.pluginEvent("ticket.assigned", t, payload)
 	if ts.Notifications != nil {
 		ts.Notifications.TicketAssigned(t, agentID, causerID)
 	}
@@ -310,11 +327,17 @@ func (ts *TicketService) changeStatus(ctx context.Context, ticketID int64, newSt
 	payload["new_category"] = StatusCategoryOf(t, custom)
 	ts.dispatchWebhook("ticket.status_changed", payload)
 	ts.runWorkflows("ticket.status_changed", t)
+	pluginExtra := map[string]any{"old_status": models.StatusName[oldStatus], "new_status": models.StatusName[newStatus]}
+	for k, v := range payload {
+		pluginExtra[k] = v
+	}
+	ts.pluginEvent("ticket.status_changed", t, pluginExtra)
 	// Faithful to the Laravel reference, which fires dedicated lifecycle
 	// events (resolved/closed/reopened) in addition to the generic change.
 	if event := statusLifecycleEvent(oldStatus, newStatus); event != "" {
 		ts.dispatchWebhook(event, payload)
 		ts.runWorkflows(event, t)
+		ts.pluginEvent(event, t, nil)
 	}
 	if ts.Notifications != nil {
 		ts.Notifications.StatusChanged(t, oldStatus, newStatus, causerID)
@@ -408,6 +431,9 @@ func (ts *TicketService) AddReply(ctx context.Context, ticketID int64, body stri
 		},
 	})
 	ts.runWorkflows(replyEvent, t)
+	if ts.Plugins != nil {
+		ts.Plugins.ReplyEvent(replyEvent, t, r)
+	}
 	if ts.Notifications != nil && !internal {
 		ts.Notifications.ReplyCreated(t, r)
 	}
@@ -505,6 +531,22 @@ func (ts *TicketService) dispatchWebhook(event string, payload map[string]any) {
 		return
 	}
 	go ts.Webhooks.Dispatch(event, payload)
+}
+
+// pluginEvent hands a canonical ticket event to plugins. The webhook
+// payload's own "ticket" summary is left out: plugins get the whole ticket.
+func (ts *TicketService) pluginEvent(event string, t *models.Ticket, payload map[string]any) {
+	if ts.Plugins == nil || t == nil {
+		return
+	}
+	extra := map[string]any{}
+	for k, v := range payload {
+		if k != "ticket" {
+			extra[k] = v
+		}
+	}
+	snapshot := *t
+	ts.Plugins.TicketEvent(event, &snapshot, extra)
 }
 
 // runWorkflows runs event-driven admin Workflows for the event in the background

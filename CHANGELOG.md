@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Upgrading
+- Every page now carries `escalated.plugins` (`{}` with no active plugin).
+- Active plugins receive the canonical domain events. A host without plugins
+  is unaffected.
+- `ticket.tag_added` and `ticket.tag_removed` webhook payloads add the tag's
+  `slug` beside `id` and `name`.
 - Run the migrations: they add `escalated_plugins` and
   `escalated_plugin_store` (with your table prefix). Nothing else changes for
   a host that registers no plugins: Admin > Plugins lists none, and the plugin
@@ -31,9 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `@escalated-dev/plugin-runtime`, spawned with `os/exec` and spoken to in
     JSON-RPC 2.0 over stdio when `Config.Plugins.Runtime.Enabled` is set:
     handshake, manifest, actions, filters, endpoints and webhooks over HTTP
-    contract version 1, activate and deactivate, and the runtime's `ctx.config`,
-    `ctx.store`, `ctx.log`, `ctx.emit` and `ctx.currentUser` calls, each acting
-    only for a plugin being served. Lazy start, restart with exponential
+    contract version 1, activate and deactivate, and the runtime's `ctx.*`
+    calls, each acting only for a plugin being served. Lazy start, restart with exponential
     backoff capped at five minutes, and the host keeps serving without Node.
   - Admin > Plugins (`Escalated/Admin/Plugins/Index`, `can_upload: false`):
     activate, deactivate and uninstall, with the contract's lifecycle order
@@ -46,6 +50,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     default).
   - `Escalated.Plugins` (`*plugins.Host`): `ApplyFilter` for host filter
     points, `DispatchAction`, `ContextFor` and the lifecycle methods.
+  - Every canonical domain event reaches active plugins' actions (native and
+    SDK) after the change is saved, with the ticket flat plus `ticket` and the
+    event's extras, the reply plus `reply` and `ticket`, or `{session}` for
+    chat events. Delivery is in the background and a failing plugin never
+    fails the request. Legacy names are never delivered.
+  - The plugin context's domain methods, for native plugins and over the
+    bridge: `ctx.tickets.find/query/create/update`,
+    `ctx.replies.find/query/create` (through the ticket service, so events
+    fire; allow-listed keys only; acting as the signed-in user of the request
+    or nobody), `ctx.contacts`, `ctx.tags`, `ctx.departments`, `ctx.agents`
+    (from `Config.SkillAgentDirectory`) and `ctx.broadcast` (through
+    `Config.Plugins.Broadcaster`).
+  - `escalated.plugins` (`menuItems`, `pageComponents`, `dashboardWidgets`)
+    on every page, for active plugins only, filtered by capability, admin
+    menu items for admins only.
+  - `TicketService.Plugins` (`services.PluginEventSink`) and
+    `TicketService.UpdateMetadata`; `renderer.WithShared` for props every page
+    of a request carries.
 
 ## [0.2.8] - 2026-10-28
 

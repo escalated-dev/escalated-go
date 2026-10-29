@@ -24,7 +24,9 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	ticketSvc := mountStdlib(inner, esc, guestLimit)
 	prefix := esc.Config.RoutePrefix
 	// API tokens authenticate first, so ticket visibility is the token owner's.
-	mux.Handle(prefix+"/", esc.APITokenMiddleware(esc.TicketAccessMiddleware(inner)))
+	// escalated.plugins (active plugins' menus, slots and widgets) goes on
+	// every page.
+	mux.Handle(prefix+"/", esc.APITokenMiddleware(esc.TicketAccessMiddleware(esc.Plugins.ShareMiddleware(inner))))
 
 	if esc.Config.EnableWidget {
 		stack := newWidgetStack(esc, ticketSvc, guestLimit)

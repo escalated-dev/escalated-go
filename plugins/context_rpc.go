@@ -98,6 +98,67 @@ var contextMethods = map[string]contextMethod{
 	"ctx.emit": func(ctx context.Context, c *Context, p map[string]any) (any, error) {
 		return nil, c.Emit(ctx, paramString(p, "hook"), p["data"])
 	},
+	"ctx.tickets.find": func(ctx context.Context, c *Context, p map[string]any) (any, error) {
+		return nilIfEmpty(c.Tickets().Find(ctx, p["id"]))
+	},
+	"ctx.tickets.query": func(ctx context.Context, c *Context, p map[string]any) (any, error) {
+		return c.Tickets().Query(ctx, recordParam(p, "filter"))
+	},
+	"ctx.tickets.create": func(ctx context.Context, c *Context, p map[string]any) (any, error) {
+		return c.Tickets().Create(ctx, asRecord(p["data"]))
+	},
+	"ctx.tickets.update": func(ctx context.Context, c *Context, p map[string]any) (any, error) {
+		return c.Tickets().Update(ctx, p["id"], asRecord(p["data"]))
+	},
+	"ctx.replies.find": func(ctx context.Context, c *Context, p map[string]any) (any, error) {
+		return nilIfEmpty(c.Replies().Find(ctx, p["id"]))
+	},
+	"ctx.replies.query": func(ctx context.Context, c *Context, p map[string]any) (any, error) {
+		return c.Replies().Query(ctx, recordParam(p, "filter"))
+	},
+	"ctx.replies.create": func(ctx context.Context, c *Context, p map[string]any) (any, error) {
+		return c.Replies().Create(ctx, asRecord(p["data"]))
+	},
+	"ctx.contacts.find": func(ctx context.Context, c *Context, p map[string]any) (any, error) {
+		return nilIfEmpty(c.Contacts().Find(ctx, p["id"]))
+	},
+	"ctx.contacts.findByEmail": func(ctx context.Context, c *Context, p map[string]any) (any, error) {
+		return nilIfEmpty(c.Contacts().FindByEmail(ctx, paramString(p, "email")))
+	},
+	"ctx.contacts.create": func(ctx context.Context, c *Context, p map[string]any) (any, error) {
+		return c.Contacts().Create(ctx, recordParam(p, "data"))
+	},
+	"ctx.tags.all": func(ctx context.Context, c *Context, _ map[string]any) (any, error) {
+		return c.Tags().All(ctx)
+	},
+	"ctx.tags.create": func(ctx context.Context, c *Context, p map[string]any) (any, error) {
+		return c.Tags().Create(ctx, recordParam(p, "data"))
+	},
+	"ctx.departments.all": func(ctx context.Context, c *Context, _ map[string]any) (any, error) {
+		return c.Departments().All(ctx)
+	},
+	"ctx.departments.find": func(ctx context.Context, c *Context, p map[string]any) (any, error) {
+		return nilIfEmpty(c.Departments().Find(ctx, p["id"]))
+	},
+	"ctx.agents.all": func(ctx context.Context, c *Context, _ map[string]any) (any, error) {
+		return c.Agents().All(ctx)
+	},
+	"ctx.agents.find": func(ctx context.Context, c *Context, p map[string]any) (any, error) {
+		agent, err := c.Agents().Find(ctx, p["id"])
+		if agent == nil || err != nil {
+			return nil, err
+		}
+		return agent, nil
+	},
+	"ctx.broadcast.toChannel": func(ctx context.Context, c *Context, p map[string]any) (any, error) {
+		return nil, c.Broadcast().ToChannel(ctx, paramString(p, "channel"), paramString(p, "event"), p["data"])
+	},
+	"ctx.broadcast.toUser": func(ctx context.Context, c *Context, p map[string]any) (any, error) {
+		return nil, c.Broadcast().ToUser(ctx, p["userId"], paramString(p, "event"), p["data"])
+	},
+	"ctx.broadcast.toTicket": func(ctx context.Context, c *Context, p map[string]any) (any, error) {
+		return nil, c.Broadcast().ToTicket(ctx, p["ticketId"], paramString(p, "event"), p["data"])
+	},
 	"ctx.currentUser": func(ctx context.Context, c *Context, _ map[string]any) (any, error) {
 		u, err := c.CurrentUser(ctx)
 		if u == nil || err != nil {
@@ -105,6 +166,21 @@ var contextMethods = map[string]contextMethod{
 		}
 		return u, nil
 	},
+}
+
+// nilIfEmpty answers JSON null for a record that was not found.
+func nilIfEmpty(m map[string]any, err error) (any, error) {
+	if m == nil || err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func recordParam(p map[string]any, key string) map[string]any {
+	if m := asRecord(p[key]); m != nil {
+		return m
+	}
+	return map[string]any{}
 }
 
 // paramString reads a string parameter; a whole number is written without a
