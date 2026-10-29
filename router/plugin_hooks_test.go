@@ -118,7 +118,11 @@ func TestPluginsReceiveTheCanonicalEvents(t *testing.T) {
 	if rec.Code >= 300 {
 		t.Fatalf("status: %d %s", rec.Code, rec.Body.String())
 	}
-	eventually(t, "ticket.resolved", func() bool { got.poll(); return len(got.payloads("ticket.resolved")) == 1 })
+	// Each event is delivered on its own, in no particular order.
+	eventually(t, "ticket.resolved and ticket.status_changed", func() bool {
+		got.poll()
+		return len(got.payloads("ticket.resolved")) == 1 && len(got.payloads("ticket.status_changed")) == 1
+	})
 	changed := got.payloads("ticket.status_changed")
 	if len(changed) != 1 || changed[0]["old_status"] != "open" || changed[0]["new_status"] != "resolved" || changed[0]["status"] != "resolved" {
 		t.Errorf("ticket.status_changed %v", changed)
