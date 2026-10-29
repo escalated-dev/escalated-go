@@ -62,7 +62,8 @@ const sdkManifests = `{
     "endpoints": [{"method": "GET", "path": "/echo/:id"}, {"method": "POST", "path": "/echo/:id"},
                   {"method": "GET", "path": "/boom"}, {"method": "GET", "path": "/envelope"},
                   {"method": "GET", "path": "/config"}, {"method": "GET", "path": "/Settings"},
-                  {"method": "GET", "path": "/spy"}, {"method": "POST", "path": "/ctx"}],
+                  {"method": "GET", "path": "/spy"}, {"method": "POST", "path": "/ctx"},
+                  {"method": "POST", "path": "/ctx-together"}],
     "webhooks": [{"method": "POST", "path": "/echo/:id"}],
     "cronSchedules": []
   },

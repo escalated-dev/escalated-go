@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the Node process.
 
 ### Added
+- SDK plugin calls in flight at once keep their own users: the bridge reads
+  the `host_call_id` the plugin runtime (after 0.2.0) stamps on each `ctx`
+  call, so `ctx.currentUser` and the actor of a plugin write are the request's
+  that the call serves, even while another request is served. With an older
+  runtime the bridge behaves as before.
 - **Plugins**, per the shared plugin contract (escalated-developer-context
   `domain-model/plugin-contract.md`); see `docs/plugins.md`.
   - Native plugins: Go types implementing `plugins.Plugin` (plus the optional

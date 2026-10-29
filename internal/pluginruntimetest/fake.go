@@ -17,7 +17,14 @@
 //     /config returns ctx.config.get("api_key"); /Settings returns page props;
 //     /spy reads ctx.store.get acting as the plugin named in the query's
 //     "as", to show the host refuses it; /ctx makes the ctx.* call its body
-//     names ({method, params}) and returns {result} or {error}.
+//     names ({method, params}) and returns {result} or {error};
+//     /ctx-together does the same once a second /ctx-together call has
+//     arrived, so the two calls' ctx requests are in flight at once.
+//
+// Like the real runtime (after 0.2.0) it stamps every ctx.* request it makes
+// while handling a host call with that call's id as host_call_id, and answers
+// the handshake with host_call_ids: true. EnvNoHostCallIDs turns both off, as
+// an older runtime.
 package pluginruntimetest
 
 import (
@@ -28,6 +35,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Environment variables the stand-in reads.
@@ -35,6 +43,9 @@ const (
 	EnvRun      = "ESCALATED_FAKE_PLUGIN_RUNTIME"
 	EnvManifest = "ESCALATED_FAKE_PLUGIN_MANIFEST"
 	EnvNoHTTP   = "ESCALATED_FAKE_PLUGIN_NO_HTTP"
+	// EnvNoHostCallIDs makes the stand-in an older runtime that does not
+	// stamp host_call_id.
+	EnvNoHostCallIDs = "ESCALATED_FAKE_PLUGIN_NO_HOST_CALL_IDS"
 )
 
 type message struct {
@@ -55,6 +66,9 @@ type runtime struct {
 	pending   map[string]chan message
 	next      int
 	manifests map[string]map[string]any
+
+	togetherMu sync.Mutex
+	together   chan struct{}
 }
 
 // Serve runs the stand-in until stdin closes.
@@ -97,8 +111,14 @@ func (rt *runtime) write(v any) {
 	_, _ = rt.out.Write(append(b, '\n'))
 }
 
-// call asks the host for a ctx.* method and waits for the answer.
-func (rt *runtime) call(method string, params map[string]any) (any, error) {
+// call asks the host for a ctx.* method and waits for the answer, stamped
+// with the id of the host call being served.
+func (rt *runtime) call(serving json.RawMessage, method string, params map[string]any) (any, error) {
+	if len(serving) > 0 && os.Getenv(EnvNoHostCallIDs) == "" {
+		var id any
+		_ = json.Unmarshal(serving, &id)
+		params["host_call_id"] = id
+	}
 	rt.pendingMu.Lock()
 	rt.next++
 	id := rt.next
@@ -118,7 +138,7 @@ func (rt *runtime) call(method string, params map[string]any) (any, error) {
 func (rt *runtime) handle(msg message) {
 	var params map[string]any
 	_ = json.Unmarshal(msg.Params, &params)
-	result, err := rt.dispatch(msg.Method, params)
+	result, err := rt.dispatch(msg.ID, msg.Method, params)
 	if len(msg.ID) == 0 {
 		return
 	}
@@ -142,14 +162,14 @@ func (rt *runtime) declares(plugin, list, value string) bool {
 	return false
 }
 
-func (rt *runtime) dispatch(method string, p map[string]any) (any, error) {
+func (rt *runtime) dispatch(serving json.RawMessage, method string, p map[string]any) (any, error) {
 	switch method {
 	case "handshake":
 		versions := []int{1}
 		if os.Getenv(EnvNoHTTP) != "" {
 			versions = []int{}
 		}
-		return map[string]any{"protocol_version": "1.0", "runtime_version": "fake", "compatible": p["protocol_version"] == "1.0", "http_contract_versions": versions}, nil
+		return map[string]any{"protocol_version": "1.0", "runtime_version": "fake", "compatible": p["protocol_version"] == "1.0", "http_contract_versions": versions, "host_call_ids": os.Getenv(EnvNoHostCallIDs) == ""}, nil
 	case "manifest":
 		return rt.manifests, nil
 	case "ping":
@@ -162,7 +182,7 @@ func (rt *runtime) dispatch(method string, p map[string]any) (any, error) {
 			}
 			// Errors are what the host refuses; the runtime carries on, as
 			// the real one does with Promise.allSettled.
-			_, _ = rt.call("ctx.store.insert", map[string]any{"plugin": name, "collection": "received", "data": map[string]any{"hook": hook, "event": p["event"], "plugins": p["plugins"]}})
+			_, _ = rt.call(serving, "ctx.store.insert", map[string]any{"plugin": name, "collection": "received", "data": map[string]any{"hook": hook, "event": p["event"], "plugins": p["plugins"]}})
 		}
 		return map[string]any{"ok": true}, nil
 	case "filter":
@@ -175,15 +195,15 @@ func (rt *runtime) dispatch(method string, p map[string]any) (any, error) {
 		return p["value"], nil
 	case "activate", "deactivate":
 		name, _ := p["plugin"].(string)
-		_, err := rt.call("ctx.store.insert", map[string]any{"plugin": name, "collection": "lifecycle", "data": map[string]any{"event": method}})
+		_, err := rt.call(serving, "ctx.store.insert", map[string]any{"plugin": name, "collection": "lifecycle", "data": map[string]any{"event": method}})
 		return map[string]any{"ok": true}, err
 	case "endpoint", "webhook":
-		return rt.http(method, p)
+		return rt.http(serving, method, p)
 	}
 	return nil, fmt.Errorf("unknown method: %s", method)
 }
 
-func (rt *runtime) http(kind string, p map[string]any) (any, error) {
+func (rt *runtime) http(serving json.RawMessage, kind string, p map[string]any) (any, error) {
 	name, _ := p["plugin"].(string)
 	path, _ := p["path"].(string)
 	switch {
@@ -198,8 +218,11 @@ func (rt *runtime) http(kind string, p map[string]any) (any, error) {
 	case path == "/envelope":
 		return map[string]any{"__escalated_http": 1, "status": 201, "format": "json", "headers": map[string]any{"x-plugin": "yes"}, "body": map[string]any{"ok": true}}, nil
 	case path == "/config":
-		return rt.call("ctx.config.get", map[string]any{"plugin": name, "key": "api_key"})
-	case path == "/ctx":
+		return rt.call(serving, "ctx.config.get", map[string]any{"plugin": name, "key": "api_key"})
+	case path == "/ctx", path == "/ctx-together":
+		if path == "/ctx-together" {
+			rt.meet()
+		}
 		body, _ := p["body"].(map[string]any)
 		method, _ := body["method"].(string)
 		params, _ := body["params"].(map[string]any)
@@ -207,7 +230,7 @@ func (rt *runtime) http(kind string, p map[string]any) (any, error) {
 			params = map[string]any{}
 		}
 		params["plugin"] = name
-		v, err := rt.call(method, params)
+		v, err := rt.call(serving, method, params)
 		if err != nil {
 			return map[string]any{"error": err.Error()}, nil
 		}
@@ -217,11 +240,30 @@ func (rt *runtime) http(kind string, p map[string]any) (any, error) {
 	case path == "/spy":
 		query, _ := p["query"].(map[string]any)
 		as, _ := query["as"].(string)
-		v, err := rt.call("ctx.store.get", map[string]any{"plugin": as, "collection": "secrets", "key": "token"})
+		v, err := rt.call(serving, "ctx.store.get", map[string]any{"plugin": as, "collection": "secrets", "key": "token"})
 		if err != nil {
 			return map[string]any{"error": err.Error()}, nil
 		}
 		return map[string]any{"value": v}, nil
 	}
 	return nil, fmt.Errorf("no handler for %s", path)
+}
+
+// meet returns once two callers have arrived (or after five seconds), so
+// their ctx requests overlap.
+func (rt *runtime) meet() {
+	rt.togetherMu.Lock()
+	if rt.together == nil {
+		ch := make(chan struct{})
+		rt.together = ch
+		rt.togetherMu.Unlock()
+		select {
+		case <-ch:
+		case <-time.After(5 * time.Second):
+		}
+		return
+	}
+	close(rt.together)
+	rt.together = nil
+	rt.togetherMu.Unlock()
 }
