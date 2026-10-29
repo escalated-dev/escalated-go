@@ -6,6 +6,7 @@ import (
 	escalated "github.com/escalated-dev/escalated-go"
 	"github.com/escalated-dev/escalated-go/handlers"
 	"github.com/escalated-dev/escalated-go/middleware"
+	"github.com/escalated-dev/escalated-go/plugins"
 	"github.com/escalated-dev/escalated-go/services"
 )
 
@@ -121,6 +122,13 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated, guestLimit *middl
 	}
 
 	prefix := cfg.RoutePrefix
+	pluginH := &plugins.Handler{Host: esc.Plugins, Renderer: rend}
+
+	// Active plugins' endpoints, admin only plus the endpoint's capability,
+	// and their webhooks, which have no guard: the plugin authenticates the
+	// sender (docs/plugins.md).
+	mux.Handle(prefix+"/api/plugins/", middleware.RequireAdmin(cfg.AdminCheck)(http.HandlerFunc(pluginH.Endpoint)))
+	mux.Handle(prefix+"/webhooks/plugins/", http.HandlerFunc(pluginH.Webhook))
 
 	// Attachment downloads — always mounted. The handler authorizes each
 	// download through the attachment's ticket (see AttachmentHandler).
@@ -252,6 +260,11 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated, guestLimit *middl
 
 		// Admin routes (wrapped with admin middleware)
 		adminMW := middleware.RequireAdmin(cfg.AdminCheck)
+		// Admin > Plugins, the plugin lifecycle routes and the pages active
+		// plugins declare (escalated.admin.plugins.*,
+		// escalated.plugin.{slug}.page.*).
+		mux.Handle(prefix+"/admin/plugins", adminMW(http.HandlerFunc(pluginH.Admin)))
+		mux.Handle(prefix+"/admin/plugins/", adminMW(http.HandlerFunc(pluginH.Admin)))
 		mux.Handle("GET "+prefix+"/admin/departments", adminMW(http.HandlerFunc(adminH.ListDepartments)))
 		mux.Handle("POST "+prefix+"/admin/departments", adminMW(http.HandlerFunc(adminH.CreateDepartment)))
 		mux.Handle("PATCH "+prefix+"/admin/departments/{id}", adminMW(http.HandlerFunc(adminH.UpdateDepartment)))

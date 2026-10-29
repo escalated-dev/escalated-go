@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Upgrading
+- Run the migrations: they add `escalated_plugins` and
+  `escalated_plugin_store` (with your table prefix). Nothing else changes for
+  a host that registers no plugins: Admin > Plugins lists none, and the plugin
+  endpoint and webhook routes answer 404.
+- The routers now mount `{RoutePrefix}/admin/plugins` (admin),
+  `{RoutePrefix}/api/plugins/` (admin) and `{RoutePrefix}/webhooks/plugins/`
+  (public, for plugin webhooks). A host route of its own under those paths
+  must move.
+- Call `esc.Close()` on shutdown when the plugin runtime is enabled; it stops
+  the Node process.
+
+### Added
+- **Plugins**, per the shared plugin contract (escalated-developer-context
+  `domain-model/plugin-contract.md`); see `docs/plugins.md`.
+  - Native plugins: Go types implementing `plugins.Plugin` (plus the optional
+    `Activator`, `Deactivator`, `ActionPlugin`, `FilterPlugin`,
+    `EndpointPlugin` and `WebhookPlugin`), registered in
+    `Config.Plugins.Native`. Duplicate slugs or malformed routes fail
+    `escalated.New`.
+  - SDK plugins (`@escalated-dev/plugin-sdk`) through
+    `@escalated-dev/plugin-runtime`, spawned with `os/exec` and spoken to in
+    JSON-RPC 2.0 over stdio when `Config.Plugins.Runtime.Enabled` is set:
+    handshake, manifest, actions, filters, endpoints and webhooks over HTTP
+    contract version 1, activate and deactivate, and the runtime's `ctx.config`,
+    `ctx.store`, `ctx.log`, `ctx.emit` and `ctx.currentUser` calls, each acting
+    only for a plugin being served. Lazy start, restart with exponential
+    backoff capped at five minutes, and the host keeps serving without Node.
+  - Admin > Plugins (`Escalated/Admin/Plugins/Index`, `can_upload: false`):
+    activate, deactivate and uninstall, with the contract's lifecycle order
+    and `plugin.activated`, `plugin.deactivated` and `plugin.uninstalling`.
+  - Plugin pages (`Escalated/Plugin/Page`) at
+    `{RoutePrefix}/admin/plugins/{slug}/{route}`, endpoints at
+    `{RoutePrefix}/api/plugins/{slug}{path}` and webhooks at
+    `{RoutePrefix}/webhooks/plugins/{slug}{path}`, for active plugins only,
+    with capabilities checked by `Config.Plugins.Capability` (admins by
+    default).
+  - `Escalated.Plugins` (`*plugins.Host`): `ApplyFilter` for host filter
+    points, `DispatchAction`, `ContextFor` and the lifecycle methods.
+
 ## [0.2.8] - 2026-10-28
 
 ### Upgrading

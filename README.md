@@ -45,6 +45,7 @@ Embeddable support ticket system for Go applications. Works with standard `net/h
 - **Branded email templates** — Configurable logo, primary color, and footer text for all outbound emails
 - **Real-time updates** — Server-Sent Events (SSE) endpoint for live ticket updates with automatic polling fallback
 - **Knowledge base toggle** — Enable or disable the public knowledge base from admin settings
+- **Plugins** — Native Go plugins registered in `Config.Plugins.Native`, and `@escalated-dev/plugin-sdk` plugins through the Node plugin runtime, managed on Admin > Plugins (see [plugins](docs/plugins.md))
 - **Ticket subjects** — Attach host-app entities (Project, Customer, …) a ticket is about; polymorphic links with UI presentation via `TicketSubject` contract
 
 ## Installation
@@ -186,6 +187,7 @@ func main() {
 | `TicketSubjectResolver` | `func(type, id string) (models.TicketSubject, bool)` | nil | Loads host models for subject presentation |
 | `TicketSubjectTypes` | `[]string` | nil | Allowlist of `subject_type` values for API attach; empty disables API attach |
 | `UserName` | `func(ctx, models.UserID) string` | nil | Display names for the shared pages (requesters, assignees, authors). See [the shared pages](docs/ui-pages.md) |
+| `Plugins` | `plugins.Config` | none | Native plugins, the SDK plugin runtime and the capability check. See [plugins](docs/plugins.md) |
 
 ### Which database you are on
 

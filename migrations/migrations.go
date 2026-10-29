@@ -625,7 +625,40 @@ func migrationStatements(p string) []string {
 	}
 
 	stmts = append(append(append(stmts, indexes...), engineAddonStatements(p)...), ticketStatusStatements(p)...)
-	return append(stmts, importStatements(p)...)
+	stmts = append(stmts, importStatements(p)...)
+	return append(stmts, pluginStatements(p)...)
+}
+
+// pluginStatements create the plugin contract's tables
+// (escalated-developer-context domain-model/plugin-contract.md):
+// plugins holds activation, one row per plugin slug that has ever been
+// activated, and plugin_store holds what ctx.store and ctx.config write, keyed
+// by the plugin's name. data is JSONB on PostgreSQL and TEXT on SQLite (see
+// sqliteMigrationStatements). The (plugin, collection, key) index uses the
+// lengths the contract gives, which stay inside MySQL's index limit too.
+func pluginStatements(p string) []string {
+	return []string{
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			slug VARCHAR(255) NOT NULL,
+			is_active BOOLEAN NOT NULL DEFAULT FALSE,
+			activated_at TIMESTAMPTZ,
+			deactivated_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"plugins"),
+		fmt.Sprintf("CREATE UNIQUE INDEX IF NOT EXISTS idx_%splugins_slug ON %s (slug)", p, p+"plugins"),
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			plugin VARCHAR(191) NOT NULL,
+			collection VARCHAR(100) NOT NULL,
+			key VARCHAR(191),
+			data JSONB NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"plugin_store"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%splugin_store_lookup ON %s (plugin, collection, key)", p, p+"plugin_store"),
+	}
 }
 
 // importStatements create the import framework's tables, as escalated-laravel's:
@@ -998,6 +1031,7 @@ func sqliteMigrationStatements(p string) []string {
 		s = strings.ReplaceAll(s, "VARCHAR(20)", "TEXT")
 		s = strings.ReplaceAll(s, "VARCHAR(7)", "TEXT")
 		s = strings.ReplaceAll(s, "VARCHAR(320)", "TEXT")
+		s = strings.ReplaceAll(s, "JSONB", "TEXT")
 		result = append(result, s)
 	}
 	return result
