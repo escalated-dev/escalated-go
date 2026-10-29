@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Upgrading
+- SDK plugins' cron schedules run only when the host calls
+  `esc.RunPluginCron(ctx)` every minute or starts `esc.StartPluginCron(ctx)`.
 - Every page now carries `escalated.plugins` (`{}` with no active plugin).
 - Active plugins receive the canonical domain events. A host without plugins
   is unaffected.
@@ -25,6 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the Node process.
 
 ### Added
+- SDK plugin cron schedules run: call `esc.RunPluginCron(ctx)` every minute
+  from your scheduler, or start `esc.StartPluginCron(ctx)`, and the due
+  five-field (UTC) schedules of active SDK plugins are sent to the runtime as
+  `cron`, as no user. SDK plugin widgets with a `badge` function carry its
+  answer in `escalated.plugins.dashboardWidgets[].badge`, asked as the viewer
+  within 5 s (`null` when it fails).
 - SDK plugin calls in flight at once keep their own users: the bridge reads
   the `host_call_id` the plugin runtime (after 0.2.0) stamps on each `ctx`
   call, so `ctx.currentUser` and the actor of a plugin write are the request's

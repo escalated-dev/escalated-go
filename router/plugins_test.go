@@ -55,7 +55,11 @@ const (
 const sdkManifests = `{
   "@escalated-dev/plugin-slack": {
     "name": "@escalated-dev/plugin-slack", "version": "0.3.0", "description": "Slack alerts",
-    "config": [], "components": [], "widgets": [],
+    "config": [], "components": [],
+    "widgets": [{"component": "Inbox", "label": "Inbox", "hasBadge": true},
+                {"component": "Count", "label": "Count", "order": 2, "hasBadge": true},
+                {"component": "Broken", "label": "Broken", "order": 3, "hasBadge": true},
+                {"component": "Plain", "label": "Plain", "order": 4, "hasBadge": false}],
     "pages": [{"route": "settings", "component": "Settings", "menu": {"label": "Slack"}}],
     "actionHooks": ["ticket.created", "plugin.activated", "custom.ping"],
     "filterHooks": [{"hook": "subject", "priority": 15}],
@@ -65,13 +69,13 @@ const sdkManifests = `{
                   {"method": "GET", "path": "/spy"}, {"method": "POST", "path": "/ctx"},
                   {"method": "POST", "path": "/ctx-together"}],
     "webhooks": [{"method": "POST", "path": "/echo/:id"}],
-    "cronSchedules": []
+    "cronSchedules": ["* * * * *", "0 9 * * *", "not a schedule"]
   },
   "@escalated-dev/plugin-jira": {
     "name": "@escalated-dev/plugin-jira", "version": "0.1.0",
     "config": [], "pages": [], "components": [], "widgets": [],
     "actionHooks": ["ticket.created", "custom.ping"], "filterHooks": [],
-    "endpoints": [{"method": "GET", "path": "/echo/:id"}], "webhooks": [], "cronSchedules": []
+    "endpoints": [{"method": "GET", "path": "/echo/:id"}], "webhooks": [], "cronSchedules": ["* * * * *"]
   }
 }`
 

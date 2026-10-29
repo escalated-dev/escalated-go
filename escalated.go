@@ -507,6 +507,33 @@ func (e *Escalated) StartSLAChecker(ctx context.Context, interval time.Duration)
 	return cancel
 }
 
+// RunPluginCron runs the cron schedules of active SDK plugins that are due
+// this minute (UTC). Call it from the host's scheduler every minute, or use
+// StartPluginCron.
+func (e *Escalated) RunPluginCron(ctx context.Context) {
+	e.Plugins.RunDueCron(ctx, time.Now())
+}
+
+// StartPluginCron runs RunPluginCron at the start of every minute until ctx
+// is done or the returned function is called.
+func (e *Escalated) StartPluginCron(ctx context.Context) func() {
+	ctx, cancel := context.WithCancel(ctx)
+	go func() {
+		for {
+			next := time.Now().Truncate(time.Minute).Add(time.Minute)
+			timer := time.NewTimer(time.Until(next))
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return
+			case <-timer.C:
+				e.Plugins.RunDueCron(ctx, next)
+			}
+		}
+	}()
+	return cancel
+}
+
 // PurgeExpired applies the data retention settings (the admin Data retention
 // page): closed tickets, attachments and audit logs past their periods are
 // deleted, and so are expired guest verification codes. Every period defaults

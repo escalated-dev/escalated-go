@@ -12,6 +12,9 @@
 //     the "received" collection {hook, event, plugins}, acting for that plugin.
 //   - filter: a string value gets "|sdk" appended; hook "fail" is an error.
 //   - activate, deactivate: ctx.store.insert into "lifecycle" {event}.
+//   - cron: ctx.store.insert into "cron" {schedule}, acting for the plugin.
+//   - badge: component "Inbox" answers "for " + ctx.currentUser's id (or
+//     "for nobody"); "Count" answers 7; anything else is an error.
 //   - endpoint, webhook: by declared path. /echo/:id returns the request it
 //     was sent; /boom fails; /envelope returns an httpResponse() envelope;
 //     /config returns ctx.config.get("api_key"); /Settings returns page props;
@@ -197,6 +200,26 @@ func (rt *runtime) dispatch(serving json.RawMessage, method string, p map[string
 		name, _ := p["plugin"].(string)
 		_, err := rt.call(serving, "ctx.store.insert", map[string]any{"plugin": name, "collection": "lifecycle", "data": map[string]any{"event": method}})
 		return map[string]any{"ok": true}, err
+	case "cron":
+		name, _ := p["plugin"].(string)
+		_, err := rt.call(serving, "ctx.store.insert", map[string]any{"plugin": name, "collection": "cron", "data": map[string]any{"schedule": p["schedule"]}})
+		return map[string]any{"ok": true}, err
+	case "badge":
+		name, _ := p["plugin"].(string)
+		switch p["component"] {
+		case "Inbox":
+			user, err := rt.call(serving, "ctx.currentUser", map[string]any{"plugin": name})
+			if err != nil {
+				return nil, err
+			}
+			if u, ok := user.(map[string]any); ok {
+				return fmt.Sprintf("for %v", u["id"]), nil
+			}
+			return "for nobody", nil
+		case "Count":
+			return 7, nil
+		}
+		return nil, fmt.Errorf("badge failed")
 	case "endpoint", "webhook":
 		return rt.http(serving, method, p)
 	}
