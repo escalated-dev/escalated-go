@@ -121,6 +121,8 @@ type entry struct {
 	sdk         bool
 	actionHooks map[string]bool
 	sdkFilters  map[string]int
+	cron        []string
+	badges      map[string]bool
 }
 
 type nativeFilter struct {

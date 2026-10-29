@@ -1,6 +1,7 @@
 package plugins
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/escalated-dev/escalated-go/renderer"
@@ -84,17 +85,41 @@ func (h *Host) UIExtensions(r *http.Request) map[string]any {
 			if size == "" {
 				size = "half"
 			}
-			dashboardWidgets = append(dashboardWidgets, map[string]any{
+			item := map[string]any{
 				"id":        e.slug + "." + w.Component,
 				"title":     w.Label,
 				"component": w.Component,
 				"plugin":    e.slug,
 				"position":  orDefault(w.Order, 100),
 				"width":     size,
-			})
+			}
+			if e.sdk && e.badges[w.Component] {
+				item["badge"] = h.badge(r, e, w.Component)
+			}
+			dashboardWidgets = append(dashboardWidgets, item)
 		}
 	}
 	return map[string]any{"menuItems": menuItems, "pageComponents": pageComponents, "dashboardWidgets": dashboardWidgets}
+}
+
+// badge asks the runtime for a widget's badge, as the viewer, within 5 s: a
+// number or a string, or nil when it fails, is slow or answers anything else.
+func (h *Host) badge(r *http.Request, e *entry, component string) any {
+	ctx := withRequest(r.Context(), r)
+	raw, err := h.bridge.call(ctx, scope{plugins: []string{e.name}, request: r}, "badge", map[string]any{"plugin": e.name, "component": component}, filterTimeout)
+	if err != nil {
+		h.logf("plugin %s badge %s failed: %v", e.name, component, err)
+		return nil
+	}
+	var v any
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return nil
+	}
+	switch v.(type) {
+	case float64, string:
+		return v
+	}
+	return nil
 }
 
 func orDefault(v, def int) int {

@@ -200,10 +200,23 @@ from active plugins' manifests, in the shape the shared frontend's
 - `pageComponents`: `"{page}.{slot}"` to `[{plugin, component, data,
   position}]`.
 - `dashboardWidgets`: `{id: "{slug}.{component}", title, component, plugin,
-  position, width}`; `width` defaults to `half`.
+  position, width}`; `width` defaults to `half`. An SDK plugin's widget with a
+  `badge` function also has `badge`: the runtime is asked for it while the
+  page is built, as the viewer, within 5 s; `null` when that fails.
 
 `plugin` is the slug. Items whose capability the viewer lacks are left out.
 With no active plugin it is `{}`. Plugin settings are never part of it.
+
+## Cron
+
+An SDK plugin's `cron` keys are five-field cron expressions (`minute hour
+day-of-month month day-of-week`, or `@hourly`, `@daily`, ...), evaluated in
+UTC. Run them by calling `esc.RunPluginCron(ctx)` from your scheduler once a
+minute, or start `esc.StartPluginCron(ctx)` once (it ticks at the start of each
+minute; call the returned function to stop). Each due schedule of an active
+plugin is sent to the runtime as `cron`, side by side, as no user, within 30 s;
+a failing or unreadable schedule is logged and skipped. Inactive plugins'
+schedules never run. Native plugins schedule their own work.
 
 ## The context
 

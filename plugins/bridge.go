@@ -521,7 +521,7 @@ type sdkManifest struct {
 	Config      []ConfigField `json:"config"`
 	Pages       []Page        `json:"pages"`
 	Components  []Component   `json:"components"`
-	Widgets     []Widget      `json:"widgets"`
+	Widgets     []sdkWidget   `json:"widgets"`
 	ActionHooks []string      `json:"actionHooks"`
 	FilterHooks []struct {
 		Hook     string `json:"hook"`
@@ -536,6 +536,13 @@ type sdkManifest struct {
 		Method string `json:"method"`
 		Path   string `json:"path"`
 	} `json:"webhooks"`
+	CronSchedules []string `json:"cronSchedules"`
+}
+
+// sdkWidget is a manifest widget, which says whether it has a badge function.
+type sdkWidget struct {
+	Widget
+	HasBadge bool `json:"hasBadge"`
 }
 
 func (b *bridge) sdkEntries(manifests map[string]sdkManifest) []*entry {
@@ -552,6 +559,14 @@ func (b *bridge) sdkEntries(manifests map[string]sdkManifest) []*entry {
 		if name == "" {
 			name = key
 		}
+		widgets := make([]Widget, 0, len(m.Widgets))
+		badges := map[string]bool{}
+		for _, w := range m.Widgets {
+			widgets = append(widgets, w.Widget)
+			if w.HasBadge {
+				badges[w.Component] = true
+			}
+		}
 		e := &entry{
 			name:   name,
 			slug:   Slug(name),
@@ -559,10 +574,12 @@ func (b *bridge) sdkEntries(manifests map[string]sdkManifest) []*entry {
 			sdk:    true,
 			manifest: Manifest{
 				Name: name, Version: m.Version, Description: m.Description,
-				Config: m.Config, Pages: m.Pages, Components: m.Components, Widgets: m.Widgets,
+				Config: m.Config, Pages: m.Pages, Components: m.Components, Widgets: widgets,
 			},
 			actionHooks: map[string]bool{},
 			sdkFilters:  map[string]int{},
+			cron:        m.CronSchedules,
+			badges:      badges,
 		}
 		if other, ok := seen[e.slug]; ok {
 			b.logf("plugins %q and %q share the slug %q; %q is not loaded", other, name, e.slug, name)

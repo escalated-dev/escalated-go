@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -12,6 +13,7 @@ import (
 
 	escalated "github.com/escalated-dev/escalated-go"
 	"github.com/escalated-dev/escalated-go/internal/pluginruntimetest"
+	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/models"
 )
 
@@ -423,5 +425,82 @@ func TestSDKPluginCallsFromAnOlderRuntimeStillActForTheRequest(t *testing.T) {
 		`{"method":"ctx.currentUser","params":{}}`, map[string]string{"X-Requested-With": "XMLHttpRequest"})
 	if user := obj(t, bodyOf(t, rec), "result"); user["id"] != float64(900) {
 		t.Errorf("ctx.currentUser from an older runtime %v", user)
+	}
+}
+
+// The cron schedules an active SDK plugin declares run when due, through the
+// runtime's cron method, and an inactive plugin's never do.
+func TestSDKPluginCronSchedulesRunWhenDue(t *testing.T) {
+	f := newPluginFixture(t, withRuntime)
+	h := f.mounts()["chi"]
+	lifecycleCall(t, h, http.MethodPost, "/escalated/admin/plugins/"+slackSlug+"/activate")
+
+	schedules := func(plugin string) []string {
+		t.Helper()
+		db := f.esc.Config.DB
+		rows, err := db.Query(sqldialect.Rebind(db, `SELECT data FROM escalated_plugin_store WHERE plugin = ? AND collection = 'cron' ORDER BY id`), plugin)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = rows.Close() }()
+		var out []string
+		for rows.Next() {
+			var raw string
+			if err := rows.Scan(&raw); err != nil {
+				t.Fatal(err)
+			}
+			var m map[string]any
+			_ = json.Unmarshal([]byte(raw), &m)
+			out = append(out, fmt.Sprint(m["schedule"]))
+		}
+		sort.Strings(out)
+		return out
+	}
+
+	nine := time.Date(2026, 10, 29, 9, 0, 20, 0, time.UTC)
+	f.esc.Plugins.RunDueCron(context.Background(), nine)
+	if got := schedules(slackName); strings.Join(got, "|") != "* * * * *|0 9 * * *" {
+		t.Errorf("at 09:00 the slack plugin ran %v", got)
+	}
+	f.esc.Plugins.RunDueCron(context.Background(), nine.Add(time.Minute))
+	if got := schedules(slackName); len(got) != 3 {
+		t.Errorf("at 09:01 only the every-minute schedule is due: %v", got)
+	}
+	if got := schedules(jiraName); len(got) != 0 {
+		t.Errorf("the inactive jira plugin ran %v", got)
+	}
+
+	// The scheduler entry point runs the same check for the current minute.
+	f.esc.RunPluginCron(context.Background())
+	if got := schedules(slackName); len(got) < 4 {
+		t.Errorf("RunPluginCron did not run the every-minute schedule: %v", got)
+	}
+}
+
+// An SDK plugin's widget badges are asked as the viewer while the shared
+// props are built; a failing badge is null and a widget without one has none.
+func TestSDKPluginWidgetBadgesAreAskedAsTheViewer(t *testing.T) {
+	f := newPluginFixture(t, withRuntime)
+	h := f.mounts()["chi"]
+	lifecycleCall(t, h, http.MethodPost, "/escalated/admin/plugins/"+slackSlug+"/activate")
+
+	page := pageOf(t, preq(h, http.MethodGet, "/escalated/agent/tickets", "admin", "", map[string]string{"X-Inertia": "true"}))
+	widgets := list(t, obj(t, obj(t, page.Props, "escalated"), "plugins"), "dashboardWidgets")
+	byComponent := map[string]map[string]any{}
+	for _, w := range widgets {
+		item := w.(map[string]any)
+		byComponent[fmt.Sprint(item["component"])] = item
+	}
+	if got := byComponent["Inbox"]["badge"]; got != "for 900" {
+		t.Errorf("Inbox badge %v, want the viewer's", got)
+	}
+	if got := byComponent["Count"]["badge"]; got != float64(7) {
+		t.Errorf("Count badge %v", got)
+	}
+	if got, ok := byComponent["Broken"]["badge"]; !ok || got != nil {
+		t.Errorf("a failing badge must be null: %v", byComponent["Broken"])
+	}
+	if _, ok := byComponent["Plain"]["badge"]; ok {
+		t.Errorf("a widget without a badge function carries none: %v", byComponent["Plain"])
 	}
 }
