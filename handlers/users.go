@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/escalated-dev/escalated-go/access"
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/renderer"
 )
@@ -71,6 +72,10 @@ type UserHandler struct {
 	directory UserDirectory
 	renderer  renderer.Renderer
 	currentID func(r *http.Request) models.UserID
+
+	// Roles, set only while roles & permissions is on, adds each user's
+	// Escalated role slugs and the roles an admin can give them.
+	Roles *access.Store
 }
 
 // NewUserHandler constructs a UserHandler. directory may be nil when a
@@ -133,6 +138,34 @@ func (h *UserHandler) render(w http.ResponseWriter, r *http.Request, users UserP
 			"id": u.ID, "name": u.Name, "email": u.Email, "is_admin": u.IsAdmin, "is_agent": u.IsAgent,
 		})
 	}
+	var roleOptions []map[string]any
+	if h.Roles != nil {
+		ids := make([]string, 0, len(users.Data))
+		for _, u := range users.Data {
+			ids = append(ids, strconv.FormatInt(u.ID, 10))
+		}
+		assigned, err := h.Roles.UserRoleSlugs(r.Context(), ids)
+		if err != nil {
+			http.Error(w, "could not read roles", http.StatusInternalServerError)
+			return
+		}
+		for i, u := range users.Data {
+			slugs := assigned[strconv.FormatInt(u.ID, 10)]
+			if slugs == nil {
+				slugs = []string{}
+			}
+			rows[i]["roles"] = slugs
+		}
+		roles, err := h.Roles.Roles(r.Context())
+		if err != nil {
+			http.Error(w, "could not read roles", http.StatusInternalServerError)
+			return
+		}
+		roleOptions = []map[string]any{}
+		for _, role := range roles {
+			roleOptions = append(roleOptions, map[string]any{"id": role.ID, "name": role.Name, "slug": role.Slug})
+		}
+	}
 	paginator := uiPaginator(rows, users.Total, uiPage{Page: users.CurrentPage, PerPage: users.PerPage}, r.URL.Path)
 	if users.LastPage > 0 {
 		// The directory's own count of pages wins over the one derived from
@@ -143,6 +176,9 @@ func (h *UserHandler) render(w http.ResponseWriter, r *http.Request, users UserP
 		"users":         paginator,
 		"filters":       map[string]any{"search": search},
 		"currentUserId": currentUserID,
+	}
+	if roleOptions != nil {
+		props["roles"] = roleOptions
 	}
 	if errs != nil {
 		props["errors"] = pageErrors(errs)

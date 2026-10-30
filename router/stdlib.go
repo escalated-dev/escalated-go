@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	escalated "github.com/escalated-dev/escalated-go"
+	"github.com/escalated-dev/escalated-go/access"
 	"github.com/escalated-dev/escalated-go/handlers"
 	"github.com/escalated-dev/escalated-go/middleware"
 	"github.com/escalated-dev/escalated-go/plugins"
@@ -26,7 +27,9 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	// API tokens authenticate first, so ticket visibility is the token owner's.
 	// escalated.plugins (active plugins' menus, slots and widgets) goes on
 	// every page.
-	mux.Handle(prefix+"/", esc.APITokenMiddleware(esc.TicketAccessMiddleware(esc.Plugins.ShareMiddleware(inner))))
+	// escalated.features / escalated.permissions on every page, and the route
+	// permissions while roles & permissions is on (docs/access-control.md).
+	mux.Handle(prefix+"/", esc.APITokenMiddleware(esc.AccessMiddleware(esc.TicketAccessMiddleware(esc.Plugins.ShareMiddleware(inner)))))
 
 	if esc.Config.EnableWidget {
 		stack := newWidgetStack(esc, ticketSvc, guestLimit)
@@ -111,6 +114,7 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated, guestLimit *middl
 	guestPages := &handlers.GuestPages{Store: s, Tickets: ticketSvc, Access: esc.GuestAccess, DB: cfg.DB, Prefix: cfg.TablePrefix}
 	workflowH := handlers.NewWorkflowHandler(cfg.DB)
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
+	roleH := newRoleHandler(esc, userH)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
 	reportH := handlers.NewReportHandler(cfg.DB, cfg.TablePrefix)
 	wireUIPages(esc, agentH, customerH, adminH, uiPageDeps{
@@ -496,6 +500,10 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated, guestLimit *middl
 		mux.Handle("GET "+prefix+"/admin/audit-log", adminMW(http.HandlerFunc(auditH.Index)))
 		mux.Handle("GET "+prefix+"/admin/users", adminMW(http.HandlerFunc(userH.Index)))
 		mux.Handle("PATCH "+prefix+"/admin/users/{user}/role", adminMW(http.HandlerFunc(userH.UpdateRole)))
+		// Roles (escalated.admin.roles.*) and the users page's role editor,
+		// only while roles & permissions is on (404 otherwise).
+		rolesGate := access.RequireFeature(esc.Features.RolesPermissions && roleH != nil)
+		mountRoles(muxGroup{mux: mux, prefix: prefix + "/admin", mw: func(h http.Handler) http.Handler { return adminMW(rolesGate(h)) }}, roleH)
 
 		if cfg.EnableNewsletters {
 			mux.Handle("GET "+prefix+"/admin/newsletters", adminMW(http.HandlerFunc(newsletterH.CampaignIndex)))

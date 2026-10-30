@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"net/http"
 
 	escalated "github.com/escalated-dev/escalated-go"
 	"github.com/escalated-dev/escalated-go/handlers"
@@ -61,7 +62,7 @@ func newNewsletterStack(esc *escalated.Escalated) (*handlers.NewsletterHandler, 
 		BaseURL:             cfg.Newsletters.BaseURL,
 	})
 	tracker := newsletter.NewNewsletterTracker(store, bounces)
-	h := handlers.NewNewsletterHandler(store, esc.Renderer, renderer, planner, tracker, mailer, cfg.UserIDFunc, cfg.NewsletterPermissionCheck, handlers.NewsletterHandlerConfig{
+	h := handlers.NewNewsletterHandler(store, esc.Renderer, renderer, planner, tracker, mailer, cfg.UserIDFunc, newsletterPermission(esc), handlers.NewsletterHandlerConfig{
 		Enabled:            cfg.EnableNewsletters,
 		DefaultFrom:        cfg.Newsletters.DefaultFrom,
 		DefaultReplyTo:     cfg.Newsletters.DefaultReplyTo,
@@ -73,4 +74,25 @@ func newNewsletterStack(esc *escalated.Escalated) (*handlers.NewsletterHandler, 
 	})
 	worker := newsletter.NewWorker(store, planner, dispatcher, func() bool { return cfg.EnableNewsletters })
 	return h, worker
+}
+
+// newsletterPermission is the newsletter screens' permission check: the
+// host's NewsletterPermissionCheck, if any, and with roles & permissions on
+// the user's roles as well (newsletters.manage, newsletters.send). With it
+// off and no host check, the admin gate alone decides.
+func newsletterPermission(esc *escalated.Escalated) func(*http.Request, string) bool {
+	host := esc.Config.NewsletterPermissionCheck
+	if !esc.Features.RolesPermissions {
+		if host == nil {
+			return nil
+		}
+		return host
+	}
+	sharer := esc.AccessSharer()
+	return func(r *http.Request, permission string) bool {
+		if host != nil && !host(r, permission) {
+			return false
+		}
+		return sharer.Allows(r, permission)
+	}
 }

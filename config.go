@@ -7,6 +7,7 @@ import (
 
 	"github.com/escalated-dev/escalated-go/ticketaccess"
 
+	"github.com/escalated-dev/escalated-go/access"
 	"github.com/escalated-dev/escalated-go/actions"
 	"github.com/escalated-dev/escalated-go/handlers"
 	"github.com/escalated-dev/escalated-go/middleware"
@@ -121,8 +122,17 @@ type Config struct {
 	NewsletterMailer NewsletterMailer
 
 	// NewsletterPermissionCheck optionally enforces newsletters.manage and
-	// newsletters.send beyond AdminCheck.
+	// newsletters.send beyond AdminCheck: the host's own gate. With roles &
+	// permissions on (Access), the user's roles must grant the permission
+	// as well.
 	NewsletterPermissionCheck NewsletterPermissionCheck
+
+	// Access holds the install-level access switches (ADR
+	// 2026-10-29-configurable-access-features), all off by default. A nil
+	// switch reads its environment variable, ESCALATED_ROLES_PERMISSIONS.
+	// They are never read from the settings table. See
+	// docs/access-control.md.
+	Access access.Config
 
 	// TablePrefix is the prefix for all database tables (e.g., "escalated_").
 	// Defaults to "escalated_".

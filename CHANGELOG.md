@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Upgrading
+- Roles & permissions is a new install-level switch, off by default
+  (`Config.Access.RolesPermissions`, else `ESCALATED_ROLES_PERMISSIONS`).
+  Off, nothing changes. To turn it on: run the migrations (they add
+  `escalated_roles`, `escalated_permissions`, `escalated_role_permission` and
+  `escalated_role_user`), call `esc.Roles().Seed(ctx)`, give every staff user
+  a role (at least one `esc.Roles().Assign(ctx, id, "admin")`), then set the
+  switch. Staff without a role can use nothing but their own screens once it
+  is on. See docs/access-control.md.
+- Every page now carries `escalated.features` and `escalated.permissions`
+  (`["*"]` for staff while roles & permissions is off).
 - SDK plugins' cron schedules run only when the host calls
   `esc.RunPluginCron(ctx)` every minute or starts `esc.StartPluginCron(ctx)`.
 - Every page now carries `escalated.plugins` (`{}` with no active plugin).
@@ -27,6 +37,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the Node process.
 
 ### Added
+- Roles & permissions, enforced behind its switch (ADR
+  2026-10-29-configurable-access-features, as escalated-laravel): every
+  admin, agent and staff API route needs its permission from the user's
+  roles (`access.RoutePermissions`, fail closed), with status changes to
+  resolved/closed/reopened needing `ticket.close`, bulk actions checked per
+  action, internal replies needing `reply.create_internal` and API tokens
+  checked as their owner. Admin > Roles (`Admin/Roles/Index`, `Form`) and the
+  users page's role editor (`PUT /admin/users/{user}/roles`) are served while
+  it is on and answer 404 while it is off. `esc.Roles()` seeds
+  escalated-laravel's permissions and the `admin`, `agent` and `light_agent`
+  roles and assigns roles.
 - Native plugins get cron schedules and widget badges, as SDK plugins do:
   `plugins.CronPlugin` (`Cron()` maps five-field UTC expressions to
   functions, run by `RunPluginCron`/`StartPluginCron` for active plugins, as
