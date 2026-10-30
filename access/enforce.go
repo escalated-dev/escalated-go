@@ -286,6 +286,9 @@ type Sharer struct {
 	Store    *Store
 	IsStaff  func(*http.Request) bool
 	UserID   func(*http.Request) models.UserID
+	// TwoFactorRequired is escalated.two_factor_required: whether the
+	// signed-in staff user must still enrol. Nil is false.
+	TwoFactorRequired func(*http.Request) bool
 }
 
 // Middleware adds the shared props, computed only when a page renders.
@@ -293,8 +296,9 @@ func (s *Sharer) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := renderer.WithShared(r.Context(), "escalated", func() any {
 			return map[string]any{
-				"features":    s.Features.Shared(),
-				"permissions": s.permissions(r),
+				"features":            s.Features.Shared(),
+				"permissions":         s.permissions(r),
+				"two_factor_required": s.TwoFactorRequired != nil && s.TwoFactorRequired(r),
 			}
 		})
 		next.ServeHTTP(w, r.WithContext(ctx))

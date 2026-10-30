@@ -106,6 +106,35 @@ func mountRoles(r ticketRoutes, h *handlers.RoleHandler) {
 	r.Put("/users/{user}/roles", h.UpdateUserRoles)
 }
 
+// newTwoFactorHandler is the two-factor enrolment and challenge screens.
+func newTwoFactorHandler(esc *escalated.Escalated) *handlers.TwoFactorHandler {
+	cfg := esc.Config
+	return &handlers.TwoFactorHandler{
+		Service:  esc.TwoFactor(),
+		Gate:     esc.TwoFactorGate(),
+		Pages:    handlers.PageSupport{Renderer: esc.Renderer, RoutePrefix: cfg.RoutePrefix, UserID: cfg.UserIDFunc},
+		Required: esc.TwoFactorRequired,
+		IsAgent:  cfg.AgentCheck,
+		Email:    cfg.UserEmail,
+	}
+}
+
+// mountTwoFactor adds the enrolment screen (escalated.admin.two-factor.*,
+// any staff user) and the challenge (escalated.two-factor.challenge and
+// .verify, any signed-in user), all answering 404 while two-factor is off.
+// Patterns are relative to the route prefix.
+func mountTwoFactor(r ticketRoutes, h *handlers.TwoFactorHandler) {
+	r.Get("/admin/settings/two-factor", h.Page)
+	r.Post("/admin/settings/two-factor/setup", h.Setup)
+	r.Post("/admin/settings/two-factor/confirm", h.Confirm)
+	r.Post("/admin/settings/two-factor/disable", h.Disable)
+}
+
+func mountTwoFactorChallenge(r ticketRoutes, h *handlers.TwoFactorHandler) {
+	r.Get("/two-factor/challenge", h.Challenge)
+	r.Post("/two-factor/challenge", h.Verify)
+}
+
 // wireUIPages gives the page handlers what they need to build the props the
 // shared Vue pages read: the database for counts, the host's user lookups,
 // the route prefix for links, and the ticket screen's panels.
@@ -145,6 +174,11 @@ func wireUIPages(esc *escalated.Escalated, agentH *handlers.AgentHandler, custom
 
 	// Custom ticket statuses: the admin pages.
 	adminH.Statuses = esc.TicketStatuses()
+
+	// The "require two-factor" setting, offered while two-factor is on.
+	if esc.Features.TwoFactor {
+		adminH.TwoFactorRequired = esc.TwoFactorRequired
+	}
 
 	pages := handlers.PageSupport{Renderer: esc.Renderer, RoutePrefix: cfg.RoutePrefix, UserID: cfg.UserIDFunc, Users: users}
 	if deps.escalations != nil {

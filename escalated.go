@@ -70,6 +70,9 @@ type Escalated struct {
 	// Config.Access (else their environment variables) when New ran.
 	Features access.Features
 
+	twoFactorOnce sync.Once
+	twoFactorGate *access.TwoFactorGate
+
 	importsOnce sync.Once
 	imports     *services.ImportService
 }
@@ -175,7 +178,7 @@ func New(cfg Config) (*Escalated, error) {
 	if err != nil {
 		return nil, err
 	}
-	return wirePlugins(&Escalated{
+	return checkAccess(wirePlugins(&Escalated{
 		Access:      access,
 		Config:      cfg,
 		Store:       s,
@@ -183,7 +186,7 @@ func New(cfg Config) (*Escalated, error) {
 		GuestAccess: newGuestAccess(cfg),
 		Notifier:    newNotifier(cfg, access),
 		Plugins:     pluginHost,
-	}), nil
+	}))
 }
 
 // NewSQLite is New with the SQLite store chosen explicitly, skipping detection.
@@ -214,7 +217,7 @@ func NewSQLite(cfg Config) (*Escalated, error) {
 	if err != nil {
 		return nil, err
 	}
-	return wirePlugins(&Escalated{
+	return checkAccess(wirePlugins(&Escalated{
 		Access:      access,
 		Config:      cfg,
 		Store:       s,
@@ -222,7 +225,7 @@ func NewSQLite(cfg Config) (*Escalated, error) {
 		GuestAccess: newGuestAccess(cfg),
 		Notifier:    newNotifier(cfg, access),
 		Plugins:     pluginHost,
-	}), nil
+	}))
 }
 
 // wirePlugins gives the plugin context its domain: the store, a ticket
@@ -639,10 +642,80 @@ func (e *Escalated) Roles() *access.Store {
 	return &access.Store{DB: e.Config.DB, Prefix: e.Config.TablePrefix}
 }
 
-// AccessMiddleware shares escalated.features and escalated.permissions with
-// every page and, while roles & permissions is on, requires each admin,
-// agent and staff API route's permission (access.RoutePermissions). The
-// routers mount it under the route prefix after APITokenMiddleware.
+// checkAccess refuses a configuration that switches a feature on without
+// what it needs to be enforced.
+func checkAccess(e *Escalated) (*Escalated, error) {
+	if e.Features.TwoFactor {
+		if e.Config.Access.SessionID == nil {
+			return nil, fmt.Errorf("escalated: two-factor is on but Config.Access.SessionID is nil; it is needed so every new login is challenged (docs/access-control.md)")
+		}
+		if len(e.twoFactorKey()) == 0 {
+			return nil, fmt.Errorf("escalated: two-factor is on but neither Config.Access.TwoFactorSecret nor Config.GuestAccess.Secret is set (docs/access-control.md)")
+		}
+	}
+	return e, nil
+}
+
+func (e *Escalated) twoFactorKey() []byte {
+	if e.Config.Access.TwoFactorSecret != "" {
+		return []byte(e.Config.Access.TwoFactorSecret)
+	}
+	return []byte(e.Config.GuestAccess.Secret)
+}
+
+// TwoFactor returns the two-factor enrolments over the host database. Use
+// TwoFactor().Disable(ctx, userID) to clear a user's enrolment after a lost
+// device (escalated-laravel's escalated:two-factor:reset). Nil without a
+// database.
+func (e *Escalated) TwoFactor() *access.TwoFactor {
+	if e.Config.DB == nil {
+		return nil
+	}
+	return &access.TwoFactor{DB: e.Config.DB, Prefix: e.Config.TablePrefix, Key: e.twoFactorKey(), Issuer: e.Config.Access.TwoFactorIssuer}
+}
+
+// TwoFactorRequired reports whether staff must enrol: the
+// two_factor_required setting when an admin has saved it, else
+// Config.Access.TwoFactorRequired (ESCALATED_TWO_FACTOR_REQUIRED). Always
+// false while two-factor is off.
+func (e *Escalated) TwoFactorRequired(ctx context.Context) bool {
+	if !e.Features.TwoFactor {
+		return false
+	}
+	if v, err := e.Store.GetSetting(ctx, handlers.SettingTwoFactorRequired); err == nil && v != "" {
+		return v == "1" || strings.EqualFold(v, "true")
+	}
+	return e.Config.Access.TwoFactorRequiredDefault()
+}
+
+// TwoFactorGate is the challenge: the middleware AccessMiddleware runs and
+// what the challenge and enrolment screens use. One per Escalated, so the
+// challenge's attempt limit is shared by both routers.
+func (e *Escalated) TwoFactorGate() *access.TwoFactorGate {
+	e.twoFactorOnce.Do(func() {
+		cfg := e.Config
+		e.twoFactorGate = &access.TwoFactorGate{
+			Prefix:            cfg.RoutePrefix,
+			Enabled:           e.Features.TwoFactor,
+			Service:           e.TwoFactor(),
+			Key:               e.twoFactorKey(),
+			UserID:            cfg.UserIDFunc,
+			IsStaff:           func(r *http.Request) bool { return cfg.AgentCheck(r) || cfg.AdminCheck(r) },
+			IsToken:           func(r *http.Request) bool { return handlers.APITokenFrom(r.Context()) != nil },
+			Required:          func(r *http.Request) bool { return e.TwoFactorRequired(r.Context()) },
+			SessionID:         cfg.Access.SessionID,
+			RegenerateSession: cfg.Access.RegenerateSession,
+		}
+	})
+	return e.twoFactorGate
+}
+
+// AccessMiddleware shares escalated.features, escalated.permissions and
+// escalated.two_factor_required with every page; while two-factor is on,
+// challenges enrolled staff (TwoFactorGate); and while roles & permissions
+// is on, requires each admin, agent and staff API route's permission
+// (access.RoutePermissions). The routers mount it under the route prefix
+// after APITokenMiddleware.
 func (e *Escalated) AccessMiddleware(next http.Handler) http.Handler {
 	cfg := e.Config
 	statuses := e.TicketStatuses()
@@ -656,17 +729,26 @@ func (e *Escalated) AccessMiddleware(next http.Handler) http.Handler {
 			return status, ok && err == nil
 		},
 	}
-	return e.AccessSharer().Middleware(enforcer.Middleware(next))
+	return e.AccessSharer().Middleware(e.TwoFactorGate().Middleware(enforcer.Middleware(next)))
 }
 
 // AccessSharer is what AccessMiddleware shares with the pages; Allows
 // answers a permission question for a request.
 func (e *Escalated) AccessSharer() *access.Sharer {
 	cfg := e.Config
+	isStaff := func(r *http.Request) bool { return cfg.AgentCheck(r) || cfg.AdminCheck(r) }
 	return &access.Sharer{
 		Features: e.Features,
 		Store:    e.Roles(),
-		IsStaff:  func(r *http.Request) bool { return cfg.AgentCheck(r) || cfg.AdminCheck(r) },
+		IsStaff:  isStaff,
 		UserID:   cfg.UserIDFunc,
+		// Whether the signed-in staff user must still enrol.
+		TwoFactorRequired: func(r *http.Request) bool {
+			if !e.TwoFactorRequired(r.Context()) || !isStaff(r) {
+				return false
+			}
+			enrolment, err := e.TwoFactor().Confirmed(r.Context(), cfg.UserIDFunc(r))
+			return err == nil && enrolment == nil
+		},
 	}
 }
