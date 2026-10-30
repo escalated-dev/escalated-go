@@ -52,7 +52,7 @@ type TwoFactor struct {
 	DB     *sql.DB
 	Prefix string
 	// Key seals secrets and recovery codes. Set by Escalated from
-	// Config.Access.TwoFactorSecret.
+	// Config.Access.Secret.
 	Key []byte
 	// Issuer names the account in authenticator apps.
 	Issuer string

@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Two-factor authentication is a new install-level switch, off by default
   (`Config.Access.TwoFactor`, else `ESCALATED_TWO_FACTOR`). It needs
   `Config.Access.SessionID` (your session id, renewed on login) and a secret
-  (`Config.Access.TwoFactorSecret`, else `GuestAccess.Secret`); `New` fails
+  (`Config.Access.Secret`, else `GuestAccess.Secret`); `New` fails
   without them while it is on. Run the migrations first (they add
   `two_factors.last_used_step`). Every page now also carries
   `escalated.two_factor_required`. See docs/access-control.md.

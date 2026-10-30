@@ -649,16 +649,16 @@ func checkAccess(e *Escalated) (*Escalated, error) {
 		if e.Config.Access.SessionID == nil {
 			return nil, fmt.Errorf("escalated: two-factor is on but Config.Access.SessionID is nil; it is needed so every new login is challenged (docs/access-control.md)")
 		}
-		if len(e.twoFactorKey()) == 0 {
-			return nil, fmt.Errorf("escalated: two-factor is on but neither Config.Access.TwoFactorSecret nor Config.GuestAccess.Secret is set (docs/access-control.md)")
+		if len(e.accessKey()) == 0 {
+			return nil, fmt.Errorf("escalated: two-factor is on but neither Config.Access.Secret nor Config.GuestAccess.Secret is set (docs/access-control.md)")
 		}
 	}
 	return e, nil
 }
 
-func (e *Escalated) twoFactorKey() []byte {
-	if e.Config.Access.TwoFactorSecret != "" {
-		return []byte(e.Config.Access.TwoFactorSecret)
+func (e *Escalated) accessKey() []byte {
+	if e.Config.Access.Secret != "" {
+		return []byte(e.Config.Access.Secret)
 	}
 	return []byte(e.Config.GuestAccess.Secret)
 }
@@ -671,7 +671,7 @@ func (e *Escalated) TwoFactor() *access.TwoFactor {
 	if e.Config.DB == nil {
 		return nil
 	}
-	return &access.TwoFactor{DB: e.Config.DB, Prefix: e.Config.TablePrefix, Key: e.twoFactorKey(), Issuer: e.Config.Access.TwoFactorIssuer}
+	return &access.TwoFactor{DB: e.Config.DB, Prefix: e.Config.TablePrefix, Key: e.accessKey(), Issuer: e.Config.Access.TwoFactorIssuer}
 }
 
 // TwoFactorRequired reports whether staff must enrol: the
@@ -698,7 +698,7 @@ func (e *Escalated) TwoFactorGate() *access.TwoFactorGate {
 			Prefix:            cfg.RoutePrefix,
 			Enabled:           e.Features.TwoFactor,
 			Service:           e.TwoFactor(),
-			Key:               e.twoFactorKey(),
+			Key:               e.accessKey(),
 			UserID:            cfg.UserIDFunc,
 			IsStaff:           func(r *http.Request) bool { return cfg.AgentCheck(r) || cfg.AdminCheck(r) },
 			IsToken:           func(r *http.Request) bool { return handlers.APITokenFrom(r.Context()) != nil },

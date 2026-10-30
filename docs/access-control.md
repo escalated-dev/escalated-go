@@ -127,14 +127,14 @@ every page:
 ```go
 on := true
 cfg.Access.TwoFactor = &on // or ESCALATED_TWO_FACTOR=true
-cfg.Access.TwoFactorSecret = os.Getenv("ESCALATED_TWO_FACTOR_SECRET")
+cfg.Access.Secret = os.Getenv("ESCALATED_ACCESS_SECRET")
 cfg.Access.SessionID = func(r *http.Request) string {
     return sessions.ID(r) // your session library's id for this request
 }
 ```
 
 `escalated.New` refuses to start with two-factor on and no `SessionID`, or no
-secret (`TwoFactorSecret`, else `GuestAccess.Secret`).
+secret (`Secret`, else `GuestAccess.Secret`).
 
 ### Escalated owns no sessions
 
@@ -200,7 +200,7 @@ enrolments are kept for when it is turned on.
 ### Turning it on in an existing install
 
 1. Run the migrations (they add `two_factors.last_used_step`).
-2. Set `TwoFactorSecret` (or `GuestAccess.Secret`) and `SessionID`.
+2. Set `Secret` (or `GuestAccess.Secret`) and `SessionID`.
 3. Set `Config.Access.TwoFactor` (or `ESCALATED_TWO_FACTOR=true`).
 4. Require it (`TwoFactorRequired` or the setting) only after telling staff:
    everyone without an enrolment is sent to enrol.

@@ -28,7 +28,7 @@ const headerSession = "X-Test-Session"
 func twoFactorOn(on bool) func(*escalated.Config) {
 	return func(cfg *escalated.Config) {
 		cfg.Access.TwoFactor = &on
-		cfg.Access.TwoFactorSecret = "test-two-factor-secret"
+		cfg.Access.Secret = "test-two-factor-secret"
 		cfg.Access.SessionID = func(r *http.Request) string { return r.Header.Get(headerSession) }
 	}
 }
@@ -134,7 +134,7 @@ func TestTwoFactorSwitchOffByDefault(t *testing.T) {
 	for _, name := range []string{"chi", "stdlib"} {
 		t.Run(name, func(t *testing.T) {
 			f := newUIFixture(t, func(cfg *escalated.Config) {
-				cfg.Access.TwoFactorSecret = "test-two-factor-secret"
+				cfg.Access.Secret = "test-two-factor-secret"
 			})
 			h := f.mounts()[name]
 			if f.esc.Features.TwoFactor {
@@ -190,7 +190,7 @@ func TestTwoFactorSwitchOffByDefault(t *testing.T) {
 func TestTwoFactorNeedsTheSessionAndASecret(t *testing.T) {
 	on := true
 	for what, configure := range map[string]func(*escalated.Config){
-		"no session id": func(cfg *escalated.Config) { cfg.Access.TwoFactor = &on; cfg.Access.TwoFactorSecret = "x" },
+		"no session id": func(cfg *escalated.Config) { cfg.Access.TwoFactor = &on; cfg.Access.Secret = "x" },
 		"no secret": func(cfg *escalated.Config) {
 			cfg.Access.TwoFactor = &on
 			cfg.Access.SessionID = func(*http.Request) string { return "s" }
@@ -451,7 +451,7 @@ func TestTwoFactorEnvSwitchAndTokens(t *testing.T) {
 	t.Setenv("ESCALATED_TWO_FACTOR", "true")
 	owners := &tokenOwners{roles: map[models.UserID]*handlers.APITokenOwner{uiAgent: {IsAgent: true, IsAdmin: true}}}
 	f := newUIFixture(t, func(cfg *escalated.Config) {
-		cfg.Access.TwoFactorSecret = "x"
+		cfg.Access.Secret = "x"
 		cfg.Access.SessionID = func(r *http.Request) string { return r.Header.Get(headerSession) }
 		cfg.APITokensEnabled = true
 		cfg.APITokenOwner = owners.lookup

@@ -38,7 +38,7 @@ type Config struct {
 	// TwoFactor enforces two-factor authentication: staff with a confirmed
 	// TOTP enrolment are challenged after the host's login before they reach
 	// an admin or agent page. It needs SessionID and a secret
-	// (TwoFactorSecret, else GuestAccess.Secret); New fails without them.
+	// (Secret, else GuestAccess.Secret); New fails without them.
 	TwoFactor *bool
 
 	// TwoFactorRequired makes every staff user enrol before using anything
@@ -46,10 +46,10 @@ type Config struct {
 	// (Admin > Settings) wins when an admin has saved it.
 	TwoFactorRequired *bool
 
-	// TwoFactorSecret seals TOTP secrets and recovery codes and signs the
-	// challenge cookie. Keep it stable: changing it voids every enrolment.
-	// Empty uses Config.GuestAccess.Secret.
-	TwoFactorSecret string
+	// Secret seals TOTP secrets and recovery codes and signs the access
+	// cookies (the two-factor pass). Keep it stable: changing it voids every
+	// enrolment. Empty uses Config.GuestAccess.Secret.
+	Secret string
 
 	// TwoFactorIssuer names the account in authenticator apps. Empty is
 	// "Escalated".
