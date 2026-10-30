@@ -180,6 +180,7 @@ func main() {
 |-------|------|---------|-------------|
 | `RoutePrefix` | `string` | `/escalated` | URL prefix for all routes |
 | `UIEnabled` | `bool` | `true` | Mount Inertia UI routes; `false` for JSON API only |
+| `Debug` | `bool` | `false` | A 500 on an Inertia visit goes out as the handler wrote it (a panic reaches your recoverer) instead of the generic Error page; development only (see `docs/ui-pages.md`) |
 | `RouteOverrides` | `map[string]escalated.NamedRoute` | nil | Replace, add (e.g. `login`) or remove names in the built-in route list the pages' `route()` reads. See [the shared pages](docs/ui-pages.md#route-names) |
 | `TablePrefix` | `string` | `escalated_` | Database table name prefix |
 | `AdminCheck` | `func(*http.Request) bool` | `false` | Returns true for admin users |

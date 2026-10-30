@@ -108,6 +108,15 @@ type Config struct {
 	// When false, only JSON API handlers are registered.
 	UIEnabled bool
 
+	// Debug turns on debug mode (default false). While it is on, an Inertia
+	// visit to an Escalated page that fails with a 500 is not answered with
+	// the generic Escalated/Error page: the handler's own 500 response goes
+	// out as written and a panic is re-raised for the host's recoverer, the
+	// way escalated-laravel leaves a 500 to the framework's debug page under
+	// APP_DEBUG. Other statuses still get the page. Never turn it on in
+	// production: the handler's 500 text can name tables and queries.
+	Debug bool
+
 	// EnableNewsletters controls route registration and dispatch. Defaults off.
 	EnableNewsletters bool
 

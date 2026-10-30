@@ -34,7 +34,7 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	// Outermost: an Inertia visit that ends in 403/404/419/429/500/503 gets
 	// the Escalated/Error page (docs/ui-pages.md).
 	if esc.Config.UIEnabled {
-		pages = middleware.InertiaErrorPage(esc.Renderer, prefix)(pages)
+		pages = middleware.InertiaErrorPage(esc.Renderer, prefix, middleware.ErrorPageDebug(esc.Config.Debug))(pages)
 	}
 	mux.Handle(prefix+"/", pages)
 

@@ -237,6 +237,13 @@ Inertia pages and the host's own routes are left alone, and so is a full page
 load's panic (it reaches the host's recoverer). Mounted only with
 `UIEnabled`; see `middleware.InertiaErrorPage`.
 
+While developing, set `Config.Debug` (default `false`): a 500 on an Inertia
+visit then skips the page. The handler's own 500 response goes out as written
+and a panic is re-raised for the host's recoverer, the way escalated-laravel
+leaves a 500 to the framework's debug page under `APP_DEBUG`. The other
+statuses still get the page. Leave it off in production: a handler's 500 text
+can name tables and queries.
+
 ## Not supported yet
 
 - The queue's `following` and `tag_ids` filters, and the customer list's `tag`,
