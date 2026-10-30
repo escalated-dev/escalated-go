@@ -121,6 +121,7 @@ point your `route()` names at these paths under your `RoutePrefix`.
 | `Admin/ApiTokens/Index` | `GET /admin/api-tokens` (see [API tokens](api-tokens.md)) |
 | `Admin/Webhooks/Index`, `Form`, `DeliveryLog` | `GET /admin/webhooks`, `/create`, `/{id}/edit`, `/{id}/deliveries` |
 | `Admin/Roles/Index`, `Form` | `GET /admin/roles`, `/create`, `/{id}/edit`, only while roles & permissions is on (see [access control](access-control.md)) |
+| `Admin/Settings/SsoSettings` | `GET /admin/settings/sso`, only while SSO is on (see [access control](access-control.md)) |
 | `Admin/Settings/TwoFactor`, `Auth/TwoFactorChallenge` | `GET /admin/settings/two-factor`, `GET /two-factor/challenge`, only while two-factor is on (see [access control](access-control.md)) |
 
 The admin config lists (escalation rules, macros, canned responses, webhooks

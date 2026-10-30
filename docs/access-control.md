@@ -10,7 +10,7 @@ off; on, it is enforced for real.
 |---|---|---|---|
 | Roles & permissions | `RolesPermissions` | `ESCALATED_ROLES_PERMISSIONS` | off |
 | Two-factor authentication | `TwoFactor` | `ESCALATED_TWO_FACTOR` | off |
-| Single sign-on | not yet | | off |
+| Single sign-on | `SSO` | `ESCALATED_SSO` | off |
 
 A nil field reads its environment variable (`true`, `1`, `yes` or `on`). The
 switches are read once, in `escalated.New`, and never from the settings table:
@@ -18,8 +18,6 @@ each one changes who may sign in or what they may do, so a stored setting must
 not flip it, and posting a setting with the same name changes nothing.
 `Escalated.Features` holds the resolved values.
 
-SSO is not enforced by this package yet, so `features.sso` is always `false` and
-its screens are not served.
 
 ## Roles & permissions
 
@@ -204,3 +202,96 @@ enrolments are kept for when it is turned on.
 3. Set `Config.Access.TwoFactor` (or `ESCALATED_TWO_FACTOR=true`).
 4. Require it (`TwoFactorRequired` or the setting) only after telling staff:
    everyone without an enrolment is sent to enrol.
+
+## Single sign-on
+
+```go
+on := true
+cfg.Access.SSO = &on // or ESCALATED_SSO=true
+cfg.Access.SSOOptions = access.SSOOptions{
+    BaseURL: "https://support.example.com", // else Notifications.BaseURL
+    SignIn: func(w http.ResponseWriter, r *http.Request, id models.UserID) error {
+        return sessions.Login(w, r, string(id)) // renew the session id here
+    },
+}
+cfg.UserIDByEmail = users.IDByEmail // case-insensitive; "" when there is none
+```
+
+`escalated.New` refuses to start with SSO on and no `SignIn`, no
+`UserIDByEmail`, no base URL, no secret (`Access.Secret`, else
+`GuestAccess.Secret`), or `CreateUsers` without `CreateUser`.
+
+The provider is picked at runtime in Admin > Settings > SSO
+(`Escalated/Admin/Settings/SsoSettings` at `GET /admin/settings/sso`, saved with
+`POST`; admin only, `settings.view` / `settings.manage` with roles on). The page
+carries the `sso_*` settings, with `sso_jwt_secret` and
+`sso_oauth_client_secret` shown as `********` (posting the mask back keeps the
+stored secret), and the read-only `endpoints` to give the IdP. With
+`sso_provider` `none`, `GET /sso/login` answers 404.
+
+| Route | Name | Use |
+|---|---|---|
+| `GET /sso/login` | `escalated.sso.login` | Start sign-in with the chosen provider |
+| `GET /sso/saml/metadata` | `escalated.sso.saml.metadata` | SP metadata XML; its URL is the default SP entity ID |
+| `POST /sso/saml/acs` | `escalated.sso.saml.acs` | SAML assertion consumer (HTTP-POST) |
+| `GET /sso/oauth/callback` | `escalated.sso.oauth.callback` | OAuth 2 / OIDC redirect URI |
+| `GET\|POST /sso/jwt/callback` | `escalated.sso.jwt.callback` | JWT hand-off (`jwt` parameter) |
+
+Each answers 404 unless its provider is the chosen one. Every refusal is the
+same `403 Single sign-on failed.` and the reason goes to the log.
+
+- **SAML** ([`russellhaering/gosaml2`](https://github.com/russellhaering/gosaml2)
+  and goxmldsig). A response is accepted only if the IdP certificate
+  (`sso_certificate`) is configured; there is exactly one assertion, not
+  encrypted, and it carries a signature that verifies against that
+  certificate (keys in `KeyInfo` are never trusted; a signed Response around
+  an unsigned assertion is refused); the Response and assertion `Issuer` is
+  `sso_entity_id`; the `Audience` includes the SP entity ID
+  (`SSOOptions.SPEntityID`, default the metadata URL); the Response
+  `Destination` and the bearer `Recipient` are the ACS URL; the `Conditions`
+  and `SubjectConfirmationData` windows hold, with `ClockSkewSeconds` (default
+  120, at most 300); `InResponseTo` names an AuthnRequest this install issued
+  in the last 10 minutes, consumed on use (stored server-side, in
+  `escalated_sso_message_ids`), unless `AllowIdPInitiated` lets an
+  unsolicited response through; and the assertion `ID` was not accepted
+  before.
+- **OAuth 2 / OIDC** ([`golang.org/x/oauth2`](https://pkg.go.dev/golang.org/x/oauth2)).
+  Authorization code with PKCE (`S256`) and a single-use `state`, both kept
+  in a sealed, HttpOnly, SameSite=Lax cookie scoped to `/sso` for 10 minutes
+  (Escalated owns no session). The code is exchanged at
+  `sso_oauth_token_url` server to server and the profile read from
+  `sso_oauth_userinfo_url`. A missing or mismatched `state`, an IdP `error`,
+  a failed exchange or `email_verified: false` is refused.
+- **JWT** ([`golang-jwt/jwt`](https://github.com/golang-jwt/jwt)). The token's
+  `alg` must be `sso_jwt_algorithm` (HS* with `sso_jwt_secret`, RS* with the
+  PEM public key in `sso_jwt_secret`); `none` and algorithm switching are
+  refused. `exp` is required, `nbf`/`iat` are honoured with the clock skew,
+  `aud` must be `SSOOptions.JWTAudience` (default the base URL), and `jti` is
+  required and single-use. `GET /sso/login` sends the browser to
+  `sso_login_url` (else `sso_url`) with `return_to` set to the callback.
+
+**Users.** The email comes from the `sso_attr_email` attribute or claim (SAML
+falls back to the `NameID`), the name from `sso_attr_name`, the role from
+`sso_attr_role`. The user is found with `Config.UserIDByEmail` (Escalated
+passes the email lowercased). No match is refused unless
+`SSOOptions.CreateUsers` is on, when `SSOOptions.CreateUser` makes one. With
+roles & permissions on and `SSOOptions.SyncRoles` on, a role naming an
+existing Escalated role slug replaces the user's roles; an unknown value
+changes nothing. SSO never grants your admin or agent gate; it only signs the
+user in through `SignIn`, then redirects to `SSOOptions.RedirectTo`, else the
+agent dashboard (or admin reports for admin-only users, read through
+`APITokenOwner`).
+
+Signing in through SSO does not skip two-factor: `SignIn` renews your session
+id, so the challenge applies as after any login.
+
+Escalated does not turn off your own password login.
+
+### Turning it on in an existing install
+
+1. Run the migrations (they add `escalated_sso_message_ids`).
+2. Set `SSOOptions.SignIn`, `Config.UserIDByEmail` and the base URL; decide
+   on `CreateUsers` and `SyncRoles`.
+3. Give the IdP the endpoints from the SSO page; a SAML install needs the IdP
+   certificate.
+4. Set `Config.Access.SSO` (or `ESCALATED_SSO=true`).

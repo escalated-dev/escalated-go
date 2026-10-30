@@ -187,7 +187,6 @@ func TestTheGuardSeesUnprefixedRenderCalls(t *testing.T) {
 // page the frontend adds must be listed or rendered.
 var notYetRendered = []string{
 	"Escalated/Admin/Settings/Sandbox",
-	"Escalated/Admin/Settings/SsoSettings",
 	"Escalated/Admin/Workflows/Builder",
 	"Escalated/Error",
 }

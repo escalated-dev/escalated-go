@@ -12,10 +12,14 @@
 package access
 
 import (
+	"context"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/escalated-dev/escalated-go/models"
 )
 
 // The environment variables a nil Config field reads.
@@ -23,10 +27,11 @@ const (
 	EnvRolesPermissions  = "ESCALATED_ROLES_PERMISSIONS"
 	EnvTwoFactor         = "ESCALATED_TWO_FACTOR"
 	EnvTwoFactorRequired = "ESCALATED_TWO_FACTOR_REQUIRED"
+	EnvSSO               = "ESCALATED_SSO"
 )
 
 // Config holds the install-level switches. A nil switch reads its
-// environment variable (EnvRolesPermissions, EnvTwoFactor); unset or
+// environment variable (EnvRolesPermissions, EnvTwoFactor, EnvSSO); unset or
 // unparsable there, it is off.
 type Config struct {
 	// RolesPermissions enforces Escalated roles & permissions: every admin,
@@ -65,15 +70,106 @@ type Config struct {
 	// passed challenge (as Laravel's session()->regenerate()) and returns the
 	// new id.
 	RegenerateSession func(http.ResponseWriter, *http.Request) (string, error)
+
+	// SSO enforces single sign-on through the provider an admin picks in
+	// Admin > Settings > SSO (SAML, OAuth 2 / OIDC or JWT), at
+	// {RoutePrefix}/sso/login. It needs SSOOptions.SignIn,
+	// Config.UserIDByEmail and an absolute base URL; New fails without them.
+	SSO *bool
+
+	// SSOOptions are the install-level rules around SSO.
+	SSOOptions SSOOptions
+}
+
+// SSOOptions configure single sign-on. A nil or empty field reads its
+// environment variable (ESCALATED_SSO_*), as escalated-laravel's
+// escalated.sso config.
+type SSOOptions struct {
+	// BaseURL is the public origin the IdP reaches this app at
+	// (https://support.example.com). Empty uses Notifications.BaseURL, else
+	// ESCALATED_SSO_BASE_URL.
+	BaseURL string
+	// SPEntityID is the SAML SP entity ID. Empty is the SP metadata URL
+	// (ESCALATED_SSO_SP_ENTITY_ID).
+	SPEntityID string
+	// AllowIdPInitiated accepts SAML responses that answer no AuthnRequest
+	// (ESCALATED_SSO_ALLOW_IDP_INITIATED). Default false.
+	AllowIdPInitiated *bool
+	// JWTAudience is the aud a JWT must carry. Empty is BaseURL
+	// (ESCALATED_SSO_JWT_AUDIENCE).
+	JWTAudience string
+	// ClockSkewSeconds is the drift allowed on SAML and JWT validity
+	// windows: default 120, at most 300 (ESCALATED_SSO_CLOCK_SKEW).
+	ClockSkewSeconds *int
+	// CreateUsers creates a host user for an unknown email through
+	// CreateUser (ESCALATED_SSO_CREATE_USERS). Off, unknown emails are
+	// refused.
+	CreateUsers *bool
+	// SyncRoles, with roles & permissions on, replaces the user's Escalated
+	// roles with the role the IdP asserts, by slug (ESCALATED_SSO_SYNC_ROLES).
+	SyncRoles *bool
+	// RedirectTo is where people land after signing in. Empty is the agent
+	// dashboard, or the admin reports for admin-only users
+	// (ESCALATED_SSO_REDIRECT_TO).
+	RedirectTo string
+
+	// SignIn signs the user in on the host's session, renewing the session
+	// id. Required: Escalated owns no sessions.
+	SignIn func(w http.ResponseWriter, r *http.Request, userID models.UserID) error
+	// CreateUser creates a host user with that email and name and an
+	// unusable password, and returns its id. Required with CreateUsers.
+	CreateUser func(ctx context.Context, email, name string) (models.UserID, error)
+	// HTTPClient makes the OAuth token and userinfo requests. Nil is
+	// http.DefaultClient.
+	HTTPClient *http.Client
+}
+
+// Resolved fills SSOOptions from the environment where unset.
+func (o SSOOptions) Resolved() SSOOptions {
+	str := func(v *string, env string) {
+		if *v == "" {
+			*v = strings.TrimSpace(os.Getenv(env))
+		}
+	}
+	str(&o.BaseURL, "ESCALATED_SSO_BASE_URL")
+	o.BaseURL = strings.TrimRight(o.BaseURL, "/")
+	str(&o.SPEntityID, "ESCALATED_SSO_SP_ENTITY_ID")
+	str(&o.JWTAudience, "ESCALATED_SSO_JWT_AUDIENCE")
+	if o.JWTAudience == "" {
+		o.JWTAudience = o.BaseURL
+	}
+	str(&o.RedirectTo, "ESCALATED_SSO_REDIRECT_TO")
+	for _, b := range []struct {
+		v   **bool
+		env string
+	}{{&o.AllowIdPInitiated, "ESCALATED_SSO_ALLOW_IDP_INITIATED"}, {&o.CreateUsers, "ESCALATED_SSO_CREATE_USERS"}, {&o.SyncRoles, "ESCALATED_SSO_SYNC_ROLES"}} {
+		v := flag(*b.v, b.env)
+		*b.v = &v
+	}
+	skew := 120
+	if o.ClockSkewSeconds != nil {
+		skew = *o.ClockSkewSeconds
+	} else if n, err := strconv.Atoi(strings.TrimSpace(os.Getenv("ESCALATED_SSO_CLOCK_SKEW"))); err == nil {
+		skew = n
+	}
+	skew = max(0, min(300, skew))
+	o.ClockSkewSeconds = &skew
+	return o
+}
+
+// ClockSkew is ClockSkewSeconds as a duration (after Resolved).
+func (o SSOOptions) ClockSkew() time.Duration {
+	if o.ClockSkewSeconds == nil {
+		return 120 * time.Second
+	}
+	return time.Duration(*o.ClockSkewSeconds) * time.Second
 }
 
 // Features are the resolved switches.
 type Features struct {
 	RolesPermissions bool
 	TwoFactor        bool
-	// SSO stays false until this package enforces it: a port must not show
-	// a screen for a feature it does not enforce.
-	SSO bool
+	SSO              bool
 }
 
 // Resolve reads the switches: each Config field, else its environment
@@ -82,6 +178,7 @@ func (c Config) Resolve() Features {
 	return Features{
 		RolesPermissions: flag(c.RolesPermissions, EnvRolesPermissions),
 		TwoFactor:        flag(c.TwoFactor, EnvTwoFactor),
+		SSO:              flag(c.SSO, EnvSSO),
 	}
 }
 

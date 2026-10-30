@@ -136,6 +136,12 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated, guestLimit *middl
 	mux.Handle(prefix+"/api/plugins/", middleware.RequireAdmin(cfg.AdminCheck)(http.HandlerFunc(pluginH.Endpoint)))
 	mux.Handle(prefix+"/webhooks/plugins/", http.HandlerFunc(pluginH.Webhook))
 
+	// Single sign-on (escalated.sso.*), 404 while SSO is off
+	// (docs/access-control.md).
+	ssoH := newSSOHandler(esc)
+	ssoGate := access.RequireFeature(esc.Features.SSO)
+	mountSSO(muxGroup{mux: mux, prefix: prefix, mw: ssoGate}, ssoH)
+
 	// Attachment downloads — always mounted. The handler authorizes each
 	// download through the attachment's ticket (see AttachmentHandler).
 	mux.HandleFunc("GET "+prefix+"/attachments/{id}/download", attachH.Download)
@@ -509,6 +515,9 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated, guestLimit *middl
 		mux.Handle("GET "+prefix+"/admin/audit-log", adminMW(http.HandlerFunc(auditH.Index)))
 		mux.Handle("GET "+prefix+"/admin/users", adminMW(http.HandlerFunc(userH.Index)))
 		mux.Handle("PATCH "+prefix+"/admin/users/{user}/role", adminMW(http.HandlerFunc(userH.UpdateRole)))
+		// Admin > Settings > SSO, only while SSO is on.
+		mountSSOSettings(muxGroup{mux: mux, prefix: prefix + "/admin", mw: func(h http.Handler) http.Handler { return adminMW(ssoGate(h)) }}, ssoH)
+
 		// Roles (escalated.admin.roles.*) and the users page's role editor,
 		// only while roles & permissions is on (404 otherwise).
 		rolesGate := access.RequireFeature(esc.Features.RolesPermissions && roleH != nil)
