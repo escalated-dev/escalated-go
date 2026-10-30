@@ -627,7 +627,25 @@ func migrationStatements(p string) []string {
 	stmts = append(append(append(stmts, indexes...), engineAddonStatements(p)...), ticketStatusStatements(p)...)
 	stmts = append(stmts, importStatements(p)...)
 	stmts = append(stmts, pluginStatements(p)...)
-	return append(stmts, roleStatements(p)...)
+	stmts = append(stmts, roleStatements(p)...)
+	return append(stmts, ssoStatements(p)...)
+}
+
+// ssoStatements create the single-use SSO message IDs (ADR
+// 2026-10-29-configurable-access-features): AuthnRequest IDs Escalated
+// issued, and SAML assertion IDs and JWT jtis it accepted. expires_at is
+// Unix seconds; expired rows are pruned on write.
+func ssoStatements(p string) []string {
+	return []string{
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			kind VARCHAR(32) NOT NULL,
+			message_id VARCHAR(191) NOT NULL,
+			expires_at BIGINT NOT NULL
+		)`, p+"sso_message_ids"),
+		fmt.Sprintf("CREATE UNIQUE INDEX IF NOT EXISTS idx_%ssso_msg_kind_id ON %s (kind, message_id)", p, p+"sso_message_ids"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%ssso_msg_expires ON %s (expires_at)", p, p+"sso_message_ids"),
+	}
 }
 
 // roleStatements create escalated-laravel's roles & permissions tables

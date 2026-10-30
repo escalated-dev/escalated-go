@@ -645,6 +645,21 @@ func (e *Escalated) Roles() *access.Store {
 // checkAccess refuses a configuration that switches a feature on without
 // what it needs to be enforced.
 func checkAccess(e *Escalated) (*Escalated, error) {
+	if e.Features.SSO {
+		o := e.SSOOptions()
+		switch {
+		case o.SignIn == nil:
+			return nil, fmt.Errorf("escalated: SSO is on but Config.Access.SSOOptions.SignIn is nil; Escalated owns no sessions, so it needs your sign-in (docs/access-control.md)")
+		case e.Config.UserIDByEmail == nil:
+			return nil, fmt.Errorf("escalated: SSO is on but Config.UserIDByEmail is nil; it matches the identity's email to your users (docs/access-control.md)")
+		case o.BaseURL == "":
+			return nil, fmt.Errorf("escalated: SSO is on but no base URL is set (Config.Access.SSOOptions.BaseURL, Config.Notifications.BaseURL or ESCALATED_SSO_BASE_URL); the IdP needs absolute URLs (docs/access-control.md)")
+		case *o.CreateUsers && o.CreateUser == nil:
+			return nil, fmt.Errorf("escalated: SSO creates users but Config.Access.SSOOptions.CreateUser is nil (docs/access-control.md)")
+		case len(e.accessKey()) == 0:
+			return nil, fmt.Errorf("escalated: SSO is on but neither Config.Access.Secret nor Config.GuestAccess.Secret is set (docs/access-control.md)")
+		}
+	}
 	if e.Features.TwoFactor {
 		if e.Config.Access.SessionID == nil {
 			return nil, fmt.Errorf("escalated: two-factor is on but Config.Access.SessionID is nil; it is needed so every new login is challenged (docs/access-control.md)")
@@ -752,3 +767,57 @@ func (e *Escalated) AccessSharer() *access.Sharer {
 		},
 	}
 }
+
+// SSOOptions are Config.Access.SSOOptions with the environment and defaults
+// applied: the base URL falls back to Notifications.BaseURL.
+func (e *Escalated) SSOOptions() access.SSOOptions {
+	o := e.Config.Access.SSOOptions
+	if o.BaseURL == "" {
+		o.BaseURL = e.Config.Notifications.BaseURL
+	}
+	return o.Resolved()
+}
+
+// SSO returns single sign-on over the settings store: the provider chosen
+// in Admin > Settings > SSO and the install-level SSOOptions. Nil without a
+// database.
+func (e *Escalated) SSO() *access.SSO {
+	if e.Config.DB == nil {
+		return nil
+	}
+	o := e.SSOOptions()
+	base := o.BaseURL + e.Config.RoutePrefix + "/sso"
+	return &access.SSO{
+		DB:       e.Config.DB,
+		Prefix:   e.Config.TablePrefix,
+		Settings: e.Store,
+		Endpoints: access.SSOEndpoints{
+			Login:         base + "/login",
+			Metadata:      base + "/saml/metadata",
+			ACS:           base + "/saml/acs",
+			OAuthRedirect: base + "/oauth/callback",
+			JWTCallback:   base + "/jwt/callback",
+		},
+		SPEntityID:        o.SPEntityID,
+		AllowIdPInitiated: *o.AllowIdPInitiated,
+		JWTAudience:       o.JWTAudience,
+		ClockSkew:         o.ClockSkew(),
+		HTTPClient:        o.HTTPClient,
+	}
+}
+
+// SSOUsers is how an SSO identity becomes one of your users.
+func (e *Escalated) SSOUsers() *access.SSOUsers {
+	o := e.SSOOptions()
+	return &access.SSOUsers{
+		ByEmail:     e.Config.UserIDByEmail,
+		Create:      o.CreateUser,
+		CreateUsers: *o.CreateUsers,
+		SyncRoles:   *o.SyncRoles && e.Features.RolesPermissions,
+		Roles:       e.Roles(),
+	}
+}
+
+// SSOStateKey is the secret the SSO state cookie is sealed with (a key is
+// derived from it for that purpose alone).
+func (e *Escalated) SSOStateKey() []byte { return e.accessKey() }

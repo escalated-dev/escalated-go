@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Upgrading
+- Single sign-on is a new install-level switch, off by default
+  (`Config.Access.SSO`, else `ESCALATED_SSO`). It needs
+  `Config.Access.SSOOptions.SignIn` (you sign the user in; Escalated owns no
+  sessions), `Config.UserIDByEmail` and an absolute base URL
+  (`SSOOptions.BaseURL`, else `Notifications.BaseURL`); `New` fails without
+  them while it is on. Run the migrations first (they add
+  `escalated_sso_message_ids`). See docs/access-control.md.
 - Two-factor authentication is a new install-level switch, off by default
   (`Config.Access.TwoFactor`, else `ESCALATED_TWO_FACTOR`). It needs
   `Config.Access.SessionID` (your session id, renewed on login) and a secret
@@ -44,6 +51,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the Node process.
 
 ### Added
+- Single sign-on, enforced behind its switch (ADR
+  2026-10-29-configurable-access-features, as escalated-laravel): SAML through
+  gosaml2 (signed assertion against the configured certificate only, Issuer,
+  Audience, Destination, Recipient, validity windows with clock skew,
+  InResponseTo of a request issued here, assertion replay refused), OAuth 2 /
+  OIDC through golang.org/x/oauth2 with a single-use state and PKCE, and JWT
+  through golang-jwt (pinned algorithm, required exp, aud and single-use
+  jti). Admin > Settings > SSO (`Admin/Settings/SsoSettings`) picks the
+  provider, masks the secrets and lists the endpoints for the IdP. Unknown
+  emails are refused unless `SSOOptions.CreateUsers`; `SSOOptions.SyncRoles`
+  maps the IdP's role onto Escalated roles while roles & permissions is on.
 - Two-factor authentication, enforced behind its switch (ADR
   2026-10-29-configurable-access-features, as escalated-laravel): TOTP
   through pquerna/otp with one step of drift and no code reuse, enrolment for

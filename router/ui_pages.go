@@ -119,6 +119,41 @@ func newTwoFactorHandler(esc *escalated.Escalated) *handlers.TwoFactorHandler {
 	}
 }
 
+// newSSOHandler is single sign-on: the sign-in routes and Admin > Settings >
+// SSO.
+func newSSOHandler(esc *escalated.Escalated) *handlers.SSOHandler {
+	cfg := esc.Config
+	o := esc.SSOOptions()
+	return &handlers.SSOHandler{
+		SSO:        esc.SSO(),
+		Users:      esc.SSOUsers(),
+		SignIn:     o.SignIn,
+		Key:        esc.SSOStateKey(),
+		RedirectTo: o.RedirectTo,
+		Owner:      cfg.APITokenOwner,
+		Settings:   esc.Store,
+		Pages:      handlers.PageSupport{Renderer: esc.Renderer, RoutePrefix: cfg.RoutePrefix, UserID: cfg.UserIDFunc},
+	}
+}
+
+// mountSSO adds the sign-in routes (escalated.sso.*), relative to the route
+// prefix, all answering 404 while SSO is off.
+func mountSSO(r ticketRoutes, h *handlers.SSOHandler) {
+	r.Get("/sso/login", h.Login)
+	r.Get("/sso/saml/metadata", h.Metadata)
+	r.Post("/sso/saml/acs", h.ACS)
+	r.Get("/sso/oauth/callback", h.OAuthCallback)
+	r.Get("/sso/jwt/callback", h.JWTCallback)
+	r.Post("/sso/jwt/callback", h.JWTCallback)
+}
+
+// mountSSOSettings adds Admin > Settings > SSO (escalated.admin.settings.sso
+// and .sso.update), relative to the admin area.
+func mountSSOSettings(r ticketRoutes, h *handlers.SSOHandler) {
+	r.Get("/settings/sso", h.SettingsPage)
+	r.Post("/settings/sso", h.UpdateSettings)
+}
+
 // mountTwoFactor adds the enrolment screen (escalated.admin.two-factor.*,
 // any staff user) and the challenge (escalated.two-factor.challenge and
 // .verify, any signed-in user), all answering 404 while two-factor is off.

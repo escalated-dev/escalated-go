@@ -227,6 +227,14 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 		// sender.
 		r.Handle("/webhooks/plugins/*", http.HandlerFunc(pluginH.Webhook))
 
+		// Single sign-on (escalated.sso.*), 404 while SSO is off
+		// (docs/access-control.md).
+		ssoH := newSSOHandler(esc)
+		r.Group(func(r chi.Router) {
+			r.Use(access.RequireFeature(esc.Features.SSO))
+			mountSSO(r, ssoH)
+		})
+
 		if cfg.EnableNewsletters {
 			r.Route("/n", func(r chi.Router) {
 				r.Get("/o/{token}", newsletterH.OpenPixel)
@@ -576,6 +584,12 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 
 				r.Get("/users", userH.Index)
 				r.Patch("/users/{user}/role", userH.UpdateRole)
+
+				// Admin > Settings > SSO, only while SSO is on.
+				r.Group(func(r chi.Router) {
+					r.Use(access.RequireFeature(esc.Features.SSO))
+					mountSSOSettings(r, ssoH)
+				})
 
 				// Roles (escalated.admin.roles.*) and the users page's role
 				// editor, only while roles & permissions is on (404 otherwise).
