@@ -1,6 +1,10 @@
 package handlers
 
 import (
+	"encoding/json"
+	"errors"
+	"io"
+	"mime"
 	"net/http"
 	"strconv"
 	"strings"
@@ -16,6 +20,11 @@ import (
 type RoleHandler struct {
 	Roles *access.Store
 	Pages PageSupport
+
+	// UsersPage renders the users page with an errors prop. A rejected role
+	// change answers an Inertia visit with it, as Go keeps no session to
+	// flash the errors through a redirect back. Nil redirects back instead.
+	UsersPage func(w http.ResponseWriter, r *http.Request, errs map[string]string)
 }
 
 const (
@@ -188,16 +197,10 @@ func (h *RoleHandler) UpdateUserRoles(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	in, err := readInput(r)
+	field, err := readRoleIDs(r)
 	if err != nil {
 		http.Error(w, "invalid input", http.StatusBadRequest)
 		return
-	}
-	_, present := in["role_ids"]
-	_, presentForm := in["role_ids[]"]
-	errs := map[string]string{}
-	if !present && !presentForm {
-		errs["role_ids"] = "The role ids field must be present."
 	}
 	roles, err := h.Roles.Roles(r.Context())
 	if err != nil {
@@ -208,26 +211,9 @@ func (h *RoleHandler) UpdateUserRoles(w http.ResponseWriter, r *http.Request) {
 	for _, role := range roles {
 		known[role.ID] = true
 	}
-	var ids []int64
-	seen := map[int64]bool{}
-	for _, key := range []string{"role_ids", "role_ids[]"} {
-		for _, v := range in[key] {
-			if strings.TrimSpace(v) == "" {
-				continue
-			}
-			id, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
-			if err != nil || !known[id] {
-				errs["role_ids"] = "The selected roles are invalid."
-				continue
-			}
-			if !seen[id] {
-				seen[id] = true
-				ids = append(ids, id)
-			}
-		}
-	}
+	ids, errs := validateRoleIDs(field, known)
 	if len(errs) > 0 {
-		validationErrors(w, r, errs, func(map[string]string) { backTo(w, r, h.Pages.path("/admin/users")) })
+		validationErrors(w, r, errs, h.usersPage(w, r))
 		return
 	}
 	if current := h.Pages.currentUser(r); current == models.UserID(user) {
@@ -237,9 +223,7 @@ func (h *RoleHandler) UpdateUserRoles(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !keeps {
-			validationErrors(w, r, map[string]string{"role_ids": "You cannot remove your own role management."}, func(map[string]string) {
-				backTo(w, r, h.Pages.path("/admin/users"))
-			})
+			validationErrors(w, r, map[string]string{"role_ids": "You cannot remove your own role management."}, h.usersPage(w, r))
 			return
 		}
 	}
@@ -252,4 +236,120 @@ func (h *RoleHandler) UpdateUserRoles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"role_ids": ids})
+}
+
+// usersPage answers a rejected role change on an Inertia visit: the users
+// page again with the errors, or back to it when no page is wired.
+func (h *RoleHandler) usersPage(w http.ResponseWriter, r *http.Request) func(map[string]string) {
+	return func(errs map[string]string) {
+		if h.UsersPage != nil {
+			h.UsersPage(w, r, errs)
+			return
+		}
+		backTo(w, r, h.Pages.path("/admin/users"))
+	}
+}
+
+// roleIDsField is the role_ids input as sent: whether it was there, whether
+// it was an array, and its items.
+type roleIDsField struct {
+	present bool
+	isArray bool
+	items   []any
+}
+
+// readRoleIDs reads role_ids keeping what Laravel's rules look at, which the
+// flattened readInput loses: null and scalars are not arrays, and each item
+// keeps its index. A form post's role_ids / role_ids[] values are an array.
+func readRoleIDs(r *http.Request) (roleIDsField, error) {
+	ct, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if ct == "application/x-www-form-urlencoded" || ct == "multipart/form-data" {
+		in, err := readInput(r)
+		if err != nil {
+			return roleIDsField{}, err
+		}
+		field := roleIDsField{isArray: true}
+		for _, key := range []string{"role_ids", "role_ids[]"} {
+			values, ok := in[key]
+			field.present = field.present || ok
+			for _, v := range values {
+				field.items = append(field.items, v)
+			}
+		}
+		return field, nil
+	}
+	if r.Body == nil {
+		return roleIDsField{}, nil
+	}
+	var raw map[string]json.RawMessage
+	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
+		if errors.Is(err, io.EOF) {
+			return roleIDsField{}, nil
+		}
+		return roleIDsField{}, err
+	}
+	value, ok := raw["role_ids"]
+	if !ok {
+		return roleIDsField{}, nil
+	}
+	dec := json.NewDecoder(strings.NewReader(string(value)))
+	dec.UseNumber()
+	var decoded any
+	if err := dec.Decode(&decoded); err != nil {
+		return roleIDsField{}, err
+	}
+	items, isArray := decoded.([]any)
+	return roleIDsField{present: true, isArray: isArray, items: items}, nil
+}
+
+// validateRoleIDs applies escalated-laravel's rules for role_ids
+// (present|array, each integer|exists) and words and keys the errors as
+// Laravel does: role_ids, or role_ids.N for an item. It returns the ids in
+// order without repeats.
+func validateRoleIDs(field roleIDsField, known map[int64]bool) ([]int64, map[string]string) {
+	if !field.present {
+		return nil, map[string]string{"role_ids": "The role ids field must be present."}
+	}
+	if !field.isArray {
+		return nil, map[string]string{"role_ids": "The role ids field must be an array."}
+	}
+	errs := map[string]string{}
+	ids := []int64{}
+	seen := map[int64]bool{}
+	for i, item := range field.items {
+		key := "role_ids." + strconv.Itoa(i)
+		id, ok := roleIDInteger(item)
+		if !ok {
+			errs[key] = "The " + key + " field must be an integer."
+			continue
+		}
+		if !known[id] {
+			errs[key] = "The selected " + key + " is invalid."
+			continue
+		}
+		if !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
+	return ids, errs
+}
+
+// roleIDInteger is Laravel's integer rule (FILTER_VALIDATE_INT): a whole
+// number, or a string of one.
+func roleIDInteger(item any) (int64, bool) {
+	var s string
+	switch v := item.(type) {
+	case json.Number:
+		s = v.String()
+		if f, err := v.Float64(); err == nil && f == float64(int64(f)) && strings.ContainsAny(s, ".eE") {
+			return int64(f), true
+		}
+	case string:
+		s = strings.TrimSpace(v)
+	default:
+		return 0, false
+	}
+	id, err := strconv.ParseInt(s, 10, 64)
+	return id, err == nil
 }

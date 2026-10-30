@@ -186,6 +186,30 @@ func (h *UserHandler) render(w http.ResponseWriter, r *http.Request, users UserP
 	_ = h.renderer.Render(w, r, "Escalated/Admin/Users/Index", props)
 }
 
+// RenderWithErrors renders the users page's first page with errs as its
+// errors prop. Go keeps no session to flash errors through a redirect back,
+// so a rejected write from the page answers an Inertia visit with this.
+func (h *UserHandler) RenderWithErrors(w http.ResponseWriter, r *http.Request, errs map[string]string) {
+	var users UserPage
+	if h.directory != nil {
+		users, _ = h.directory.ListUsers(r.Context(), "", 1, 20)
+	}
+	if users.Data == nil {
+		users.Data = []AdminUser{}
+	}
+	if users.PerPage == 0 {
+		users.PerPage = 20
+	}
+	if users.CurrentPage == 0 {
+		users.CurrentPage = 1
+	}
+	var currentUserID any
+	if uid := h.currentID(r); !uid.Empty() {
+		currentUserID = uid
+	}
+	h.render(w, r, users, "", currentUserID, errs)
+}
+
 // back answers a role change from the page: a 303 back to the users list.
 func (h *UserHandler) back(w http.ResponseWriter, r *http.Request) {
 	fallback := strings.TrimSuffix(r.URL.Path, "/role")
@@ -252,14 +276,7 @@ func (h *UserHandler) UpdateRole(w http.ResponseWriter, r *http.Request) {
 		if currentID := h.currentID(r); !currentID.Empty() && currentID == models.UserID(strconv.FormatInt(target.ID, 10)) {
 			if isInertia(r) {
 				// The page again, with the refusal where useForm shows it.
-				users, _ := h.directory.ListUsers(r.Context(), "", 1, 20)
-				if users.PerPage == 0 {
-					users.PerPage = 20
-				}
-				if users.CurrentPage == 0 {
-					users.CurrentPage = 1
-				}
-				h.render(w, r, users, "", currentID, map[string]string{"role": "You cannot remove your own admin role."})
+				h.RenderWithErrors(w, r, map[string]string{"role": "You cannot remove your own admin role."})
 				return
 			}
 			writeJSON(w, http.StatusUnprocessableEntity, map[string]any{

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -305,6 +306,80 @@ func TestRolesPermissionsUsersPageEditsRoles(t *testing.T) {
 			}
 			if rec := apiJSON(h, http.MethodPut, "/escalated/admin/users/902/roles", `{"role_ids":[99999]}`); rec.Code != http.StatusUnprocessableEntity {
 				t.Errorf("unknown role: %d", rec.Code)
+			}
+		})
+	}
+}
+
+// A bad role_ids answers as escalated-laravel's validator does: errors keyed
+// role_ids or role_ids.N in Laravel's wording, shown on the users page for an
+// Inertia visit (Go keeps no session to flash them through a redirect).
+func TestRolesPermissionsUsersRolesValidation(t *testing.T) {
+	for _, name := range []string{"chi", "stdlib"} {
+		t.Run(name, func(t *testing.T) {
+			f := newRolesFixture(t, rolesOn(true), func(cfg *escalated.Config) {
+				cfg.UserDirectory = &fakeUserDirectory{users: map[int64]*handlers.AdminUser{
+					900: {ID: 900, Name: "Ada", Email: "ada@example.com", IsAdmin: true, IsAgent: true},
+					902: {ID: 902, Name: "Lin", Email: "lin@example.com", IsAgent: true},
+				}}
+			})
+			h := f.mounts()[name]
+			agentID := itoa(f.id(t, `SELECT id FROM escalated_roles WHERE slug = ?`, "agent"))
+
+			cases := []struct {
+				body string
+				want map[string]any
+			}{
+				{`{}`, map[string]any{"role_ids": "The role ids field must be present."}},
+				{`{"role_ids":null}`, map[string]any{"role_ids": "The role ids field must be an array."}},
+				{`{"role_ids":"admin"}`, map[string]any{"role_ids": "The role ids field must be an array."}},
+				{`{"role_ids":["x"]}`, map[string]any{"role_ids.0": "The role_ids.0 field must be an integer."}},
+				{`{"role_ids":[` + agentID + `,99999]}`, map[string]any{"role_ids.1": "The selected role_ids.1 is invalid."}},
+				{`{"role_ids":[1.5,99999]}`, map[string]any{
+					"role_ids.0": "The role_ids.0 field must be an integer.",
+					"role_ids.1": "The selected role_ids.1 is invalid.",
+				}},
+			}
+			for _, c := range cases {
+				rec := pageJSON(h, http.MethodPut, "/escalated/admin/users/902/roles", c.body)
+				var page inertiaPage
+				if err := json.Unmarshal(rec.Body.Bytes(), &page); err != nil || page.Component != "Escalated/Admin/Users/Index" {
+					t.Fatalf("%s: got %d %s, want the users page", c.body, rec.Code, rec.Body.String())
+				}
+				if got := obj(t, page.Props, "errors"); !reflect.DeepEqual(got, c.want) {
+					t.Errorf("%s: errors %v, want %v", c.body, got, c.want)
+				}
+				if len(list(t, page.Props, "roles")) != 3 {
+					t.Errorf("%s: the page lost its roles: %v", c.body, page.Props["roles"])
+				}
+
+				// A JSON client gets Laravel's 422 with the same keys.
+				api := apiJSON(h, http.MethodPut, "/escalated/admin/users/902/roles", c.body)
+				var body struct {
+					Errors map[string][]string `json:"errors"`
+				}
+				if api.Code != http.StatusUnprocessableEntity || json.Unmarshal(api.Body.Bytes(), &body) != nil || len(body.Errors) != len(c.want) {
+					t.Errorf("%s: api got %d %s", c.body, api.Code, api.Body.String())
+				}
+				for k := range c.want {
+					if _, ok := body.Errors[k]; !ok {
+						t.Errorf("%s: api errors %v lack %q", c.body, body.Errors, k)
+					}
+				}
+			}
+			if n := f.count(t, "role_user", "user_id = ?", "902"); n != 0 {
+				t.Errorf("a rejected change still gave 902 %d roles", n)
+			}
+
+			// Taking away your own role management is shown on the page too.
+			wantPageErrors(t, pageJSON(h, http.MethodPut, "/escalated/admin/users/900/roles", `{"role_ids":[`+agentID+`]}`),
+				"own role management", "Escalated/Admin/Users/Index", "role_ids")
+
+			// Numeric strings are integers, as in Laravel.
+			wantRedirect(t, pageJSON(h, http.MethodPut, "/escalated/admin/users/902/roles", `{"role_ids":["`+agentID+`"]}`),
+				"numeric string", "/escalated/admin/users")
+			if n := f.count(t, "role_user", "user_id = ?", "902"); n != 1 {
+				t.Errorf("902 has %d roles, want 1", n)
 			}
 		})
 	}
