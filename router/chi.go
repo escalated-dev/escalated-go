@@ -136,7 +136,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 		// Inertia visit that ends in 403/404/419/429/500/503 gets the
 		// Escalated/Error page (docs/ui-pages.md).
 		if cfg.UIEnabled {
-			r.Use(middleware.InertiaErrorPage(rend, cfg.RoutePrefix))
+			r.Use(middleware.InertiaErrorPage(rend, cfg.RoutePrefix, middleware.ErrorPageDebug(cfg.Debug)))
 		}
 		// API tokens authenticate first, so ticket visibility is the token owner's.
 		r.Use(esc.APITokenMiddleware)

@@ -173,3 +173,73 @@ func TestInertiaErrorPageLeavesOtherResponsesAlone(t *testing.T) {
 		}
 	}
 }
+
+// With debug on (Config.Debug), a 500 is the developer's to read: the
+// handler's own response and a panic reach the host as they would without
+// Escalated, the way escalated-laravel leaves a 500 to the framework's debug
+// page under APP_DEBUG. Every other status still gets the page.
+
+func debugErrorPageHandler(next http.Handler) http.Handler {
+	return middleware.InertiaErrorPage(renderer.NewInertiaRenderer(""), "/escalated", middleware.ErrorPageDebug(true))(next)
+}
+
+func TestInertiaErrorPageInDebugModeLeavesA500ToTheHandler(t *testing.T) {
+	h := debugErrorPageHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "sql: relation escalated_secret does not exist", http.StatusInternalServerError)
+	}))
+
+	rec := inertiaGet(h, "/escalated/agent", true)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status %d", rec.Code)
+	}
+	if rec.Header().Get("X-Inertia") != "" || strings.Contains(rec.Body.String(), "Escalated/Error") {
+		t.Fatalf("rendered the error page in debug mode: %q", rec.Body.String())
+	}
+	if rec.Body.String() != "sql: relation escalated_secret does not exist\n" {
+		t.Errorf("body %q", rec.Body.String())
+	}
+}
+
+func TestInertiaErrorPageInDebugModeLeavesAPanicToTheHost(t *testing.T) {
+	h := debugErrorPageHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		panic("boom")
+	}))
+
+	defer func() {
+		if recover() != "boom" {
+			t.Error("the panic did not reach the host")
+		}
+	}()
+	inertiaGet(h, "/escalated/agent", true)
+}
+
+func TestInertiaErrorPageInDebugModeStillRendersOtherStatuses(t *testing.T) {
+	h := debugErrorPageHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+	}))
+
+	rec := inertiaGet(h, "/escalated/agent", true)
+
+	component, props := errorPage(t, rec)
+	if rec.Code != http.StatusForbidden || component != "Escalated/Error" || props["status"] != float64(403) {
+		t.Errorf("status %d, page %q %v", rec.Code, component, props)
+	}
+}
+
+func TestInertiaErrorPageWithDebugOffRendersA500(t *testing.T) {
+	h := middleware.InertiaErrorPage(renderer.NewInertiaRenderer(""), "/escalated", middleware.ErrorPageDebug(false))(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "sql: relation escalated_secret does not exist", http.StatusInternalServerError)
+		}))
+
+	rec := inertiaGet(h, "/escalated/agent", true)
+
+	component, _ := errorPage(t, rec)
+	if rec.Code != http.StatusInternalServerError || component != "Escalated/Error" {
+		t.Errorf("status %d, page %q", rec.Code, component)
+	}
+	if strings.Contains(rec.Body.String(), "escalated_secret") {
+		t.Errorf("handler text leaked: %s", rec.Body.String())
+	}
+}

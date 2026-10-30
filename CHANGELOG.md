@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`Config.Debug`** (default `false`). While it is on, an Inertia visit to an
+  Escalated page that fails with a 500 is no longer answered with the generic
+  `Escalated/Error` page: the handler's own 500 response goes out as written
+  and a panic is re-raised for the host's recoverer, the way escalated-laravel
+  leaves a 500 to the framework's debug page under `APP_DEBUG`. Other statuses
+  still get the page. Off, nothing changes. `middleware.InertiaErrorPage` takes
+  the matching option, `middleware.ErrorPageDebug(bool)`; existing calls
+  compile unchanged. Use it only in development.
+
 ## [0.2.10] - 2026-10-30
 
 ### Upgrading

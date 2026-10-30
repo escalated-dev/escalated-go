@@ -42,8 +42,13 @@ type PageRenderer interface {
 // (full page loads, API clients), paths outside prefix or under the non-page
 // surfaces above, responses that are already Inertia pages, and every other
 // status, redirects included. A full page load's panic is re-raised for the
-// host's recoverer.
-func InertiaErrorPage(pages PageRenderer, prefix string) func(http.Handler) http.Handler {
+// host's recoverer. In debug mode (ErrorPageDebug) a 500 is left alone too:
+// the handler's response goes out as written and a panic is re-raised.
+func InertiaErrorPage(pages PageRenderer, prefix string, opts ...ErrorPageOption) func(http.Handler) http.Handler {
+	var o errorPageOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Header.Get("X-Inertia") == "" || !isErrorPagePath(r.URL.Path, prefix) {
@@ -51,10 +56,10 @@ func InertiaErrorPage(pages PageRenderer, prefix string) func(http.Handler) http
 				return
 			}
 
-			ew := &errorPageWriter{ResponseWriter: w}
+			ew := &errorPageWriter{ResponseWriter: w, debug: o.debug}
 			defer func() {
 				if p := recover(); p != nil {
-					if p == http.ErrAbortHandler || ew.wroteHeader {
+					if p == http.ErrAbortHandler || ew.wroteHeader || o.debug {
 						panic(p)
 					}
 					log.Printf("escalated: panic serving %s %s: %v\n%s", r.Method, r.URL.Path, p, debug.Stack())
@@ -68,6 +73,22 @@ func InertiaErrorPage(pages PageRenderer, prefix string) func(http.Handler) http
 			next.ServeHTTP(ew, r)
 		})
 	}
+}
+
+// ErrorPageOption configures InertiaErrorPage.
+type ErrorPageOption func(*errorPageOptions)
+
+type errorPageOptions struct {
+	debug bool
+}
+
+// ErrorPageDebug sets debug mode (escalated.Config.Debug). While it is on a
+// 500 is not turned into the page: the handler's own 500 response goes out as
+// written, and a panic is re-raised for the host's recoverer, the way
+// escalated-laravel leaves a 500 to the framework's debug page under
+// APP_DEBUG. Every other status still gets the page. Off by default.
+func ErrorPageDebug(on bool) ErrorPageOption {
+	return func(o *errorPageOptions) { o.debug = on }
 }
 
 func isErrorPagePath(path, prefix string) bool {
@@ -102,13 +123,16 @@ type errorPageWriter struct {
 	http.ResponseWriter
 	status      int
 	wroteHeader bool
+	// debug passes a 500 through as written (ErrorPageDebug).
+	debug bool
 }
 
 func (w *errorPageWriter) WriteHeader(code int) {
 	if w.status != 0 || w.wroteHeader {
 		return
 	}
-	if _, ok := errorPageMessages[code]; ok && w.Header().Get("X-Inertia") == "" {
+	if _, ok := errorPageMessages[code]; ok && w.Header().Get("X-Inertia") == "" &&
+		!(w.debug && code == http.StatusInternalServerError) {
 		w.status = code
 		return
 	}

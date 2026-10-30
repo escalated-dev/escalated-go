@@ -129,3 +129,26 @@ func TestErrorPageIsOffWhileTheUIIsDisabled(t *testing.T) {
 		}
 	}
 }
+
+// A failure the store reports (the database is gone) is a 500. With
+// Config.Debug off it gets the page; on, the handler's own 500 goes out.
+func TestErrorPageFor500FollowsConfigDebug(t *testing.T) {
+	for _, debug := range []bool{false, true} {
+		f := newGuardFixture(t)
+		f.esc.Config.Debug = debug
+		mounts := f.mounts()
+		_ = f.db.Close()
+
+		for name, h := range mounts {
+			rec := send(h, "GET", "/escalated/agent/tickets", "900", "agent", "")
+
+			if rec.Code != http.StatusInternalServerError {
+				t.Fatalf("debug=%v %s: status %d (%q)", debug, name, rec.Code, rec.Body.String())
+			}
+			page := rec.Header().Get("X-Inertia") == "true" && strings.Contains(rec.Body.String(), "Escalated/Error")
+			if page == debug {
+				t.Errorf("debug=%v %s: error page rendered=%v (%q)", debug, name, page, rec.Body.String())
+			}
+		}
+	}
+}
