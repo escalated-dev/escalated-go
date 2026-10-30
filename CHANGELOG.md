@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- A built-in route list: every Escalated page carries a `ziggy` prop (ziggy-js
+  shape) naming the routes the shared pages call through `route()`, at this
+  package's real paths under `RoutePrefix`. The root template installs a
+  compatible `route()` with `<script>{{ .escalatedRouteHelper }}</script>`
+  (`renderer.RouteHelperScript` for your own renderer). `Config.RouteOverrides`
+  replaces, adds or removes names. See docs/ui-pages.md#route-names.
+
+### Changed
+- Shared props now merge objects nested in both sides as well: a prop shared
+  earlier (or a page's own) keeps its nested keys and gains the missing ones,
+  where before its nested object replaced the later one whole.
+
+### Upgrading
+- The hand-written `window.route` mapping is no longer needed; the helper
+  steps aside when `window.route` is already a function, so an existing
+  mapping keeps working. A `ziggy` prop you share before the mount wins name
+  by name. Map `login` (the host's) with `Config.RouteOverrides`.
+
 ## [0.2.9] - 2026-10-30
 
 ### Upgrading

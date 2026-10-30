@@ -77,8 +77,42 @@ links, side conversations) are mounted under both.
 The admin pages list agents for their assignee controls from
 `Config.SkillAgentDirectory`; without it the list is empty.
 
-`{ticket}` is the reference or the id. Escalated ships no Ziggy route list;
-point your `route()` names at these paths under your `RoutePrefix`.
+`{ticket}` is the reference or the id.
+
+## Route names
+
+The pages build their links and form targets with Ziggy's `route(name,
+params)`. Every Escalated page carries the route list as a `ziggy` prop in the
+shape ziggy-js reads (`{url, port, defaults, routes, location}`, each route
+`{uri, methods}` with the URI under your `RoutePrefix`, no leading slash and
+`{param}` placeholders), so you no longer map the names by hand. To install a
+`route()` that reads it, add one line to the root template you pass to
+`renderer.NewInertiaRenderer`, after the page's data script:
+
+```html
+<script>{{ .escalatedRouteHelper }}</script>
+```
+
+With your own `Renderer`, print `renderer.RouteHelperScript` there instead.
+The helper does nothing when `window.route` is already a function (ziggy-js,
+or your own), reads `window.Ziggy.routes` first when you set it, and answers
+`#` (with a console warning) for a name it does not know.
+
+Your mapping wins over the built-in one:
+
+- `Config.RouteOverrides` replaces or adds a name (a URI such as `"login"` or
+  `"/sign-in"`, and its methods, GET when empty); an override with an empty
+  URI removes the name. `Escalated.RouteList()` is the resulting list.
+- A `ziggy` prop you share yourself with `renderer.WithShared`, in middleware
+  that runs before the mount, wins name by name; the built-in names you leave
+  out are kept.
+- A `window.route` function or `window.Ziggy` of your own wins in the browser.
+
+`login` is not in the list: Escalated has no sign-in screen. Map it to yours
+with `RouteOverrides`. The names the pages call that this package does not
+serve yet (saved views, plugin upload, presence, snooze) are listed in
+`router/route_list_test.go`; `route()` answers `#` for them. The names are
+kept in `testdata/frontend-route-names.txt`, taken from the frontend.
 
 ## Pages rendered
 
@@ -203,8 +237,8 @@ every shipped page not rendered yet.
 - SLA policies have no business-hours mode: `business_hours_only` is always
   `false`.
 - Shared props (`auth.user`, and `escalated.*` other than `escalated.plugins`,
-  `escalated.features` and `escalated.permissions`) and Ziggy's `route()` come
-  from the host's Inertia setup.
+  `escalated.features` and `escalated.permissions`) come from the host's
+  Inertia setup.
 - Presence (`escalated.*.tickets.presence`) and typing indicators are not
   served yet.
 - Snooze and saved views: the store has methods for them, but the migrations

@@ -271,7 +271,7 @@ var importDeclaredProps = map[string][]string{
 // declares (less `except`) and none it does not.
 func assertDeclaredProps(t *testing.T, component string, props map[string]any, except ...string) {
 	t.Helper()
-	shared := map[string]bool{"errors": true, "auth": true, "current_user": true, "flash": true, "escalated": true, "plugin_ui": true, "page": true}
+	shared := map[string]bool{"errors": true, "auth": true, "current_user": true, "flash": true, "escalated": true, "plugin_ui": true, "page": true, "ziggy": true}
 	skip := map[string]bool{}
 	for _, e := range except {
 		skip[e] = true

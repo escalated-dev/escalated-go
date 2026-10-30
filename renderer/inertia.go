@@ -14,11 +14,15 @@ type InertiaRenderer struct {
 
 // NewInertiaRenderer creates an InertiaRenderer.
 // rootTemplate is the path to the root HTML template (e.g., "resources/views/app.html").
+// The template can install Escalated's route() helper with
+// <script>{{ .escalatedRouteHelper }}</script> (see RouteHelperScript).
 func NewInertiaRenderer(rootTemplate string) *InertiaRenderer {
 	if rootTemplate == "" {
 		rootTemplate = "resources/views/app.html"
 	}
 	engine := inertia.New("", rootTemplate, "")
+	// The root template installs route() with {{ .escalatedRouteHelper }}.
+	engine.ShareViewData(RouteHelperViewData, routeHelperJS)
 	return &InertiaRenderer{engine: engine}
 }
 

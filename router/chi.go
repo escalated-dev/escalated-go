@@ -142,6 +142,8 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 		// escalated.plugins (active plugins' menus, slots and widgets) on
 		// every page.
 		r.Use(esc.Plugins.ShareMiddleware)
+		// ziggy: the route list the pages' route() reads (docs/ui-pages.md).
+		r.Use(esc.RouteListMiddleware)
 		// Inertia protocol middleware scopes to the UI routes below, but chi
 		// requires every middleware to be registered before any route is added
 		// to a mux — so it must be declared here, ahead of the always-mounted

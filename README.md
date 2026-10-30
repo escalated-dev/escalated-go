@@ -180,6 +180,7 @@ func main() {
 |-------|------|---------|-------------|
 | `RoutePrefix` | `string` | `/escalated` | URL prefix for all routes |
 | `UIEnabled` | `bool` | `true` | Mount Inertia UI routes; `false` for JSON API only |
+| `RouteOverrides` | `map[string]escalated.NamedRoute` | nil | Replace, add (e.g. `login`) or remove names in the built-in route list the pages' `route()` reads. See [the shared pages](docs/ui-pages.md#route-names) |
 | `TablePrefix` | `string` | `escalated_` | Database table name prefix |
 | `AdminCheck` | `func(*http.Request) bool` | `false` | Returns true for admin users |
 | `AgentCheck` | `func(*http.Request) bool` | `false` | Returns true for agent users |
@@ -384,6 +385,10 @@ address and does not read forwarded headers.
 
 The UI routes render the pages of `@escalated-dev/escalated` with the props
 escalated-laravel passes them; see [the shared pages](docs/ui-pages.md).
+Every page carries the route names the pages call (a `ziggy` prop), so no
+hand-written `route()` mapping is needed: add
+`<script>{{ .escalatedRouteHelper }}</script>` to your root template (see
+[route names](docs/ui-pages.md#route-names)).
 
 These routes require a signed-in user, meaning `UserIDFunc` returns a
 non-empty id, and return 401 otherwise. A customer can view and reply only to

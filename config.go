@@ -97,6 +97,13 @@ type Config struct {
 	// Defaults to "/escalated".
 	RoutePrefix string
 
+	// RouteOverrides replaces or adds names in the route list the pages read
+	// from the ziggy prop (Escalated.RouteList): a URI ("support/login",
+	// "/sign-in"; {param} placeholders) and its methods (GET when empty). An
+	// override with an empty URI removes the name. Use it for "login", which
+	// is the host's, or to point a name at a route of your own.
+	RouteOverrides map[string]NamedRoute
+
 	// UIEnabled controls whether Inertia-powered UI routes are mounted.
 	// When false, only JSON API handlers are registered.
 	UIEnabled bool
