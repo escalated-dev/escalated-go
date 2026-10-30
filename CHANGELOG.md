@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.10] - 2026-10-30
+
 ### Upgrading
 - **An Inertia visit to an Escalated page that ends in 403, 404, 419, 429, 500
   or 503 now gets the shared `Escalated/Error` page** (props `status` and a
@@ -22,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and host routes. A handler's own error text never reaches the page. Go has
   no debug mode here, so a 500 always renders the page. See
   `docs/ui-pages.md`.
+- The hand-written `window.route` mapping is no longer needed; the helper
+  steps aside when `window.route` is already a function, so an existing
+  mapping keeps working. A `ziggy` prop you share before the mount wins name
+  by name. Map `login` (the host's) with `Config.RouteOverrides`.
 
 ### Added
 - A built-in route list: every Escalated page carries a `ziggy` prop (ziggy-js
@@ -35,12 +41,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Shared props now merge objects nested in both sides as well: a prop shared
   earlier (or a page's own) keeps its nested keys and gains the missing ones,
   where before its nested object replaced the later one whole.
-
-### Upgrading
-- The hand-written `window.route` mapping is no longer needed; the helper
-  steps aside when `window.route` is already a function, so an existing
-  mapping keeps working. A `ziggy` prop you share before the mount wins name
-  by name. Map `login` (the host's) with `Config.RouteOverrides`.
 
 ## [0.2.9] - 2026-10-30
 
