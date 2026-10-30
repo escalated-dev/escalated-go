@@ -132,7 +132,7 @@ func (w *errorPageWriter) WriteHeader(code int) {
 		return
 	}
 	if _, ok := errorPageMessages[code]; ok && w.Header().Get("X-Inertia") == "" &&
-		!(w.debug && code == http.StatusInternalServerError) {
+		(!w.debug || code != http.StatusInternalServerError) {
 		w.status = code
 		return
 	}
