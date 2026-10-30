@@ -626,7 +626,47 @@ func migrationStatements(p string) []string {
 
 	stmts = append(append(append(stmts, indexes...), engineAddonStatements(p)...), ticketStatusStatements(p)...)
 	stmts = append(stmts, importStatements(p)...)
-	return append(stmts, pluginStatements(p)...)
+	stmts = append(stmts, pluginStatements(p)...)
+	return append(stmts, roleStatements(p)...)
+}
+
+// roleStatements create escalated-laravel's roles & permissions tables
+// (ADR 2026-10-29-configurable-access-features): roles, permissions,
+// role_permission and role_user. role_user.user_id follows
+// ESCALATED_USER_KEY_TYPE. The permissions and system roles are seeded by
+// access.Store.Seed (Escalated.Roles().Seed), not here.
+func roleStatements(p string) []string {
+	return []string{
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			name VARCHAR(255) NOT NULL,
+			slug VARCHAR(255) NOT NULL,
+			description TEXT,
+			is_system BOOLEAN NOT NULL DEFAULT FALSE,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"roles"),
+		fmt.Sprintf("CREATE UNIQUE INDEX IF NOT EXISTS idx_%sroles_slug ON %s (slug)", p, p+"roles"),
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			name VARCHAR(255) NOT NULL,
+			slug VARCHAR(255) NOT NULL,
+			"group" VARCHAR(255) NOT NULL,
+			description TEXT
+		)`, p+"permissions"),
+		fmt.Sprintf("CREATE UNIQUE INDEX IF NOT EXISTS idx_%spermissions_slug ON %s (slug)", p, p+"permissions"),
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			role_id BIGINT NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
+			permission_id BIGINT NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
+			PRIMARY KEY (role_id, permission_id)
+		)`, p+"role_permission", p+"roles", p+"permissions"),
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			user_id %s NOT NULL,
+			role_id BIGINT NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
+			PRIMARY KEY (user_id, role_id)
+		)`, p+"role_user", UserIDColumnType(), p+"roles"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%srole_user_role ON %s (role_id)", p, p+"role_user"),
+	}
 }
 
 // pluginStatements create the plugin contract's tables

@@ -35,6 +35,7 @@ import (
 
 	"github.com/escalated-dev/escalated-go/ticketaccess"
 
+	"github.com/escalated-dev/escalated-go/access"
 	"github.com/escalated-dev/escalated-go/handlers"
 	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/plugins"
@@ -65,6 +66,9 @@ type Escalated struct {
 	// SDK plugins the runtime reports, their activation and their hooks. Host
 	// code applies its own filter points with Plugins.ApplyFilter.
 	Plugins *plugins.Host
+	// Features are the install-level access switches, resolved from
+	// Config.Access (else their environment variables) when New ran.
+	Features access.Features
 
 	importsOnce sync.Once
 	imports     *services.ImportService
@@ -224,6 +228,7 @@ func NewSQLite(cfg Config) (*Escalated, error) {
 // wirePlugins gives the plugin context its domain: the store, a ticket
 // service that fires events like the routes' one, and the host's agents.
 func wirePlugins(e *Escalated) *Escalated {
+	e.Features = e.Config.Access.Resolve()
 	domain := plugins.Domain{
 		DB:          e.Config.DB,
 		TablePrefix: e.Config.TablePrefix,
@@ -620,5 +625,48 @@ func newNotifier(cfg Config, access *ticketaccess.Access) *services.Notifier {
 		DB:            cfg.DB,
 		Access:        access,
 		Sync:          n.Sync,
+	}
+}
+
+// Roles returns the roles & permissions store over the host database: seed
+// it with Roles().Seed and give the first admin a role with
+// Roles().Assign(ctx, userID, "admin") before switching roles & permissions
+// on. Nil without a database.
+func (e *Escalated) Roles() *access.Store {
+	if e.Config.DB == nil {
+		return nil
+	}
+	return &access.Store{DB: e.Config.DB, Prefix: e.Config.TablePrefix}
+}
+
+// AccessMiddleware shares escalated.features and escalated.permissions with
+// every page and, while roles & permissions is on, requires each admin,
+// agent and staff API route's permission (access.RoutePermissions). The
+// routers mount it under the route prefix after APITokenMiddleware.
+func (e *Escalated) AccessMiddleware(next http.Handler) http.Handler {
+	cfg := e.Config
+	statuses := e.TicketStatuses()
+	enforcer := &access.Enforcer{
+		Prefix:   cfg.RoutePrefix,
+		Features: e.Features,
+		Store:    e.Roles(),
+		UserID:   cfg.UserIDFunc,
+		Status: func(ctx context.Context, value any) (int, bool) {
+			status, _, ok, err := statuses.Resolve(ctx, value)
+			return status, ok && err == nil
+		},
+	}
+	return e.AccessSharer().Middleware(enforcer.Middleware(next))
+}
+
+// AccessSharer is what AccessMiddleware shares with the pages; Allows
+// answers a permission question for a request.
+func (e *Escalated) AccessSharer() *access.Sharer {
+	cfg := e.Config
+	return &access.Sharer{
+		Features: e.Features,
+		Store:    e.Roles(),
+		IsStaff:  func(r *http.Request) bool { return cfg.AgentCheck(r) || cfg.AdminCheck(r) },
+		UserID:   cfg.UserIDFunc,
 	}
 }

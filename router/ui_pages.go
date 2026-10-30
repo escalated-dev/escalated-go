@@ -72,6 +72,40 @@ func newAPITokenHandler(esc *escalated.Escalated) *handlers.APITokenHandler {
 	}
 }
 
+// newRoleHandler is Admin > Roles over esc.Roles(), and gives the users page
+// its role column while roles & permissions is on. Nil without a database.
+func newRoleHandler(esc *escalated.Escalated, users *handlers.UserHandler) *handlers.RoleHandler {
+	roles := esc.Roles()
+	if roles == nil {
+		return nil
+	}
+	if esc.Features.RolesPermissions {
+		users.Roles = roles
+	}
+	cfg := esc.Config
+	return &handlers.RoleHandler{
+		Roles: roles,
+		Pages: handlers.PageSupport{Renderer: esc.Renderer, RoutePrefix: cfg.RoutePrefix, UserID: cfg.UserIDFunc},
+	}
+}
+
+// mountRoles adds Admin > Roles (escalated.admin.roles.*) and the users
+// page's role editor (escalated.admin.users.roles). Patterns are relative to
+// the admin area. A nil handler mounts the paths answering 404.
+func mountRoles(r ticketRoutes, h *handlers.RoleHandler) {
+	if h == nil {
+		h = &handlers.RoleHandler{}
+	}
+	r.Get("/roles", h.Index)
+	r.Get("/roles/create", h.Create)
+	r.Post("/roles", h.Store)
+	r.Get("/roles/{id}/edit", h.Edit)
+	r.Put("/roles/{id}", h.Update)
+	r.Patch("/roles/{id}", h.Update)
+	r.Delete("/roles/{id}", h.Destroy)
+	r.Put("/users/{user}/roles", h.UpdateUserRoles)
+}
+
 // wireUIPages gives the page handlers what they need to build the props the
 // shared Vue pages read: the database for counts, the host's user lookups,
 // the route prefix for links, and the ticket screen's panels.
@@ -154,6 +188,7 @@ type ticketRoutes interface {
 	Get(pattern string, h http.HandlerFunc)
 	Post(pattern string, h http.HandlerFunc)
 	Put(pattern string, h http.HandlerFunc)
+	Patch(pattern string, h http.HandlerFunc)
 	Delete(pattern string, h http.HandlerFunc)
 }
 
@@ -171,6 +206,7 @@ func (g muxGroup) handle(method, pattern string, h http.HandlerFunc) {
 func (g muxGroup) Get(pattern string, h http.HandlerFunc)    { g.handle(http.MethodGet, pattern, h) }
 func (g muxGroup) Post(pattern string, h http.HandlerFunc)   { g.handle(http.MethodPost, pattern, h) }
 func (g muxGroup) Put(pattern string, h http.HandlerFunc)    { g.handle(http.MethodPut, pattern, h) }
+func (g muxGroup) Patch(pattern string, h http.HandlerFunc)  { g.handle(http.MethodPatch, pattern, h) }
 func (g muxGroup) Delete(pattern string, h http.HandlerFunc) { g.handle(http.MethodDelete, pattern, h) }
 
 // chiRoutes is the subset of chi.Router the ticket routes use.
@@ -178,6 +214,7 @@ type chiRoutes interface {
 	Get(pattern string, h http.HandlerFunc)
 	Post(pattern string, h http.HandlerFunc)
 	Put(pattern string, h http.HandlerFunc)
+	Patch(pattern string, h http.HandlerFunc)
 	Delete(pattern string, h http.HandlerFunc)
 }
 
@@ -190,6 +227,7 @@ type chiGroup struct {
 func (g chiGroup) Get(p string, h http.HandlerFunc)    { g.r.Get(g.prefix+p, h) }
 func (g chiGroup) Post(p string, h http.HandlerFunc)   { g.r.Post(g.prefix+p, h) }
 func (g chiGroup) Put(p string, h http.HandlerFunc)    { g.r.Put(g.prefix+p, h) }
+func (g chiGroup) Patch(p string, h http.HandlerFunc)  { g.r.Patch(g.prefix+p, h) }
 func (g chiGroup) Delete(p string, h http.HandlerFunc) { g.r.Delete(g.prefix+p, h) }
 
 // mountTicketWrites adds the ticket screen's writes, the same under /agent and

@@ -120,6 +120,7 @@ point your `route()` names at these paths under your `RoutePrefix`.
 | `Admin/CustomObjects/Index`, `Form`, `Records` | `GET /admin/custom-objects`, `/create`, `/{id}/edit`, `/{id}/records` |
 | `Admin/ApiTokens/Index` | `GET /admin/api-tokens` (see [API tokens](api-tokens.md)) |
 | `Admin/Webhooks/Index`, `Form`, `DeliveryLog` | `GET /admin/webhooks`, `/create`, `/{id}/edit`, `/{id}/deliveries` |
+| `Admin/Roles/Index`, `Form` | `GET /admin/roles`, `/create`, `/{id}/edit`, only while roles & permissions is on (see [access control](access-control.md)) |
 
 The admin config lists (escalation rules, macros, canned responses, webhooks
 and the delivery log) answer the same URL two ways: the page for a page visit
@@ -197,12 +198,11 @@ every shipped page not rendered yet.
   while it is a live chat (or, on the ticket screen, when it has a chat
   session).
 - Departments have no agent membership here, so `agents_count` is null.
-- Roles: authentication and users stay with the host, so the `Admin/Roles/*`
-  pages are not rendered.
 - SLA policies have no business-hours mode: `business_hours_only` is always
   `false`.
-- Shared props (`auth.user`, `escalated.*`) and Ziggy's `route()` come from the
-  host's Inertia setup.
+- Shared props (`auth.user`, and `escalated.*` other than `escalated.plugins`,
+  `escalated.features` and `escalated.permissions`) and Ziggy's `route()` come
+  from the host's Inertia setup.
 - Presence (`escalated.*.tickets.presence`) and typing indicators are not
   served yet.
 - Snooze and saved views: the store has methods for them, but the migrations

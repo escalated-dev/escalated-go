@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	escalated "github.com/escalated-dev/escalated-go"
+	"github.com/escalated-dev/escalated-go/access"
 	"github.com/escalated-dev/escalated-go/actions"
 	"github.com/escalated-dev/escalated-go/handlers"
 	"github.com/escalated-dev/escalated-go/middleware"
@@ -101,6 +102,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	guestPages := &handlers.GuestPages{Store: s, Tickets: ticketSvc, Access: esc.GuestAccess, DB: cfg.DB, Prefix: cfg.TablePrefix}
 	workflowH := handlers.NewWorkflowHandler(cfg.DB)
 	userH := handlers.NewUserHandler(cfg.UserDirectory, rend, cfg.UserIDFunc)
+	roleH := newRoleHandler(esc, userH)
 	skillsH := handlers.NewSkillsHandler(cfg.DB, cfg.TablePrefix, rend, cfg.SkillAgentDirectory)
 	reportH := handlers.NewReportHandler(cfg.DB, cfg.TablePrefix)
 	wireUIPages(esc, agentH, customerH, adminH, uiPageDeps{
@@ -132,6 +134,10 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	r.Route(cfg.RoutePrefix, func(r chi.Router) {
 		// API tokens authenticate first, so ticket visibility is the token owner's.
 		r.Use(esc.APITokenMiddleware)
+		// escalated.features / escalated.permissions on every page, and the
+		// route permissions while roles & permissions is on
+		// (docs/access-control.md).
+		r.Use(esc.AccessMiddleware)
 		r.Use(esc.TicketAccessMiddleware)
 		// escalated.plugins (active plugins' menus, slots and widgets) on
 		// every page.
@@ -557,6 +563,13 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 
 				r.Get("/users", userH.Index)
 				r.Patch("/users/{user}/role", userH.UpdateRole)
+
+				// Roles (escalated.admin.roles.*) and the users page's role
+				// editor, only while roles & permissions is on (404 otherwise).
+				r.Group(func(r chi.Router) {
+					r.Use(access.RequireFeature(esc.Features.RolesPermissions && roleH != nil))
+					mountRoles(chiGroup{r: r}, roleH)
+				})
 
 				if cfg.EnableNewsletters {
 					r.Route("/newsletters", func(r chi.Router) {
