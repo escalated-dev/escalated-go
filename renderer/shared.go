@@ -11,7 +11,10 @@ type sharedProp struct {
 
 // WithShared adds a prop that every page rendered for the request carries,
 // computed when the page is rendered. A page's own prop of the same name
-// wins; when both are objects they are merged, the page's keys first.
+// wins; when both are objects they are merged, the page's keys first, and
+// so on for objects nested in both. A prop shared earlier (by middleware
+// that runs first, such as the host's) wins over one shared later the same
+// way.
 func WithShared(ctx context.Context, key string, value func() any) context.Context {
 	existing, _ := ctx.Value(sharedKey{}).([]sharedProp)
 	next := append(append([]sharedProp{}, existing...), sharedProp{key: key, value: value})
@@ -40,14 +43,26 @@ func withSharedProps(ctx context.Context, props map[string]any) map[string]any {
 		if !ownIsMap || !extraIsMap {
 			continue
 		}
-		merged := make(map[string]any, len(own)+len(extra))
-		for k, v := range extra {
-			merged[k] = v
-		}
-		for k, v := range own {
-			merged[k] = v
-		}
-		out[s.key] = merged
+		out[s.key] = mergeOwnFirst(own, extra)
 	}
 	return out
+}
+
+// mergeOwnFirst merges extra into own: own's keys win, and where both hold an
+// object the two are merged the same way.
+func mergeOwnFirst(own, extra map[string]any) map[string]any {
+	merged := make(map[string]any, len(own)+len(extra))
+	for k, v := range extra {
+		merged[k] = v
+	}
+	for k, v := range own {
+		ownMap, ownIsMap := v.(map[string]any)
+		extraMap, extraIsMap := merged[k].(map[string]any)
+		if ownIsMap && extraIsMap {
+			merged[k] = mergeOwnFirst(ownMap, extraMap)
+			continue
+		}
+		merged[k] = v
+	}
+	return merged
 }

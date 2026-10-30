@@ -29,7 +29,8 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	// every page.
 	// escalated.features / escalated.permissions on every page, and the route
 	// permissions while roles & permissions is on (docs/access-control.md).
-	mux.Handle(prefix+"/", esc.APITokenMiddleware(esc.AccessMiddleware(esc.TicketAccessMiddleware(esc.Plugins.ShareMiddleware(inner)))))
+	// ziggy: the route list the pages' route() reads (docs/ui-pages.md).
+	mux.Handle(prefix+"/", esc.APITokenMiddleware(esc.AccessMiddleware(esc.TicketAccessMiddleware(esc.Plugins.ShareMiddleware(esc.RouteListMiddleware(inner))))))
 
 	if esc.Config.EnableWidget {
 		stack := newWidgetStack(esc, ticketSvc, guestLimit)
