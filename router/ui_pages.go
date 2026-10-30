@@ -84,8 +84,9 @@ func newRoleHandler(esc *escalated.Escalated, users *handlers.UserHandler) *hand
 	}
 	cfg := esc.Config
 	return &handlers.RoleHandler{
-		Roles: roles,
-		Pages: handlers.PageSupport{Renderer: esc.Renderer, RoutePrefix: cfg.RoutePrefix, UserID: cfg.UserIDFunc},
+		Roles:     roles,
+		Pages:     handlers.PageSupport{Renderer: esc.Renderer, RoutePrefix: cfg.RoutePrefix, UserID: cfg.UserIDFunc},
+		UsersPage: users.RenderWithErrors,
 	}
 }
 

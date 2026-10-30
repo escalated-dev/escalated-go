@@ -145,6 +145,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `TicketService.UpdateMetadata`; `renderer.WithShared` for props every page
     of a request carries.
 
+### Fixed
+- **Admin > Users roles picker validation now answers like escalated-laravel.**
+  A bad `role_ids` on `PUT {prefix}/admin/users/{user}/roles` used to answer
+  one generic `role_ids` message, and an Inertia visit was redirected back
+  without it (Go keeps no session to flash it). An Inertia visit now gets the
+  users page again with `errors` keyed `role_ids` (missing / not an array) or
+  `role_ids.N` (not an integer / not a role) in Laravel's wording; a JSON
+  client gets Laravel's 422 with the same keys. Refusing to remove your own
+  role management is shown on the page the same way.
+  `handlers.RoleHandler.UsersPage` (set by the router to
+  `UserHandler.RenderWithErrors`) renders it.
+
 ## [0.2.8] - 2026-10-28
 
 ### Upgrading
