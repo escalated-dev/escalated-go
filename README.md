@@ -46,6 +46,7 @@ Embeddable support ticket system for Go applications. Works with standard `net/h
 - **Real-time updates** — Server-Sent Events (SSE) endpoint for live ticket updates with automatic polling fallback
 - **Knowledge base toggle** — Enable or disable the public knowledge base from admin settings
 - **Roles & permissions** — Optional, per install (`Config.Access.RolesPermissions`): every admin, agent and API route then needs its permission from the user's Escalated roles, managed on Admin > Roles (see [access control](docs/access-control.md))
+- **Two-factor authentication** — Optional, per install (`Config.Access.TwoFactor`): staff enrol a TOTP app and are challenged after your login, with recovery codes and an admin "require two-factor" setting (see [access control](docs/access-control.md))
 - **Plugins** — Native Go plugins registered in `Config.Plugins.Native`, and `@escalated-dev/plugin-sdk` plugins through the Node plugin runtime, managed on Admin > Plugins (see [plugins](docs/plugins.md))
 - **Ticket subjects** — Attach host-app entities (Project, Customer, …) a ticket is about; polymorphic links with UI presentation via `TicketSubject` contract
 
@@ -189,7 +190,7 @@ func main() {
 | `TicketSubjectTypes` | `[]string` | nil | Allowlist of `subject_type` values for API attach; empty disables API attach |
 | `UserName` | `func(ctx, models.UserID) string` | nil | Display names for the shared pages (requesters, assignees, authors). See [the shared pages](docs/ui-pages.md) |
 | `Plugins` | `plugins.Config` | none | Native plugins, the SDK plugin runtime and the capability check. See [plugins](docs/plugins.md) |
-| `Access` | `access.Config` | all off | The install-level access switches (roles & permissions). See [access control](docs/access-control.md) |
+| `Access` | `access.Config` | all off | The install-level access switches (roles & permissions, two-factor). See [access control](docs/access-control.md) |
 
 ### Which database you are on
 

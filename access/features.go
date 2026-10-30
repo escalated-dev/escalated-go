@@ -20,26 +20,60 @@ import (
 
 // The environment variables a nil Config field reads.
 const (
-	EnvRolesPermissions = "ESCALATED_ROLES_PERMISSIONS"
+	EnvRolesPermissions  = "ESCALATED_ROLES_PERMISSIONS"
+	EnvTwoFactor         = "ESCALATED_TWO_FACTOR"
+	EnvTwoFactorRequired = "ESCALATED_TWO_FACTOR_REQUIRED"
 )
 
-// Config holds the install-level switches. A nil field reads its environment
-// variable (EnvRolesPermissions); unset or unparsable there, it is off.
+// Config holds the install-level switches. A nil switch reads its
+// environment variable (EnvRolesPermissions, EnvTwoFactor); unset or
+// unparsable there, it is off.
 type Config struct {
 	// RolesPermissions enforces Escalated roles & permissions: every admin,
 	// agent and staff API route also needs its permission from the user's
 	// roles (RoutePermissions). Off, AdminCheck and AgentCheck decide
 	// everything, as before.
 	RolesPermissions *bool
+
+	// TwoFactor enforces two-factor authentication: staff with a confirmed
+	// TOTP enrolment are challenged after the host's login before they reach
+	// an admin or agent page. It needs SessionID and a secret
+	// (Secret, else GuestAccess.Secret); New fails without them.
+	TwoFactor *bool
+
+	// TwoFactorRequired makes every staff user enrol before using anything
+	// else. Nil reads EnvTwoFactorRequired. The two_factor_required setting
+	// (Admin > Settings) wins when an admin has saved it.
+	TwoFactorRequired *bool
+
+	// Secret seals TOTP secrets and recovery codes and signs the access
+	// cookies (the two-factor pass). Keep it stable: changing it voids every
+	// enrolment. Empty uses Config.GuestAccess.Secret.
+	Secret string
+
+	// TwoFactorIssuer names the account in authenticator apps. Empty is
+	// "Escalated".
+	TwoFactorIssuer string
+
+	// SessionID returns the host's session id for the request. It must
+	// change when someone signs in (most session libraries renew it on
+	// login), so every new login is challenged again: the challenge's pass
+	// mark is bound to it. Required with TwoFactor.
+	SessionID func(*http.Request) string
+
+	// RegenerateSession, optional, gives the host session a new id after a
+	// passed challenge (as Laravel's session()->regenerate()) and returns the
+	// new id.
+	RegenerateSession func(http.ResponseWriter, *http.Request) (string, error)
 }
 
 // Features are the resolved switches.
 type Features struct {
 	RolesPermissions bool
-	// TwoFactor and SSO stay false until this package enforces them: a port
-	// must not show a screen for a feature it does not enforce.
-	TwoFactor bool
-	SSO       bool
+	TwoFactor        bool
+	// SSO stays false until this package enforces it: a port must not show
+	// a screen for a feature it does not enforce.
+	SSO bool
 }
 
 // Resolve reads the switches: each Config field, else its environment
@@ -47,6 +81,7 @@ type Features struct {
 func (c Config) Resolve() Features {
 	return Features{
 		RolesPermissions: flag(c.RolesPermissions, EnvRolesPermissions),
+		TwoFactor:        flag(c.TwoFactor, EnvTwoFactor),
 	}
 }
 
@@ -85,4 +120,9 @@ func RequireFeature(enabled bool) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// TwoFactorRequiredDefault is TwoFactorRequired, else EnvTwoFactorRequired.
+func (c Config) TwoFactorRequiredDefault() bool {
+	return flag(c.TwoFactorRequired, EnvTwoFactorRequired)
 }

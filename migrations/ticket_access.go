@@ -50,6 +50,9 @@ func upgradeTicketAccess(db *sql.DB, prefix string, postgres bool) error {
 		// until their next request moves their token here.
 		{"chat_sessions", "visitor_token_hash", "VARCHAR(64)"},
 		{"chat_sessions", "visitor_token_expires_at", timestamp},
+		// Two-factor (ADR 2026-10-29-configurable-access-features): the last
+		// TOTP time step accepted, so a code cannot be used twice.
+		{"two_factors", "last_used_step", "BIGINT"},
 	}
 	for _, column := range columns {
 		exists := false

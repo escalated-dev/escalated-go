@@ -235,6 +235,15 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated, guestLimit *middl
 		mux.Handle("GET "+prefix+"/kb/{slug}", kbGuard(http.HandlerFunc(kbPages.Article)))
 		mux.Handle("POST "+prefix+"/kb/{slug}/feedback", kbGuard(http.HandlerFunc(kbPages.Feedback)))
 
+		// Two-factor: the enrolment screen for every staff user and the
+		// challenge for any signed-in user, 404 while two-factor is off
+		// (docs/access-control.md).
+		twoFactorH := newTwoFactorHandler(esc)
+		twoFactorGate := access.RequireFeature(esc.Features.TwoFactor)
+		staffMW := middleware.RequireAgentOrAdmin(cfg.AgentCheck, cfg.AdminCheck)
+		mountTwoFactor(muxGroup{mux: mux, prefix: prefix, mw: func(h http.Handler) http.Handler { return twoFactorGate(staffMW(h)) }}, twoFactorH)
+		mountTwoFactorChallenge(muxGroup{mux: mux, prefix: prefix, mw: func(h http.Handler) http.Handler { return twoFactorGate(userMW(h)) }}, twoFactorH)
+
 		// Agent routes (wrapped with agent middleware)
 		agentMW := middleware.RequireAgent(cfg.AgentCheck)
 		mux.Handle("GET "+prefix+"/agent/", agentMW(http.HandlerFunc(agentH.Dashboard)))

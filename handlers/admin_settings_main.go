@@ -21,17 +21,33 @@ import (
 // appearance come from Config here, not from the settings table.
 var supportedMainSettings = []string{SettingKnowledgeBaseEnabled, SettingKnowledgeBasePublic, WidgetAllowedOriginsSetting}
 
+// SettingTwoFactorRequired is the runtime "require two-factor" setting
+// (escalated-laravel's two_factor_required). It is offered and saved only
+// while two-factor is on; Admin/Settings/TwoFactor posts it alone.
+const SettingTwoFactorRequired = "two_factor_required"
+
+func (h *AdminHandler) supportedSettings() []string {
+	if h.TwoFactorRequired == nil {
+		return supportedMainSettings
+	}
+	return append(append([]string{}, supportedMainSettings...), SettingTwoFactorRequired)
+}
+
 func (h *AdminHandler) mainSettings(ctx context.Context) (map[string]any, error) {
 	kb := KBSettingsFromStore(ctx, h.store)
 	origins, err := h.store.GetSetting(ctx, WidgetAllowedOriginsSetting)
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{
+	settings := map[string]any{
 		SettingKnowledgeBaseEnabled: kb.KnowledgeBaseEnabled,
 		SettingKnowledgeBasePublic:  kb.Public,
 		WidgetAllowedOriginsSetting: origins,
-	}, nil
+	}
+	if h.TwoFactorRequired != nil {
+		settings[SettingTwoFactorRequired] = h.TwoFactorRequired(ctx)
+	}
+	return settings, nil
 }
 
 // SettingsPage handles GET /admin/settings (escalated.admin.settings).
@@ -47,7 +63,7 @@ func (h *AdminHandler) settingsPage(w http.ResponseWriter, r *http.Request, errs
 	}
 	h.renderSettingsPage(w, r, "Escalated/Admin/Settings", map[string]any{
 		"settings":           settings,
-		"supported_settings": supportedMainSettings,
+		"supported_settings": h.supportedSettings(),
 	}, errs)
 }
 
@@ -63,7 +79,11 @@ func (h *AdminHandler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 
 	errs := map[string]string{}
 	var values [][2]string
-	for _, key := range []string{SettingKnowledgeBaseEnabled, SettingKnowledgeBasePublic} {
+	booleans := []string{SettingKnowledgeBaseEnabled, SettingKnowledgeBasePublic}
+	if h.TwoFactorRequired != nil {
+		booleans = append(booleans, SettingTwoFactorRequired)
+	}
+	for _, key := range booleans {
 		if _, given := in[key]; !given {
 			continue
 		}

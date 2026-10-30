@@ -281,6 +281,19 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Post("/kb/{slug}/feedback", kbPages.Feedback)
 			})
 
+			// Two-factor: the enrolment screen for every staff user and the
+			// challenge for any signed-in user, 404 while two-factor is off
+			// (docs/access-control.md).
+			twoFactorH := newTwoFactorHandler(esc)
+			r.Group(func(r chi.Router) {
+				r.Use(access.RequireFeature(esc.Features.TwoFactor), middleware.RequireAgentOrAdmin(cfg.AgentCheck, cfg.AdminCheck))
+				mountTwoFactor(r, twoFactorH)
+			})
+			r.Group(func(r chi.Router) {
+				r.Use(access.RequireFeature(esc.Features.TwoFactor), middleware.RequireUser(cfg.UserIDFunc))
+				mountTwoFactorChallenge(r, twoFactorH)
+			})
+
 			// Agent routes
 			r.Route("/agent", func(r chi.Router) {
 				r.Use(middleware.RequireAgent(cfg.AgentCheck))

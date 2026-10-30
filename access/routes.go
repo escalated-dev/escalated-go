@@ -73,6 +73,10 @@ func resource(path, group string, extraReads ...string) []RouteEntry {
 // entry here. Every slug is one Seed creates.
 var RoutePermissions = func() []RouteEntry {
 	entries := []RouteEntry{
+		// ---- Personal: two-factor enrolment, open to every staff user -----
+		{"*", EnrolmentPath, nil},
+		{"*", EnrolmentPath + "/**", nil},
+
 		// ---- Tickets (admin and agent panels, staff API) ------------------
 		{"GET", agt, view},
 		{"GET", agt + "/", view},

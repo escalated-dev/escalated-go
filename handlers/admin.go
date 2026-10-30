@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net"
@@ -46,6 +47,11 @@ type AdminHandler struct {
 	// Set by the router.
 	Retention       *services.RetentionService
 	DatabaseDialect string
+
+	// TwoFactorRequired, set by the router while two-factor is on, is the
+	// effective "require two-factor" value; it also makes the settings page
+	// offer and save two_factor_required.
+	TwoFactorRequired func(ctx context.Context) bool
 }
 
 func (h *AdminHandler) slaIndexURL() string {

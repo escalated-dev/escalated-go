@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Upgrading
+- Two-factor authentication is a new install-level switch, off by default
+  (`Config.Access.TwoFactor`, else `ESCALATED_TWO_FACTOR`). It needs
+  `Config.Access.SessionID` (your session id, renewed on login) and a secret
+  (`Config.Access.Secret`, else `GuestAccess.Secret`); `New` fails
+  without them while it is on. Run the migrations first (they add
+  `two_factors.last_used_step`). Every page now also carries
+  `escalated.two_factor_required`. See docs/access-control.md.
 - Roles & permissions is a new install-level switch, off by default
   (`Config.Access.RolesPermissions`, else `ESCALATED_ROLES_PERMISSIONS`).
   Off, nothing changes. To turn it on: run the migrations (they add
@@ -37,6 +44,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the Node process.
 
 ### Added
+- Two-factor authentication, enforced behind its switch (ADR
+  2026-10-29-configurable-access-features, as escalated-laravel): TOTP
+  through pquerna/otp with one step of drift and no code reuse, enrolment for
+  every staff user at `Admin/Settings/TwoFactor`, the
+  `Auth/TwoFactorChallenge` challenge after the host's login (5 attempts a
+  minute, bound to the host's session id), eight single-use recovery codes,
+  secrets sealed at rest, and "require two-factor"
+  (`Config.Access.TwoFactorRequired` / `ESCALATED_TWO_FACTOR_REQUIRED`, or the
+  `two_factor_required` setting, which `POST /admin/settings` saves on its
+  own). `esc.TwoFactor().Disable` resets a user's enrolment. Token requests
+  are not challenged.
 - Roles & permissions, enforced behind its switch (ADR
   2026-10-29-configurable-access-features, as escalated-laravel): every
   admin, agent and staff API route needs its permission from the user's
