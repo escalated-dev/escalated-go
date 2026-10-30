@@ -188,7 +188,6 @@ func TestTheGuardSeesUnprefixedRenderCalls(t *testing.T) {
 var notYetRendered = []string{
 	"Escalated/Admin/Settings/Sandbox",
 	"Escalated/Admin/Workflows/Builder",
-	"Escalated/Error",
 }
 
 func TestNotYetRenderedListIsExact(t *testing.T) {

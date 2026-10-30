@@ -225,6 +225,18 @@ The others this package renders are the departments, tags, skills, users, audit
 log and newsletter screens. `notYetRendered` in `page_name_parity_test.go` lists
 every shipped page not rendered yet.
 
+## Error page
+
+An Inertia visit (`X-Inertia`) to a page under the prefix that ends in 403,
+404, 419, 429, 500 or 503 gets the shared `Escalated/Error` page with the
+props Rails and Laravel send: `status` and a generic `message` (the handler's
+own error text never reaches it). A panic in such a request is a 500 and is
+logged with its stack. Full page loads, the JSON API, webhooks, the widget,
+single sign-on, newsletter tracking, redirects, responses that are already
+Inertia pages and the host's own routes are left alone, and so is a full page
+load's panic (it reaches the host's recoverer). Mounted only with
+`UIEnabled`; see `middleware.InertiaErrorPage`.
+
 ## Not supported yet
 
 - The queue's `following` and `tag_ids` filters, and the customer list's `tag`,

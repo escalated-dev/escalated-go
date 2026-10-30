@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Upgrading
+- **An Inertia visit to an Escalated page that ends in 403, 404, 419, 429, 500
+  or 503 now gets the shared `Escalated/Error` page** (props `status` and a
+  generic `message`, as Rails and Laravel send them) instead of the plain-text
+  error body, which the Inertia client could only show in a modal. Both
+  `MountChi` and `MountStdlib` add `middleware.InertiaErrorPage` outermost on
+  the prefix while `UIEnabled` is on, so it also covers the refusals of the
+  access and route middleware. A panic in an Inertia request to those pages is
+  now recovered, logged with its stack and answered with the 500 page; a full
+  page load's panic still reaches the host's recoverer. Left alone: requests
+  without `X-Inertia`, the JSON API, webhooks, the widget, single sign-on,
+  newsletter tracking, redirects, responses that are already Inertia pages,
+  and host routes. A handler's own error text never reaches the page. Go has
+  no debug mode here, so a 500 always renders the page. See
+  `docs/ui-pages.md`.
+
 ### Added
 - A built-in route list: every Escalated page carries a `ziggy` prop (ziggy-js
   shape) naming the routes the shared pages call through `route()`, at this
