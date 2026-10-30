@@ -197,9 +197,15 @@ func TestSSONeedsTheHostHooks(t *testing.T) {
 	db := newUIFixture(t).esc.Config.DB
 	host := &ssoHost{users: map[string]models.UserID{}}
 	for what, configure := range map[string]func(*escalated.Config){
-		"no SignIn":        func(cfg *escalated.Config) { cfg.UserIDByEmail = host.byEmail; cfg.Access.SSOOptions.BaseURL = ssoBase },
-		"no UserIDByEmail": func(cfg *escalated.Config) { cfg.Access.SSOOptions.SignIn = host.signIn; cfg.Access.SSOOptions.BaseURL = ssoBase },
-		"no base URL":      func(cfg *escalated.Config) { cfg.Access.SSOOptions.SignIn = host.signIn; cfg.UserIDByEmail = host.byEmail },
+		"no SignIn": func(cfg *escalated.Config) { cfg.UserIDByEmail = host.byEmail; cfg.Access.SSOOptions.BaseURL = ssoBase },
+		"no UserIDByEmail": func(cfg *escalated.Config) {
+			cfg.Access.SSOOptions.SignIn = host.signIn
+			cfg.Access.SSOOptions.BaseURL = ssoBase
+		},
+		"no base URL": func(cfg *escalated.Config) {
+			cfg.Access.SSOOptions.SignIn = host.signIn
+			cfg.UserIDByEmail = host.byEmail
+		},
 		"create without CreateUser": func(cfg *escalated.Config) {
 			cfg.Access.SSOOptions.SignIn = host.signIn
 			cfg.UserIDByEmail = host.byEmail
@@ -311,10 +317,10 @@ func newTestIdP(t *testing.T) *testIdP {
 
 type samlOpts struct {
 	inResponseTo, issuer, audience, destination, recipient, email, role, assertionID string
-	notBefore, notOnOrAfter                                                         time.Time
-	signAssertion, signResponse                                                     bool
-	signer                                                                          *testIdP
-	tamper, encrypted, twoAssertions                                                bool
+	notBefore, notOnOrAfter                                                          time.Time
+	signAssertion, signResponse                                                      bool
+	signer                                                                           *testIdP
+	tamper, encrypted, twoAssertions                                                 bool
 }
 
 func (i *testIdP) defaults(requestID string) samlOpts {
@@ -493,15 +499,17 @@ func TestSSOSAML(t *testing.T) {
 			wantSignedIn(t, acs(idp.response(t, ok)), host, uiAgent, "valid response")
 
 			refusals := map[string]func(o *samlOpts){
-				"unsigned assertion":           func(o *samlOpts) { o.signAssertion = false },
-				"signed Response only":         func(o *samlOpts) { o.signAssertion, o.signResponse = false, true },
-				"signed by another key":        func(o *samlOpts) { o.signer = other },
-				"tampered after signing":       func(o *samlOpts) { o.tamper = true },
-				"wrong Issuer":                 func(o *samlOpts) { o.issuer = "https://evil.example.com" },
-				"wrong Audience":               func(o *samlOpts) { o.audience = "https://other-sp.example.com" },
-				"wrong Destination":            func(o *samlOpts) { o.destination = "https://evil.example.com/acs" },
-				"wrong Recipient":              func(o *samlOpts) { o.recipient = "https://evil.example.com/acs" },
-				"expired":                      func(o *samlOpts) { o.notBefore, o.notOnOrAfter = time.Now().Add(-time.Hour), time.Now().Add(-10*time.Minute) },
+				"unsigned assertion":     func(o *samlOpts) { o.signAssertion = false },
+				"signed Response only":   func(o *samlOpts) { o.signAssertion, o.signResponse = false, true },
+				"signed by another key":  func(o *samlOpts) { o.signer = other },
+				"tampered after signing": func(o *samlOpts) { o.tamper = true },
+				"wrong Issuer":           func(o *samlOpts) { o.issuer = "https://evil.example.com" },
+				"wrong Audience":         func(o *samlOpts) { o.audience = "https://other-sp.example.com" },
+				"wrong Destination":      func(o *samlOpts) { o.destination = "https://evil.example.com/acs" },
+				"wrong Recipient":        func(o *samlOpts) { o.recipient = "https://evil.example.com/acs" },
+				"expired": func(o *samlOpts) {
+					o.notBefore, o.notOnOrAfter = time.Now().Add(-time.Hour), time.Now().Add(-10*time.Minute)
+				},
 				"not yet valid":                func(o *samlOpts) { o.notBefore = time.Now().Add(10 * time.Minute) },
 				"unknown InResponseTo":         func(o *samlOpts) { o.inResponseTo = "_not-issued-here" },
 				"missing InResponseTo":         func(o *samlOpts) { o.inResponseTo = "" },
@@ -624,7 +632,7 @@ func TestSSOOAuth(t *testing.T) {
 			state, cookie = start()
 			wantRefused(t, get(h, "/escalated/sso/oauth/callback?code=the-code&state="+url.QueryEscape(state)), host, "missing state cookie")
 			wantRefused(t, get(h, "/escalated/sso/oauth/callback?code=the-code", cookie), host, "missing state")
-			state, cookie = start()
+			_, cookie = start()
 			wantRefused(t, get(h, "/escalated/sso/oauth/callback?code=the-code&state=other", cookie), host, "mismatched state")
 			state, cookie = start()
 			wantRefused(t, get(h, "/escalated/sso/oauth/callback?error=access_denied&state="+url.QueryEscape(state), cookie), host, "IdP error")
@@ -724,7 +732,12 @@ func TestSSOUnknownEmailsAndRoleMapping(t *testing.T) {
 		f.setSettings(t, map[string]string{"sso_provider": "jwt", "sso_url": "https://idp.example.com/login", "sso_jwt_secret": jwtSecret})
 		return get(f.mounts()["chi"], "/escalated/sso/jwt/callback?jwt="+url.QueryEscape(jwtToken(t, jwt.SigningMethodHS256, []byte(jwtSecret), claims)))
 	}
-	newcomer := func() jwt.MapClaims { c := goodClaims(); c["email"] = "new@example.com"; c["name"] = "Nia New"; return c }
+	newcomer := func() jwt.MapClaims {
+		c := goodClaims()
+		c["email"] = "new@example.com"
+		c["name"] = "Nia New"
+		return c
+	}
 
 	t.Run("create off refuses", func(t *testing.T) {
 		f, host := newSSOFixture(t, true)
