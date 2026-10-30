@@ -27,6 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the Node process.
 
 ### Added
+- Native plugins get cron schedules and widget badges, as SDK plugins do:
+  `plugins.CronPlugin` (`Cron()` maps five-field UTC expressions to
+  functions, run by `RunPluginCron`/`StartPluginCron` for active plugins, as
+  no user, within 30 s) and `plugins.BadgePlugin` (`Badges()` maps a widget
+  component to a function whose answer is the widget's `badge`, asked as the
+  viewer within 5 s, `null` when it fails).
 - SDK plugin cron schedules run: call `esc.RunPluginCron(ctx)` every minute
   from your scheduler, or start `esc.StartPluginCron(ctx)`, and the due
   five-field (UTC) schedules of active SDK plugins are sent to the runtime as

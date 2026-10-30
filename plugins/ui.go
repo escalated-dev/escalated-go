@@ -1,6 +1,7 @@
 package plugins
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
@@ -95,6 +96,8 @@ func (h *Host) UIExtensions(r *http.Request) map[string]any {
 			}
 			if e.sdk && e.badges[w.Component] {
 				item["badge"] = h.badge(r, e, w.Component)
+			} else if fn := e.badgeFuncs[w.Component]; !e.sdk && fn != nil {
+				item["badge"] = h.nativeBadge(r, e, w.Component, fn)
 			}
 			dashboardWidgets = append(dashboardWidgets, item)
 		}
@@ -118,6 +121,30 @@ func (h *Host) badge(r *http.Request, e *entry, component string) any {
 	switch v.(type) {
 	case float64, string:
 		return v
+	}
+	return nil
+}
+
+// nativeBadge runs a native widget's badge function as the viewer within 5 s:
+// a number or a string, or nil when it fails, panics, is slow or answers
+// anything else.
+func (h *Host) nativeBadge(r *http.Request, e *entry, component string, fn BadgeFunc) any {
+	var answer any
+	err := h.runNative(withRequest(r.Context(), r), filterTimeout, func(c context.Context) error {
+		v, err := fn(c, h.context(e, r))
+		if err != nil {
+			return err
+		}
+		answer = v
+		return nil
+	})
+	if err != nil {
+		h.logf("plugin %s badge %s failed: %v", e.name, component, err)
+		return nil
+	}
+	switch answer.(type) {
+	case string, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64, json.Number:
+		return answer
 	}
 	return nil
 }

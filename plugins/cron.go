@@ -143,13 +143,14 @@ func cronDue(expr string, at time.Time) (bool, error) {
 	return dom && dow, nil
 }
 
-// RunDueCron runs, side by side, every cron schedule of every active SDK
-// plugin that is due in the minute of now (UTC), through the runtime's cron
-// method, as no user and within 30 s each. A failing or unreadable schedule
-// is logged and never stops the others. Call it once a minute from your
+// RunDueCron runs, side by side, every cron schedule of every active plugin
+// that is due in the minute of now (UTC): an SDK plugin's through the
+// runtime's cron method, a native plugin's (CronPlugin) in process. Each runs
+// as no user and within 30 s. A failing, panicking or unreadable schedule is
+// logged and never stops the others. Call it once a minute from your
 // scheduler, or use Escalated.StartPluginCron.
 func (h *Host) RunDueCron(ctx context.Context, now time.Time) {
-	if h == nil || h.bridge == nil {
+	if h == nil || !h.hasPlugins() {
 		return
 	}
 	active, err := h.activeEntries(ctx)
@@ -160,7 +161,7 @@ func (h *Host) RunDueCron(ctx context.Context, now time.Time) {
 	// The calls carry no request, so plugin writes act as nobody.
 	var wg sync.WaitGroup
 	for _, e := range active {
-		if !e.sdk {
+		if e.sdk && h.bridge == nil {
 			continue
 		}
 		for _, schedule := range e.cron {
@@ -173,6 +174,15 @@ func (h *Host) RunDueCron(ctx context.Context, now time.Time) {
 				continue
 			}
 			wg.Add(1)
+			if !e.sdk {
+				go func(e *entry, schedule string, fn CronFunc) {
+					defer wg.Done()
+					if err := h.runNative(ctx, actionTimeout, func(c context.Context) error { return fn(c, h.context(e, nil)) }); err != nil {
+						h.logf("plugin %s cron %q failed: %v", e.name, schedule, err)
+					}
+				}(e, schedule, e.cronFuncs[schedule])
+				continue
+			}
 			go func(name, schedule string) {
 				defer wg.Done()
 				if _, err := h.bridge.call(ctx, scope{plugins: []string{name}}, "cron", map[string]any{"plugin": name, "schedule": schedule}, actionTimeout); err != nil {
