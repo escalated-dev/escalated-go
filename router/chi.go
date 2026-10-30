@@ -132,6 +132,12 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	}
 
 	r.Route(cfg.RoutePrefix, func(r chi.Router) {
+		// Outermost, so it also sees the refusals of the middleware below: an
+		// Inertia visit that ends in 403/404/419/429/500/503 gets the
+		// Escalated/Error page (docs/ui-pages.md).
+		if cfg.UIEnabled {
+			r.Use(middleware.InertiaErrorPage(rend, cfg.RoutePrefix))
+		}
 		// API tokens authenticate first, so ticket visibility is the token owner's.
 		r.Use(esc.APITokenMiddleware)
 		// escalated.features / escalated.permissions on every page, and the

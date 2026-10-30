@@ -30,7 +30,13 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	// escalated.features / escalated.permissions on every page, and the route
 	// permissions while roles & permissions is on (docs/access-control.md).
 	// ziggy: the route list the pages' route() reads (docs/ui-pages.md).
-	mux.Handle(prefix+"/", esc.APITokenMiddleware(esc.AccessMiddleware(esc.TicketAccessMiddleware(esc.Plugins.ShareMiddleware(esc.RouteListMiddleware(inner))))))
+	pages := esc.APITokenMiddleware(esc.AccessMiddleware(esc.TicketAccessMiddleware(esc.Plugins.ShareMiddleware(esc.RouteListMiddleware(inner)))))
+	// Outermost: an Inertia visit that ends in 403/404/419/429/500/503 gets
+	// the Escalated/Error page (docs/ui-pages.md).
+	if esc.Config.UIEnabled {
+		pages = middleware.InertiaErrorPage(esc.Renderer, prefix)(pages)
+	}
+	mux.Handle(prefix+"/", pages)
 
 	if esc.Config.EnableWidget {
 		stack := newWidgetStack(esc, ticketSvc, guestLimit)
