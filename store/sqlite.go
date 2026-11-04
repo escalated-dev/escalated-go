@@ -796,13 +796,13 @@ func (s *SQLiteStore) ListSnoozedDueBefore(ctx context.Context, before time.Time
 // --- Saved Views ---
 
 func (s *SQLiteStore) CreateSavedView(ctx context.Context, sv *models.SavedView) error {
-	q := fmt.Sprintf(`INSERT INTO %s (name, filters, user_id, is_shared, position, icon, color, created_at, updated_at)
-		VALUES (?,?,?,?,?,?,?,?,?)`, s.t("saved_views"))
+	q := fmt.Sprintf(`INSERT INTO %s (name, filters, user_id, is_shared, is_default, position, icon, color, created_at, updated_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?)`, s.t("saved_views"))
 	now := time.Now()
 	sv.CreatedAt = now
 	sv.UpdatedAt = now
 	res, err := ticketaccess.ExecContext(ctx, s.db, q,
-		sv.Name, sv.Filters, sv.UserID, sv.IsShared, sv.Position, sv.Icon, sv.Color, sv.CreatedAt, sv.UpdatedAt,
+		sv.Name, sv.Filters, sv.UserID, sv.IsShared, sv.IsDefault, sv.Position, sv.Icon, sv.Color, sv.CreatedAt, sv.UpdatedAt,
 	)
 	if err != nil {
 		return err
@@ -812,11 +812,11 @@ func (s *SQLiteStore) CreateSavedView(ctx context.Context, sv *models.SavedView)
 }
 
 func (s *SQLiteStore) GetSavedView(ctx context.Context, id int64) (*models.SavedView, error) {
-	q := fmt.Sprintf(`SELECT id, name, filters, user_id, is_shared, position, icon, color, created_at, updated_at
+	q := fmt.Sprintf(`SELECT id, name, filters, user_id, is_shared, is_default, position, icon, color, created_at, updated_at
 		FROM %s WHERE id = ?`, s.t("saved_views"))
 	sv := &models.SavedView{}
 	err := ticketaccess.QueryRowContext(ctx, s.db, q, id).Scan(
-		&sv.ID, &sv.Name, &sv.Filters, &sv.UserID, &sv.IsShared, &sv.Position, &sv.Icon, &sv.Color, &sv.CreatedAt, &sv.UpdatedAt,
+		&sv.ID, &sv.Name, &sv.Filters, &sv.UserID, &sv.IsShared, &sv.IsDefault, &sv.Position, &sv.Icon, &sv.Color, &sv.CreatedAt, &sv.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -828,11 +828,11 @@ func (s *SQLiteStore) ListSavedViews(ctx context.Context, userID models.UserID, 
 	var q string
 	var args []any
 	if includeShared {
-		q = fmt.Sprintf(`SELECT id, name, filters, user_id, is_shared, position, icon, color, created_at, updated_at
+		q = fmt.Sprintf(`SELECT id, name, filters, user_id, is_shared, is_default, position, icon, color, created_at, updated_at
 			FROM %s WHERE user_id = ? OR is_shared = 1 ORDER BY position ASC, id ASC`, s.t("saved_views"))
 		args = []any{userID}
 	} else {
-		q = fmt.Sprintf(`SELECT id, name, filters, user_id, is_shared, position, icon, color, created_at, updated_at
+		q = fmt.Sprintf(`SELECT id, name, filters, user_id, is_shared, is_default, position, icon, color, created_at, updated_at
 			FROM %s WHERE user_id = ? ORDER BY position ASC, id ASC`, s.t("saved_views"))
 		args = []any{userID}
 	}
@@ -844,7 +844,7 @@ func (s *SQLiteStore) ListSavedViews(ctx context.Context, userID models.UserID, 
 	var views []*models.SavedView
 	for rows.Next() {
 		sv := &models.SavedView{}
-		if err := rows.Scan(&sv.ID, &sv.Name, &sv.Filters, &sv.UserID, &sv.IsShared, &sv.Position, &sv.Icon, &sv.Color, &sv.CreatedAt, &sv.UpdatedAt); err != nil {
+		if err := rows.Scan(&sv.ID, &sv.Name, &sv.Filters, &sv.UserID, &sv.IsShared, &sv.IsDefault, &sv.Position, &sv.Icon, &sv.Color, &sv.CreatedAt, &sv.UpdatedAt); err != nil {
 			return nil, err
 		}
 		views = append(views, sv)
@@ -854,8 +854,8 @@ func (s *SQLiteStore) ListSavedViews(ctx context.Context, userID models.UserID, 
 
 func (s *SQLiteStore) UpdateSavedView(ctx context.Context, sv *models.SavedView) error {
 	sv.UpdatedAt = time.Now()
-	q := fmt.Sprintf(`UPDATE %s SET name=?, filters=?, is_shared=?, position=?, icon=?, color=?, updated_at=? WHERE id=?`, s.t("saved_views"))
-	_, err := ticketaccess.ExecContext(ctx, s.db, q, sv.Name, sv.Filters, sv.IsShared, sv.Position, sv.Icon, sv.Color, sv.UpdatedAt, sv.ID)
+	q := fmt.Sprintf(`UPDATE %s SET name=?, filters=?, is_shared=?, is_default=?, position=?, icon=?, color=?, updated_at=? WHERE id=?`, s.t("saved_views"))
+	_, err := ticketaccess.ExecContext(ctx, s.db, q, sv.Name, sv.Filters, sv.IsShared, sv.IsDefault, sv.Position, sv.Icon, sv.Color, sv.UpdatedAt, sv.ID)
 	return err
 }
 
@@ -867,7 +867,7 @@ func (s *SQLiteStore) DeleteSavedView(ctx context.Context, id int64) error {
 
 func (s *SQLiteStore) ReorderSavedViews(ctx context.Context, userID models.UserID, ids []int64) error {
 	for i, id := range ids {
-		q := fmt.Sprintf(`UPDATE %s SET position = ? WHERE id = ? AND user_id = ?`, s.t("saved_views"))
+		q := fmt.Sprintf(`UPDATE %s SET position = ? WHERE id = ? AND (user_id = ? OR is_shared = 1)`, s.t("saved_views"))
 		if _, err := ticketaccess.ExecContext(ctx, s.db, q, i, id, userID); err != nil {
 			return err
 		}

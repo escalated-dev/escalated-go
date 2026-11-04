@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"maps"
 	"net/http"
@@ -32,12 +33,19 @@ var inboxPresentationKeys = map[string]bool{"page": true, "per_page": true, "vie
 
 var inboxQueueTitles = map[string]string{"mine": "My inbox", "unassigned": "Unassigned", "all": "All tickets"}
 
-// inboxView is a view in the rail: its id, name and the list filters it links to.
+// inboxView is a view in the rail: its id, name and the list filters it links
+// to. ID is the id as a string, for matching view=<id>; PropID is the id as the
+// prop carries it (a built-in view's name, a saved view's number).
 type inboxView struct {
 	ID      string
 	Name    string
 	Filters map[string]any
+	PropID  any
 }
+
+// maxInboxSavedViews bounds the saved views listed, so the counts stay bounded
+// (laravel AgentInbox::MAX_SAVED_VIEWS).
+const maxInboxSavedViews = 50
 
 // agentQueue is the queue a list shows: its key, title and own filters (what
 // its counts and stats are over).
@@ -47,17 +55,62 @@ type agentQueue struct {
 	Filters map[string]any
 }
 
-// inboxViews are the built-in views. This package has no saved views table,
-// so there are no others.
-func inboxViews(uid models.UserID) []inboxView {
+// builtInInboxViews are the views every agent has.
+func builtInInboxViews(uid models.UserID) []inboxView {
 	me := string(uid)
-	return []inboxView{
-		{"urgent", "Urgent", map[string]any{"priority": "urgent", "open": 1}},
-		{"sla_at_risk", "SLA at risk", map[string]any{"sla_at_risk": 1}},
-		{"waiting_on_me", "Waiting on me", map[string]any{"assigned_to": me, "status": "waiting_on_agent"}},
-		{"waiting_on_customer", "Waiting on customer", map[string]any{"assigned_to": me, "status": "waiting_on_customer"}},
-		{"recently_updated", "Recently updated", map[string]any{"open": 1, "updated_within_hours": 24, "sort_by": "updated_at"}},
+	views := []inboxView{
+		{"urgent", "Urgent", map[string]any{"priority": "urgent", "open": 1}, nil},
+		{"sla_at_risk", "SLA at risk", map[string]any{"sla_at_risk": 1}, nil},
+		{"waiting_on_me", "Waiting on me", map[string]any{"assigned_to": me, "status": "waiting_on_agent"}, nil},
+		{"waiting_on_customer", "Waiting on customer", map[string]any{"assigned_to": me, "status": "waiting_on_customer"}, nil},
+		{"recently_updated", "Recently updated", map[string]any{"open": 1, "updated_within_hours": 24, "sort_by": "updated_at"}, nil},
 	}
+	for i := range views {
+		views[i].PropID = views[i].ID
+	}
+	return views
+}
+
+// inboxViews are the built-in views, then the agent's own and shared saved
+// views by position (laravel AgentInbox::views). A store that cannot list
+// saved views lists only the built-in ones.
+func (h *AgentHandler) inboxViews(ctx context.Context, uid models.UserID) []inboxView {
+	views := builtInInboxViews(uid)
+	if uid.Empty() {
+		return views
+	}
+	saved, err := h.store.ListSavedViews(ctx, uid, true)
+	if err != nil {
+		return views
+	}
+	for i, sv := range saved {
+		if i == maxInboxSavedViews {
+			break
+		}
+		filters := map[string]any{}
+		if len(sv.Filters) > 0 {
+			if err := json.Unmarshal(sv.Filters, &filters); err != nil || filters == nil {
+				filters = map[string]any{}
+			}
+		}
+		views = append(views, inboxView{
+			ID:      strconv.FormatInt(sv.ID, 10),
+			Name:    sv.Name,
+			Filters: normaliseViewFilters(filters, uid),
+			PropID:  sv.ID,
+		})
+	}
+	return views
+}
+
+// normaliseViewFilters reads a saved view's assigned=me and assigned_to=me as
+// the agent's id, as the list does for a query.
+func normaliseViewFilters(filters map[string]any, uid models.UserID) map[string]any {
+	if filters["assigned"] == "me" || filters["assigned_to"] == "me" {
+		filters["assigned_to"] = string(uid)
+	}
+	delete(filters, "assigned")
+	return filters
 }
 
 // validateInboxQuery checks the filters added for the agent panel: open,
@@ -94,8 +147,7 @@ func normaliseInboxQuery(q url.Values, uid models.UserID) url.Values {
 }
 
 // queueFor is the queue a list request shows.
-func queueFor(q url.Values, uid models.UserID) agentQueue {
-	views := inboxViews(uid)
+func queueFor(q url.Values, uid models.UserID, views []inboxView) agentQueue {
 	if id := q.Get("view"); id != "" {
 		for _, v := range views {
 			if v.ID == id {
@@ -165,13 +217,13 @@ func (h *AgentHandler) rememberQueue(w http.ResponseWriter, queue agentQueue) {
 
 // recalledQueue is the queue last shown in the list, or All tickets. The
 // cookie only names a queue; an unknown name selects nothing.
-func recalledQueue(r *http.Request, uid models.UserID) agentQueue {
+func recalledQueue(r *http.Request, uid models.UserID, views []inboxView) agentQueue {
 	c, err := r.Cookie(agentQueueCookie)
 	if err != nil {
 		return workspaceQueue("all", uid)
 	}
 	if id, ok := strings.CutPrefix(c.Value, "view:"); ok {
-		for _, v := range inboxViews(uid) {
+		for _, v := range views {
 			if v.ID == id {
 				return viewQueue(v)
 			}
@@ -189,7 +241,7 @@ func queueProp(queue agentQueue) map[string]any {
 }
 
 // inboxProp is the inbox prop for the agent and queue.
-func (h *AgentHandler) inboxProp(ctx context.Context, uid models.UserID, queue agentQueue) map[string]any {
+func (h *AgentHandler) inboxProp(ctx context.Context, uid models.UserID, queue agentQueue, inboxViews []inboxView) map[string]any {
 	base := queue.Filters
 	with := func(extra map[string]any) map[string]any {
 		out := maps.Clone(base)
@@ -197,10 +249,10 @@ func (h *AgentHandler) inboxProp(ctx context.Context, uid models.UserID, queue a
 		return out
 	}
 
-	views := make([]map[string]any, 0, 5)
-	for _, v := range inboxViews(uid) {
+	views := make([]map[string]any, 0, len(inboxViews))
+	for _, v := range inboxViews {
 		views = append(views, map[string]any{
-			"id": v.ID, "name": v.Name, "count": h.countOpen(ctx, v.Filters), "filters": v.Filters,
+			"id": v.PropID, "name": v.Name, "count": h.countOpen(ctx, v.Filters), "filters": v.Filters,
 		})
 	}
 	mine := 0
@@ -250,11 +302,26 @@ func (h *AgentHandler) countTickets(ctx context.Context, filters map[string]any)
 	return total
 }
 
-// filterValues is a view's filters as a query string.
+// filterValues is a view's filters as a query string. A list value (a saved
+// view's tags, say) becomes the key repeated.
 func filterValues(filters map[string]any) url.Values {
 	out := url.Values{}
 	for k, v := range filters {
-		out.Set(k, fmt.Sprint(v))
+		switch val := v.(type) {
+		case nil:
+		case []any:
+			for _, item := range val {
+				out.Add(k, fmt.Sprint(item))
+			}
+		case bool:
+			if val {
+				out.Set(k, "1")
+			} else {
+				out.Set(k, "0")
+			}
+		default:
+			out.Set(k, fmt.Sprint(val))
+		}
 	}
 	return out
 }

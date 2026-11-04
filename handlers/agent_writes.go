@@ -514,7 +514,7 @@ func (h *AgentHandler) Bulk(w http.ResponseWriter, r *http.Request) {
 			if admin {
 				component = "Escalated/Admin/Tickets/Index"
 				props["agents"] = h.agents(r)
-				props["savedViews"] = []any{}
+				props["savedViews"] = h.savedViewsProp(r)
 			}
 			_ = h.renderer.Render(w, r, component, props)
 		})
