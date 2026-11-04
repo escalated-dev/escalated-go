@@ -369,13 +369,17 @@ func (p *uiPresenter) ticketRow(ctx context.Context, t *models.Ticket) map[strin
 	}
 	p.staffStatus(ctx, t, row)
 
-	replies, err := p.store.ListReplies(ctx, models.ReplyFilters{TicketID: t.ID})
+	// The preview, its age and author come from the latest public reply,
+	// never an internal note (escalated-laravel's latestReply).
+	public := false
+	replies, err := p.store.ListReplies(ctx, models.ReplyFilters{TicketID: t.ID, Internal: &public})
 	if err == nil {
 		if latest := latestReply(replies); latest != nil {
 			author := p.replyAuthorName(ctx, t, latest)
 			row["latest_reply"] = map[string]any{
 				"id":               latest.ID,
-				"is_internal_note": latest.IsInternal,
+				"body":             latest.Body,
+				"is_internal_note": false,
 				"author":           map[string]any{"name": author},
 				"created_at":       uiTimeValue(latest.CreatedAt),
 			}

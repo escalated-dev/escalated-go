@@ -5,6 +5,8 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -221,6 +223,21 @@ func (t *Ticket) PopulateComputedFull(replies []*Reply, opts PopulateComputedOpt
 	}
 }
 
+// SLAAtRiskWindow is how close a due SLA target has to be for an open
+// ticket to count as at risk (TicketFilters.SLAAtRisk).
+const SLAAtRiskWindow = 60 * time.Minute
+
+// OpenStatusSQL is the open statuses (IsOpen) as a SQL list, "(0,1,...)".
+func OpenStatusSQL() string {
+	var ids []string
+	for _, status := range []int{StatusOpen, StatusInProgress, StatusWaitingOnCustomer, StatusWaitingOnAgent, StatusEscalated, StatusResolved, StatusClosed, StatusReopened, StatusSnoozed} {
+		if (&Ticket{Status: status}).IsOpen() {
+			ids = append(ids, strconv.Itoa(status))
+		}
+	}
+	return "(" + strings.Join(ids, ",") + ")"
+}
+
 // IsOpen returns true if the ticket is in an open state.
 func (t *Ticket) IsOpen() bool {
 	switch t.Status {
@@ -375,6 +392,21 @@ type TicketFilters struct {
 	Search         string  `json:"search,omitempty"`
 	SLABreached    *bool   `json:"sla_breached,omitempty"`
 	Unassigned     bool    `json:"unassigned,omitempty"`
+
+	// Open keeps unresolved, unsnoozed tickets (Ticket.IsOpen).
+	Open bool `json:"open,omitempty"`
+	// SLAAtRisk keeps open tickets whose SLA is breached, or whose first
+	// response (still unsent) or resolution falls due before SLAAtRiskBy.
+	SLAAtRisk   bool       `json:"sla_at_risk,omitempty"`
+	SLAAtRiskBy *time.Time `json:"-"`
+	// ResolvedSince keeps tickets resolved at or after this instant.
+	ResolvedSince *time.Time `json:"resolved_since,omitempty"`
+	// UpdatedSince keeps tickets updated at or after this instant.
+	UpdatedSince *time.Time `json:"updated_since,omitempty"`
+
+	// CountOnly asks ListTickets for the total alone: it returns no tickets
+	// and skips the page query.
+	CountOnly bool `json:"-"`
 
 	// Pagination
 	Limit  int `json:"limit"`
