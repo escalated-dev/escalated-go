@@ -75,7 +75,8 @@ func (s *PostgresStore) GetTicket(ctx context.Context, id int64) (*models.Ticket
 		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
-		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at, ticket_status_id
+		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at, ticket_status_id,
+		snoozed_until, snoozed_by, status_before_snooze
 		FROM %s WHERE id = $1`, s.t("tickets"))
 
 	t := &models.Ticket{}
@@ -85,6 +86,7 @@ func (s *PostgresStore) GetTicket(ctx context.Context, id int64) (*models.Ticket
 		&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
 		&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
 		&t.FirstResponseAt, &t.ResolvedAt, &t.ClosedAt, &t.Metadata, &t.CreatedAt, &t.UpdatedAt, &t.TicketStatusID,
+		&t.SnoozedUntil, &t.SnoozedBy, &t.StatusBeforeSnooze,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -97,7 +99,8 @@ func (s *PostgresStore) GetTicketByReference(ctx context.Context, ref string) (*
 		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
-		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at, ticket_status_id
+		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at, ticket_status_id,
+		snoozed_until, snoozed_by, status_before_snooze
 		FROM %s WHERE reference = $1`, s.t("tickets"))
 
 	t := &models.Ticket{}
@@ -107,6 +110,7 @@ func (s *PostgresStore) GetTicketByReference(ctx context.Context, ref string) (*
 		&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
 		&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
 		&t.FirstResponseAt, &t.ResolvedAt, &t.ClosedAt, &t.Metadata, &t.CreatedAt, &t.UpdatedAt, &t.TicketStatusID,
+		&t.SnoozedUntil, &t.SnoozedBy, &t.StatusBeforeSnooze,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -119,7 +123,8 @@ func (s *PostgresStore) GetTicketByGuestToken(ctx context.Context, token string)
 		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
-		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at, ticket_status_id
+		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at, ticket_status_id,
+		snoozed_until, snoozed_by, status_before_snooze
 		FROM %s WHERE guest_token = $1`, s.t("tickets"))
 
 	t := &models.Ticket{}
@@ -130,6 +135,7 @@ func (s *PostgresStore) GetTicketByGuestToken(ctx context.Context, token string)
 		&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
 		&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
 		&t.FirstResponseAt, &t.ResolvedAt, &t.ClosedAt, &metadata, &t.CreatedAt, &t.UpdatedAt, &t.TicketStatusID,
+		&t.SnoozedUntil, &t.SnoozedBy, &t.StatusBeforeSnooze,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -156,15 +162,15 @@ func (s *PostgresStore) UpdateTicket(ctx context.Context, t *models.Ticket) erro
 		assigned_to=$8, department_id=$9, sla_policy_id=$10, merged_into_id=$11,
 		sla_first_response_due_at=$12, sla_resolution_due_at=$13, sla_breached=$14,
 		first_response_at=$15, resolved_at=$16, closed_at=$17, metadata=$18, updated_at=$19,
-		ticket_status_id=$20
-		WHERE id=$21`, s.t("tickets"))
+		ticket_status_id=$20, snoozed_until=$21, snoozed_by=$22, status_before_snooze=$23
+		WHERE id=$24`, s.t("tickets"))
 
 	_, err := ticketaccess.ExecContext(ctx, s.db, q,
 		t.Subject, t.Description, t.Status, t.Priority, t.TicketType, t.AccountType, t.AccountID,
 		t.AssignedTo, t.DepartmentID, t.SLAPolicyID, t.MergedIntoID,
 		t.SLAFirstResponseDueAt, t.SLAResolutionDueAt, t.SLABreached,
 		t.FirstResponseAt, t.ResolvedAt, t.ClosedAt, t.Metadata, t.UpdatedAt,
-		t.TicketStatusID,
+		t.TicketStatusID, t.SnoozedUntil, t.SnoozedBy, t.StatusBeforeSnooze,
 		t.ID,
 	)
 	return err
@@ -280,7 +286,8 @@ func (s *PostgresStore) ListTickets(ctx context.Context, f models.TicketFilters)
 		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
-		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at, ticket_status_id
+		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at, ticket_status_id,
+		snoozed_until, snoozed_by, status_before_snooze
 		FROM %s%s ORDER BY %s %s LIMIT %d OFFSET %d`,
 		s.t("tickets"), whereStr, sortBy, sortOrder, limit, f.Offset)
 
@@ -299,6 +306,7 @@ func (s *PostgresStore) ListTickets(ctx context.Context, f models.TicketFilters)
 			&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
 			&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
 			&t.FirstResponseAt, &t.ResolvedAt, &t.ClosedAt, &t.Metadata, &t.CreatedAt, &t.UpdatedAt, &t.TicketStatusID,
+			&t.SnoozedUntil, &t.SnoozedBy, &t.StatusBeforeSnooze,
 		); err != nil {
 			return nil, 0, err
 		}
@@ -742,9 +750,9 @@ func (s *PostgresStore) ListSnoozedDueBefore(ctx context.Context, before time.Ti
 	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type, account_type, account_id,
 		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
-		snoozed_until, snoozed_by, status_before_snooze,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
-		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at, ticket_status_id
+		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at, ticket_status_id,
+		snoozed_until, snoozed_by, status_before_snooze
 		FROM %s WHERE status = $1 AND snoozed_until IS NOT NULL AND snoozed_until <= $2`,
 		s.t("tickets"))
 
@@ -761,9 +769,9 @@ func (s *PostgresStore) ListSnoozedDueBefore(ctx context.Context, before time.Ti
 			&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType, &t.AccountType, &t.AccountID,
 			&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken, &t.ContactID,
 			&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
-			&t.SnoozedUntil, &t.SnoozedBy, &t.StatusBeforeSnooze,
 			&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
 			&t.FirstResponseAt, &t.ResolvedAt, &t.ClosedAt, &t.Metadata, &t.CreatedAt, &t.UpdatedAt, &t.TicketStatusID,
+			&t.SnoozedUntil, &t.SnoozedBy, &t.StatusBeforeSnooze,
 		); err != nil {
 			return nil, err
 		}

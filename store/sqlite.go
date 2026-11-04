@@ -82,7 +82,8 @@ func (s *SQLiteStore) GetTicket(ctx context.Context, id int64) (*models.Ticket, 
 		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
-		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at, ticket_status_id
+		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at, ticket_status_id,
+		snoozed_until, snoozed_by, status_before_snooze
 		FROM %s WHERE id = ?`, s.t("tickets"))
 
 	t := &models.Ticket{}
@@ -92,6 +93,7 @@ func (s *SQLiteStore) GetTicket(ctx context.Context, id int64) (*models.Ticket, 
 		&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
 		&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
 		&t.FirstResponseAt, &t.ResolvedAt, &t.ClosedAt, &t.Metadata, &t.CreatedAt, &t.UpdatedAt, &t.TicketStatusID,
+		&t.SnoozedUntil, &t.SnoozedBy, &t.StatusBeforeSnooze,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -104,7 +106,8 @@ func (s *SQLiteStore) GetTicketByReference(ctx context.Context, ref string) (*mo
 		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
-		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at, ticket_status_id
+		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at, ticket_status_id,
+		snoozed_until, snoozed_by, status_before_snooze
 		FROM %s WHERE reference = ?`, s.t("tickets"))
 
 	t := &models.Ticket{}
@@ -114,6 +117,7 @@ func (s *SQLiteStore) GetTicketByReference(ctx context.Context, ref string) (*mo
 		&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
 		&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
 		&t.FirstResponseAt, &t.ResolvedAt, &t.ClosedAt, &t.Metadata, &t.CreatedAt, &t.UpdatedAt, &t.TicketStatusID,
+		&t.SnoozedUntil, &t.SnoozedBy, &t.StatusBeforeSnooze,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -126,7 +130,8 @@ func (s *SQLiteStore) GetTicketByGuestToken(ctx context.Context, token string) (
 		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
-		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at, ticket_status_id
+		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at, ticket_status_id,
+		snoozed_until, snoozed_by, status_before_snooze
 		FROM %s WHERE guest_token = ?`, s.t("tickets"))
 
 	t := &models.Ticket{}
@@ -137,6 +142,7 @@ func (s *SQLiteStore) GetTicketByGuestToken(ctx context.Context, token string) (
 		&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
 		&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
 		&t.FirstResponseAt, &t.ResolvedAt, &t.ClosedAt, &metadata, &t.CreatedAt, &t.UpdatedAt, &t.TicketStatusID,
+		&t.SnoozedUntil, &t.SnoozedBy, &t.StatusBeforeSnooze,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -163,7 +169,7 @@ func (s *SQLiteStore) UpdateTicket(ctx context.Context, t *models.Ticket) error 
 		assigned_to=?, department_id=?, sla_policy_id=?, merged_into_id=?,
 		sla_first_response_due_at=?, sla_resolution_due_at=?, sla_breached=?,
 		first_response_at=?, resolved_at=?, closed_at=?, metadata=?, updated_at=?,
-		ticket_status_id=?
+		ticket_status_id=?, snoozed_until=?, snoozed_by=?, status_before_snooze=?
 		WHERE id=?`, s.t("tickets"))
 
 	_, err := ticketaccess.ExecContext(ctx, s.db, q,
@@ -171,7 +177,7 @@ func (s *SQLiteStore) UpdateTicket(ctx context.Context, t *models.Ticket) error 
 		t.AssignedTo, t.DepartmentID, t.SLAPolicyID, t.MergedIntoID,
 		t.SLAFirstResponseDueAt, t.SLAResolutionDueAt, t.SLABreached,
 		t.FirstResponseAt, t.ResolvedAt, t.ClosedAt, t.Metadata, t.UpdatedAt,
-		t.TicketStatusID,
+		t.TicketStatusID, t.SnoozedUntil, t.SnoozedBy, t.StatusBeforeSnooze,
 		t.ID,
 	)
 	return err
@@ -283,7 +289,8 @@ func (s *SQLiteStore) ListTickets(ctx context.Context, f models.TicketFilters) (
 		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
-		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at, ticket_status_id
+		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at, ticket_status_id,
+		snoozed_until, snoozed_by, status_before_snooze
 		FROM %s%s ORDER BY %s %s LIMIT %d OFFSET %d`,
 		s.t("tickets"), whereStr, sortBy, sortOrder, limit, f.Offset)
 
@@ -302,6 +309,7 @@ func (s *SQLiteStore) ListTickets(ctx context.Context, f models.TicketFilters) (
 			&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
 			&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
 			&t.FirstResponseAt, &t.ResolvedAt, &t.ClosedAt, &t.Metadata, &t.CreatedAt, &t.UpdatedAt, &t.TicketStatusID,
+			&t.SnoozedUntil, &t.SnoozedBy, &t.StatusBeforeSnooze,
 		); err != nil {
 			return nil, 0, err
 		}
@@ -763,9 +771,9 @@ func (s *SQLiteStore) ListSnoozedDueBefore(ctx context.Context, before time.Time
 	q := fmt.Sprintf(`SELECT id, reference, subject, description, status, priority, ticket_type, account_type, account_id,
 		requester_type, requester_id, guest_name, guest_email, guest_token, contact_id,
 		assigned_to, department_id, sla_policy_id, merged_into_id,
-		snoozed_until, snoozed_by, status_before_snooze,
 		sla_first_response_due_at, sla_resolution_due_at, sla_breached,
-		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at, ticket_status_id
+		first_response_at, resolved_at, closed_at, metadata, created_at, updated_at, ticket_status_id,
+		snoozed_until, snoozed_by, status_before_snooze
 		FROM %s WHERE status = ? AND snoozed_until IS NOT NULL AND snoozed_until <= ?`,
 		s.t("tickets"))
 
@@ -782,9 +790,9 @@ func (s *SQLiteStore) ListSnoozedDueBefore(ctx context.Context, before time.Time
 			&t.ID, &t.Reference, &t.Subject, &t.Description, &t.Status, &t.Priority, &t.TicketType, &t.AccountType, &t.AccountID,
 			&t.RequesterType, &t.RequesterID, &t.GuestName, &t.GuestEmail, &t.GuestToken, &t.ContactID,
 			&t.AssignedTo, &t.DepartmentID, &t.SLAPolicyID, &t.MergedIntoID,
-			&t.SnoozedUntil, &t.SnoozedBy, &t.StatusBeforeSnooze,
 			&t.SLAFirstResponseDueAt, &t.SLAResolutionDueAt, &t.SLABreached,
 			&t.FirstResponseAt, &t.ResolvedAt, &t.ClosedAt, &t.Metadata, &t.CreatedAt, &t.UpdatedAt, &t.TicketStatusID,
+			&t.SnoozedUntil, &t.SnoozedBy, &t.StatusBeforeSnooze,
 		); err != nil {
 			return nil, err
 		}

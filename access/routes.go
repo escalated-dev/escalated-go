@@ -90,6 +90,7 @@ var RoutePermissions = func() []RouteEntry {
 		{"PUT", staff + "/tickets/*", edit},
 		{"POST", staff + "/tickets/*/{status,priority,tags,department}", edit},
 		{"POST", staff + "/tickets/*/replies/*/pin", edit},
+		{"POST", staff + "/tickets/*/{snooze,unsnooze}", edit},
 		{"POST", staff + "/tickets/*/actions/*", edit},
 		{"*", staff + "/tickets/*/subjects", edit},
 		{"*", staff + "/tickets/*/subjects/*", edit},

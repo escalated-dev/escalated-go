@@ -53,6 +53,12 @@ func upgradeTicketAccess(db *sql.DB, prefix string, postgres bool) error {
 		// Two-factor (ADR 2026-10-29-configurable-access-features): the last
 		// TOTP time step accepted, so a code cannot be used twice.
 		{"two_factors", "last_used_step", "BIGINT"},
+		// Snooze (escalated-laravel's snoozed_until, snoozed_by and
+		// status_before_snooze). Nullable, so existing tickets are not
+		// snoozed.
+		{"tickets", "snoozed_until", timestamp},
+		{"tickets", "snoozed_by", UserIDColumnType()},
+		{"tickets", "status_before_snooze", "INTEGER"},
 	}
 	for _, column := range columns {
 		exists := false
