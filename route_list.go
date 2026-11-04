@@ -43,6 +43,8 @@ var builtInRoutes = map[string]NamedRoute{
 	"escalated.agent.tickets.tags":       {"agent/tickets/{ticket}/tags", routePost},
 	"escalated.agent.tickets.department": {"agent/tickets/{ticket}/department", routePost},
 	"escalated.agent.tickets.macro":      {"agent/tickets/{ticket}/macro", routePost},
+	"escalated.agent.tickets.snooze":     {"agent/tickets/{ticket}/snooze", routePost},
+	"escalated.agent.tickets.unsnooze":   {"agent/tickets/{ticket}/unsnooze", routePost},
 	"escalated.agent.tickets.follow":     {"agent/tickets/{ticket}/follow", routePost},
 	"escalated.agent.tickets.pin":        {"agent/tickets/{ticket}/replies/{reply}/pin", routePost},
 	// The live chat on the ticket screen: {session} is the chat session id.
@@ -63,6 +65,8 @@ var builtInRoutes = map[string]NamedRoute{
 	"escalated.admin.tickets.tags":                     {"admin/tickets/{ticket}/tags", routePost},
 	"escalated.admin.tickets.department":               {"admin/tickets/{ticket}/department", routePost},
 	"escalated.admin.tickets.macro":                    {"admin/tickets/{ticket}/macro", routePost},
+	"escalated.admin.tickets.snooze":                   {"admin/tickets/{ticket}/snooze", routePost},
+	"escalated.admin.tickets.unsnooze":                 {"admin/tickets/{ticket}/unsnooze", routePost},
 	"escalated.admin.tickets.follow":                   {"admin/tickets/{ticket}/follow", routePost},
 	"escalated.admin.tickets.pin":                      {"admin/tickets/{ticket}/replies/{reply}/pin", routePost},
 	"escalated.admin.tickets.split":                    {"admin/tickets/{ticket}/split", routePost},

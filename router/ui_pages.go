@@ -187,6 +187,7 @@ func wireUIPages(esc *escalated.Escalated, agentH *handlers.AgentHandler, custom
 	agentH.CannedResponses = deps.canned
 	agentH.Agents = cfg.SkillAgentDirectory
 	agentH.IsAdmin = cfg.AdminCheck
+	agentH.Access = esc.Access
 
 	customerH.DB = cfg.DB
 	customerH.TablePrefix = cfg.TablePrefix
@@ -313,6 +314,8 @@ func mountTicketWrites(r ticketRoutes, h *handlers.AgentHandler) {
 	r.Post("/{id}/tags", h.UpdateTags)
 	r.Post("/{id}/department", h.ChangeDepartment)
 	r.Post("/{id}/macro", h.ApplyMacro)
+	r.Post("/{id}/snooze", h.Snooze)
+	r.Post("/{id}/unsnooze", h.Unsnooze)
 	r.Post("/{id}/follow", h.ToggleFollow)
 	r.Post("/{id}/replies/{reply}/pin", h.TogglePin)
 }

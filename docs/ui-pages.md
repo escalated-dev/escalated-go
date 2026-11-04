@@ -110,7 +110,7 @@ Your mapping wins over the built-in one:
 
 `login` is not in the list: Escalated has no sign-in screen. Map it to yours
 with `RouteOverrides`. The names the pages call that this package does not
-serve yet (saved views, plugin upload, presence, snooze) are listed in
+serve yet (plugin upload, presence) are listed in
 `router/route_list_test.go`; `route()` answers `#` for them. The names are
 kept in `testdata/frontend-route-names.txt`, taken from the frontend.
 
@@ -260,6 +260,14 @@ can name tables and queries.
   Inertia setup.
 - Presence (`escalated.*.tickets.presence`) and typing indicators are not
   served yet.
-- Snooze and saved views: the store has methods for them, but the migrations
-  create no columns or table for them, so `savedViews` is always empty and the
-  snooze and saved-view routes are not mounted.
+- Snooze: `POST {agent,admin}/tickets/{reference}/snooze` (`snoozed_until`, a
+  future date) and `.../unsnooze` (`escalated.*.tickets.snooze` /
+  `unsnooze`, permission `ticket.edit`). A snoozed ticket's status is
+  `snoozed` until it wakes (`SnoozeService.StartSnoozeWaker`) or is
+  unsnoozed, then it goes back to the status it had. Only an open ticket (or
+  a snoozed one, to move the time) can be snoozed.
+- `Agent/TicketShow` sends `agents` (`[{id, name}]`, from
+  `Config.SkillAgentDirectory`, less the agents who cannot see the ticket
+  under department or account visibility, which needs
+  `Config.TicketAccessUserResolver`) and `ticket.requester_tickets` (the
+  requester's five newest other tickets the agent may see).

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"testing"
+	"time"
 
 	"github.com/escalated-dev/escalated-go/internal/sqldialect"
 	"github.com/escalated-dev/escalated-go/internal/testdb"
@@ -88,5 +89,61 @@ func TestTicketAccessUpgradeAndCustomPrefixes(t *testing.T) {
 				t.Fatalf("account collation: %d %v", count, err)
 			}
 		})
+	}
+}
+
+// The snooze columns are added to an existing tickets table, and the stores
+// keep what a snooze writes.
+func TestSnoozeColumnsUpgradeAndRoundTrip(t *testing.T) {
+	db := testdb.Open(t)
+	prefix := "snooze_"
+	migrate := func() error {
+		if testdb.Driver(t) == "postgres" {
+			return migrations.Migrate(db, prefix)
+		}
+		return migrations.MigrateSQLite(db, prefix)
+	}
+	if err := migrate(); err != nil {
+		t.Fatal(err)
+	}
+	for _, column := range []string{"snoozed_until", "snoozed_by", "status_before_snooze"} {
+		if _, err := db.Exec("ALTER TABLE " + prefix + "tickets DROP COLUMN " + column); err != nil {
+			t.Fatalf("drop %s: %v", column, err)
+		}
+	}
+	if err := migrate(); err != nil {
+		t.Fatalf("upgrade: %v", err)
+	}
+	if err := migrate(); err != nil {
+		t.Fatalf("second upgrade: %v", err)
+	}
+	var s store.Store
+	if testdb.Driver(t) == "postgres" {
+		s = store.NewPostgresStore(db, prefix)
+	} else {
+		s = store.NewSQLiteStore(db, prefix)
+	}
+	ctx := context.Background()
+	ticket := &models.Ticket{Subject: "Later", Description: "Details", TicketType: "question"}
+	if err := s.CreateTicket(ctx, ticket); err != nil {
+		t.Fatal(err)
+	}
+	until := time.Now().Add(time.Hour).UTC().Truncate(time.Second)
+	by := models.UserID("7")
+	before := models.StatusInProgress
+	ticket.Status, ticket.SnoozedUntil, ticket.SnoozedBy, ticket.StatusBeforeSnooze = models.StatusSnoozed, &until, &by, &before
+	if err := s.UpdateTicket(ctx, ticket); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.GetTicketByReference(ctx, ticket.Reference)
+	if err != nil || got == nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if got.SnoozedUntil == nil || !got.SnoozedUntil.Equal(until) || got.SnoozedBy == nil || *got.SnoozedBy != by || got.StatusBeforeSnooze == nil || *got.StatusBeforeSnooze != before {
+		t.Fatalf("snooze fields %v %v %v", got.SnoozedUntil, got.SnoozedBy, got.StatusBeforeSnooze)
+	}
+	due, err := s.ListSnoozedDueBefore(ctx, until.Add(time.Minute))
+	if err != nil || len(due) != 1 || due[0].ID != ticket.ID {
+		t.Fatalf("due: %v %v", due, err)
 	}
 }

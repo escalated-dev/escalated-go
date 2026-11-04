@@ -17,6 +17,7 @@ import (
 	"github.com/escalated-dev/escalated-go/renderer"
 	"github.com/escalated-dev/escalated-go/services"
 	"github.com/escalated-dev/escalated-go/store"
+	"github.com/escalated-dev/escalated-go/ticketaccess"
 )
 
 // AgentHandler serves the agent dashboard and ticket management views.
@@ -51,6 +52,10 @@ type AgentHandler struct {
 	// CustomFields validates and stores the ticket's custom_fields and
 	// lists them on the ticket screen. Optional.
 	CustomFields *services.CustomFieldService
+
+	// Access is the ticket visibility settings; the agent ticket page's
+	// agents list leaves out agents who cannot see the ticket. Optional.
+	Access *ticketaccess.Access
 }
 
 // NewAgentHandler creates a new AgentHandler.
@@ -361,6 +366,10 @@ func (h *AgentHandler) renderShow(w http.ResponseWriter, r *http.Request, t *mod
 		return
 	}
 	props["customActions"] = h.customActionsFor(t, uid, "agent")
+	// Laravel Agent\TicketController::show: who the ticket can be
+	// reassigned to, and the requester's other tickets.
+	props["agents"] = h.assignableAgents(r, t)
+	detail["requester_tickets"] = h.requesterTickets(ctx, t)
 	views := h.inboxViews(ctx, uid)
 	queue := recalledQueue(r, uid, views)
 	props["queue"] = queueProp(queue)

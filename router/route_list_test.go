@@ -24,13 +24,9 @@ var notServed = map[string]string{
 	// Plugin uploads: plugins are registered in code (Config.Plugins).
 	"escalated.admin.plugins.upload": "no plugin uploads",
 
-	// Presence and snooze: no presence channel, no snooze columns.
+	// Presence: no presence channel.
 	"escalated.admin.tickets.presence": "presence not served",
-	"escalated.admin.tickets.snooze":   "snooze not served",
-	"escalated.admin.tickets.unsnooze": "snooze not served",
 	"escalated.agent.tickets.presence": "presence not served",
-	"escalated.agent.tickets.snooze":   "snooze not served",
-	"escalated.agent.tickets.unsnooze": "snooze not served",
 }
 
 func frontendRouteNames(t *testing.T) []string {
