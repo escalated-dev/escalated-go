@@ -229,6 +229,26 @@ func (s *SQLiteStore) ListTickets(ctx context.Context, f models.TicketFilters) (
 		like := "%" + f.Search + "%"
 		args = append(args, like, like, like)
 	}
+	if f.Open {
+		where = append(where, "status IN "+models.OpenStatusSQL())
+	}
+	if f.SLAAtRisk {
+		by := time.Now().Add(models.SLAAtRiskWindow)
+		if f.SLAAtRiskBy != nil {
+			by = *f.SLAAtRiskBy
+		}
+		where = append(where, "status IN "+models.OpenStatusSQL()+
+			" AND (sla_breached = 1 OR (first_response_at IS NULL AND sla_first_response_due_at <= ?) OR sla_resolution_due_at <= ?)")
+		args = append(args, by, by)
+	}
+	if f.ResolvedSince != nil {
+		where = append(where, "resolved_at >= ?")
+		args = append(args, *f.ResolvedSince)
+	}
+	if f.UpdatedSince != nil {
+		where = append(where, "updated_at >= ?")
+		args = append(args, *f.UpdatedSince)
+	}
 
 	whereStr := ""
 	if len(where) > 0 {
@@ -240,6 +260,9 @@ func (s *SQLiteStore) ListTickets(ctx context.Context, f models.TicketFilters) (
 	countQ := fmt.Sprintf("SELECT COUNT(*) FROM %s%s", s.t("tickets"), whereStr)
 	if err := ticketaccess.QueryRowContext(ctx, s.db, countQ, args...).Scan(&total); err != nil {
 		return nil, 0, err
+	}
+	if f.CountOnly {
+		return nil, total, nil
 	}
 
 	sortBy := "created_at"

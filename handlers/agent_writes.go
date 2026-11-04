@@ -498,13 +498,20 @@ func (h *AgentHandler) Bulk(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(errs) > 0 {
 		validationErrors(w, r, errs, func(errs map[string]string) {
-			props, ok := h.queueProps(w, r)
+			admin := isAdminTicketPath(r)
+			var props map[string]any
+			var ok bool
+			if admin {
+				props, ok = h.queueProps(w, r, r.URL.Query())
+			} else {
+				props, ok = h.agentIndexProps(w, r, r.URL.Query())
+			}
 			if !ok {
 				return
 			}
 			props["errors"] = pageErrors(errs)
 			component := "Escalated/Agent/TicketIndex"
-			if isAdminTicketPath(r) {
+			if admin {
 				component = "Escalated/Admin/Tickets/Index"
 				props["agents"] = h.agents(r)
 				props["savedViews"] = []any{}

@@ -225,6 +225,25 @@ func (s *PostgresStore) ListTickets(ctx context.Context, f models.TicketFilters)
 		args = append(args, like, like, like)
 		argN += 3
 	}
+	if f.Open {
+		where = append(where, "status IN "+models.OpenStatusSQL())
+	}
+	if f.SLAAtRisk {
+		by := time.Now().Add(models.SLAAtRiskWindow)
+		if f.SLAAtRiskBy != nil {
+			by = *f.SLAAtRiskBy
+		}
+		where = append(where, fmt.Sprintf("status IN %s AND (sla_breached = TRUE OR (first_response_at IS NULL AND sla_first_response_due_at <= $%d) OR sla_resolution_due_at <= $%d)",
+			models.OpenStatusSQL(), argN, argN))
+		args = append(args, by)
+		argN++
+	}
+	if f.ResolvedSince != nil {
+		addFilter("resolved_at >= $%d", *f.ResolvedSince)
+	}
+	if f.UpdatedSince != nil {
+		addFilter("updated_at >= $%d", *f.UpdatedSince)
+	}
 
 	whereStr := ""
 	if len(where) > 0 {
@@ -236,6 +255,9 @@ func (s *PostgresStore) ListTickets(ctx context.Context, f models.TicketFilters)
 	var total int
 	if err := ticketaccess.QueryRowContext(ctx, s.db, countQ, args...).Scan(&total); err != nil {
 		return nil, 0, err
+	}
+	if f.CountOnly {
+		return nil, total, nil
 	}
 
 	// Sort

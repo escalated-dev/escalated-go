@@ -170,6 +170,17 @@ func agentTicketFilters(q url.Values) models.TicketFilters {
 	if v := q.Get("account_id"); v != "" {
 		f.AccountID = &v
 	}
+	f.Open = truthy(q.Get("open"))
+	f.SLAAtRisk = truthy(q.Get("sla_at_risk"))
+	now := time.Now()
+	if truthy(q.Get("resolved_today")) {
+		since := startOfDay(now)
+		f.ResolvedSince = &since
+	}
+	if hours, err := strconv.Atoi(strings.TrimSpace(q.Get("updated_within_hours"))); err == nil && hours > 0 {
+		since := now.Add(-time.Duration(hours) * time.Hour)
+		f.UpdatedSince = &since
+	}
 	f.Search = q.Get("search")
 	f.SortBy = q.Get("sort_by")
 	f.SortOrder = strings.ToLower(q.Get("sort_dir"))
@@ -190,30 +201,74 @@ func truthy(v string) bool {
 // ListTickets renders Escalated/Agent/TicketIndex: the queue as Laravel's
 // paginator (tickets.data, 15 a page), the query string echoed as filters,
 // and the active departments and tags for the filter controls.
+//
+// It also sends the agent panel's inbox and queue props (agent_inbox.go). The
+// list takes assigned=me and view=<id> besides the store filters; malformed
+// open, sla_at_risk, resolved_today or updated_within_hours values are a 422
+// for an API client, and an Inertia visit gets the page with the errors and
+// without those filters.
 func (h *AgentHandler) ListTickets(w http.ResponseWriter, r *http.Request) {
-	props, ok := h.queueProps(w, r)
+	q := r.URL.Query()
+	if errs := validateInboxQuery(q); len(errs) > 0 {
+		validationErrors(w, r, errs, func(errs map[string]string) {
+			for key := range errs {
+				q.Del(key)
+			}
+			props, ok := h.agentIndexProps(w, r, q)
+			if !ok {
+				return
+			}
+			props["errors"] = pageErrors(errs)
+			_ = h.renderer.Render(w, r, "Escalated/Agent/TicketIndex", props)
+		})
+		return
+	}
+	props, ok := h.agentIndexProps(w, r, q)
 	if !ok {
 		return
 	}
 	_ = h.renderer.Render(w, r, "Escalated/Agent/TicketIndex", props)
 }
 
-func (h *AgentHandler) queueProps(w http.ResponseWriter, r *http.Request) (map[string]any, bool) {
-	ctx := r.Context()
-	q := r.URL.Query()
-	pg := uiPageFrom(q, 15)
+// agentIndexProps is the agent list's props for the query: the queue's, plus
+// queue and inbox. It remembers the queue for the ticket page.
+func (h *AgentHandler) agentIndexProps(w http.ResponseWriter, r *http.Request, raw url.Values) (map[string]any, bool) {
+	uid := h.userID(r)
+	q := normaliseInboxQuery(raw, uid)
+	queue := queueFor(q, uid)
+	props, ok := h.queueProps(w, r, inboxListQuery(q, queue))
+	if !ok {
+		return nil, false
+	}
+	h.rememberQueue(w, queue)
+	props["queue"] = queueProp(queue)
+	props["inbox"] = h.inboxProp(r.Context(), uid, queue)
+	return props, true
+}
+
+// ticketFilters reads a list query into store filters. A custom status's slug
+// filters by the custom status; an unknown value is ignored, as before.
+func (h *AgentHandler) ticketFilters(ctx context.Context, q url.Values) (models.TicketFilters, error) {
 	f := agentTicketFilters(q)
 	if v := strings.TrimSpace(q.Get("status")); v != "" && f.Status == nil && h.tickets != nil && h.tickets.Statuses != nil {
-		// A custom status's slug filters by the custom status; an unknown
-		// value is ignored, as before.
 		st, err := h.tickets.Statuses.BySlug(ctx, v)
 		if err != nil {
-			http.Error(w, "could not list tickets", http.StatusInternalServerError)
-			return nil, false
+			return f, err
 		}
 		if st != nil && !st.IsSystem {
 			f.TicketStatusID = &st.ID
 		}
+	}
+	return f, nil
+}
+
+func (h *AgentHandler) queueProps(w http.ResponseWriter, r *http.Request, q url.Values) (map[string]any, bool) {
+	ctx := r.Context()
+	pg := uiPageFrom(q, 15)
+	f, err := h.ticketFilters(ctx, q)
+	if err != nil {
+		http.Error(w, "could not list tickets", http.StatusInternalServerError)
+		return nil, false
 	}
 	f.Limit = pg.PerPage
 	f.Offset = pg.offset()
@@ -305,6 +360,9 @@ func (h *AgentHandler) renderShow(w http.ResponseWriter, r *http.Request, t *mod
 		return
 	}
 	props["customActions"] = h.customActionsFor(t, uid, "agent")
+	queue := recalledQueue(r, uid)
+	props["queue"] = queueProp(queue)
+	props["inbox"] = h.inboxProp(ctx, uid, queue)
 	_ = h.renderer.Render(w, r, "Escalated/Agent/TicketShow", props)
 }
 
@@ -335,7 +393,7 @@ func (h *AgentHandler) agents(r *http.Request) []map[string]any {
 // plus agents and savedViews (Laravel Admin\TicketController::index).
 // Saved views have no table in this package yet, so savedViews is empty.
 func (h *AgentHandler) AdminListTickets(w http.ResponseWriter, r *http.Request) {
-	props, ok := h.queueProps(w, r)
+	props, ok := h.queueProps(w, r, r.URL.Query())
 	if !ok {
 		return
 	}
