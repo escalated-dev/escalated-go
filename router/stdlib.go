@@ -115,6 +115,7 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated, guestLimit *middl
 	macroH := handlers.NewMacroHandler(cfg.DB, macroSvc)
 	cannedSvc := services.NewCannedResponseService(cfg.DB, nil)
 	cannedH := handlers.NewCannedResponseHandler(cfg.DB, cannedSvc)
+	savedViewH := handlers.NewSavedViewHandler(s, cfg.UserIDFunc)
 	articleH := handlers.NewArticleHandler(cfg.DB, services.NewArticleService(cfg.DB, nil))
 	webhookH := handlers.NewWebhookHandler(cfg.DB, webhookDispatcher)
 	kbPages := &handlers.KBPages{DB: cfg.DB, Store: s}
@@ -422,6 +423,14 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated, guestLimit *middl
 		mux.Handle("PATCH "+prefix+"/admin/canned-responses/{id}", adminMW(http.HandlerFunc(cannedH.Update)))
 		mux.Handle("PUT "+prefix+"/admin/canned-responses/{id}", adminMW(http.HandlerFunc(cannedH.Update)))
 		mux.Handle("DELETE "+prefix+"/admin/canned-responses/{id}", adminMW(http.HandlerFunc(cannedH.Delete)))
+
+		// Saved views (laravel Admin\SavedViewController).
+		mux.Handle("GET "+prefix+"/admin/saved-views", adminMW(http.HandlerFunc(savedViewH.List)))
+		mux.Handle("POST "+prefix+"/admin/saved-views", adminMW(http.HandlerFunc(savedViewH.Create)))
+		mux.Handle("POST "+prefix+"/admin/saved-views/reorder", adminMW(http.HandlerFunc(savedViewH.Reorder)))
+		mux.Handle("PUT "+prefix+"/admin/saved-views/{id}", adminMW(http.HandlerFunc(savedViewH.Update)))
+		mux.Handle("PATCH "+prefix+"/admin/saved-views/{id}", adminMW(http.HandlerFunc(savedViewH.Update)))
+		mux.Handle("DELETE "+prefix+"/admin/saved-views/{id}", adminMW(http.HandlerFunc(savedViewH.Delete)))
 
 		// Knowledge-base authoring admin CRUD (articles + categories). The
 		// public read path is /api/kb/... (published only); this is the admin

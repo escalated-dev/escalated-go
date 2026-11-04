@@ -245,7 +245,7 @@ func TestSavedViewHandler_Create(t *testing.T) {
 	}{
 		{
 			name:       "valid create",
-			body:       map[string]any{"name": "My Queue", "filters": map[string]any{"status": 0}, "is_shared": false},
+			body:       map[string]any{"name": "My Queue", "filters": map[string]any{"status": "open"}, "is_shared": false},
 			wantStatus: http.StatusCreated,
 		},
 		{
@@ -273,7 +273,7 @@ func TestSavedViewHandler_Create(t *testing.T) {
 	}
 }
 
-func TestSavedViewHandler_ListAndShow(t *testing.T) {
+func TestSavedViewHandler_List(t *testing.T) {
 	ms := newSavedViewMockStore()
 	ms.views[1] = &models.SavedView{ID: 1, Name: "My View", UserID: models.UserID("1"), Filters: models.JSONText(`{}`)}
 	ms.views[2] = &models.SavedView{ID: 2, Name: "Shared View", UserID: models.UserID("2"), IsShared: true, Filters: models.JSONText(`{}`)}
@@ -281,7 +281,7 @@ func TestSavedViewHandler_ListAndShow(t *testing.T) {
 
 	h := NewSavedViewHandler(ms, func(_ *http.Request) models.UserID { return "1" })
 
-	// List should include own and shared views
+	// List is a bare array (laravel SavedViewController::index) of own and shared views.
 	req := httptest.NewRequest(http.MethodGet, "/api/saved-views", nil)
 	rec := httptest.NewRecorder()
 	h.List(rec, req)
@@ -289,38 +289,12 @@ func TestSavedViewHandler_ListAndShow(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("List: expected 200, got %d", rec.Code)
 	}
-	var resp map[string]any
-	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
-	views := resp["saved_views"].([]any)
+	var views []any
+	if err := json.Unmarshal(rec.Body.Bytes(), &views); err != nil {
+		t.Fatalf("List body %s: %v", rec.Body.String(), err)
+	}
 	if len(views) != 2 {
 		t.Errorf("expected 2 views (own + shared), got %d", len(views))
-	}
-
-	// Show own view
-	req = httptest.NewRequest(http.MethodGet, "/api/saved-views/1", nil)
-	req.SetPathValue("id", "1")
-	rec = httptest.NewRecorder()
-	h.Show(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Errorf("Show own: expected 200, got %d", rec.Code)
-	}
-
-	// Show shared view
-	req = httptest.NewRequest(http.MethodGet, "/api/saved-views/2", nil)
-	req.SetPathValue("id", "2")
-	rec = httptest.NewRecorder()
-	h.Show(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Errorf("Show shared: expected 200, got %d", rec.Code)
-	}
-
-	// Show private other's view should be forbidden
-	req = httptest.NewRequest(http.MethodGet, "/api/saved-views/3", nil)
-	req.SetPathValue("id", "3")
-	rec = httptest.NewRecorder()
-	h.Show(rec, req)
-	if rec.Code != http.StatusForbidden {
-		t.Errorf("Show private: expected 403, got %d", rec.Code)
 	}
 }
 

@@ -106,6 +106,9 @@ var RoutePermissions = func() []RouteEntry {
 		{"POST", staff + "/tickets/*/side-conversations/**", []string{"reply.create"}},
 		{"GET", agt + "/macros", []string{"macro.view"}},
 		{"GET", agt + "/canned-responses", view},
+		// Saved views: laravel 'escalated.admin.saved-views.*' => ['ticket.view'].
+		{"*", adm + "/saved-views", view},
+		{"*", adm + "/saved-views/**", view},
 
 		// The staff JSON API (token owners included).
 		{"GET", "/api/{tickets,departments,tags}", view},

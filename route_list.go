@@ -187,6 +187,12 @@ var builtInRoutes = map[string]NamedRoute{
 	"escalated.admin.canned-responses.update":  {"admin/canned-responses/{cannedResponse}", routePut},
 	"escalated.admin.canned-responses.destroy": {"admin/canned-responses/{cannedResponse}", routeDelete},
 
+	"escalated.admin.saved-views.index":   {"admin/saved-views", routeGet},
+	"escalated.admin.saved-views.store":   {"admin/saved-views", routePost},
+	"escalated.admin.saved-views.update":  {"admin/saved-views/{savedView}", routePut},
+	"escalated.admin.saved-views.destroy": {"admin/saved-views/{savedView}", routeDelete},
+	"escalated.admin.saved-views.reorder": {"admin/saved-views/reorder", routePost},
+
 	"escalated.admin.capacity.index":  {"admin/capacity", routeGet},
 	"escalated.admin.capacity.update": {"admin/capacity/{capacity}", routePut},
 

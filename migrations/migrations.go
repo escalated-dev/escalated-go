@@ -628,7 +628,31 @@ func migrationStatements(p string) []string {
 	stmts = append(stmts, importStatements(p)...)
 	stmts = append(stmts, pluginStatements(p)...)
 	stmts = append(stmts, roleStatements(p)...)
+	stmts = append(stmts, savedViewStatements(p, userCol)...)
 	return append(stmts, ssoStatements(p)...)
+}
+
+// savedViewStatements create the agents' saved ticket views, after
+// escalated-laravel's create_escalated_saved_views_table: a named set of list
+// filters, owned by a host user (no foreign key to the host's users) and
+// optionally shared with every agent. position orders the views in the rail.
+func savedViewStatements(p, userCol string) []string {
+	return []string{
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			name VARCHAR(255) NOT NULL,
+			filters TEXT NOT NULL,
+			user_id %s,
+			is_shared BOOLEAN NOT NULL DEFAULT FALSE,
+			is_default BOOLEAN NOT NULL DEFAULT FALSE,
+			position INTEGER NOT NULL DEFAULT 0,
+			icon VARCHAR(255),
+			color VARCHAR(255),
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"saved_views", userCol),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%ssv_user_shared ON %s (user_id, is_shared)", p, p+"saved_views"),
+	}
 }
 
 // ssoStatements create the single-use SSO message IDs (ADR

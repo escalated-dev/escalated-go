@@ -21,11 +21,6 @@ var notServed = map[string]string{
 	// login path, so the host maps it (Config.RouteOverrides or its own Ziggy).
 	"login": "host sign-in",
 
-	// Saved views: the store has methods, but no migration creates the table.
-	"escalated.admin.saved-views.destroy": "saved views not served",
-	"escalated.admin.saved-views.store":   "saved views not served",
-	"escalated.admin.saved-views.update":  "saved views not served",
-
 	// Plugin uploads: plugins are registered in code (Config.Plugins).
 	"escalated.admin.plugins.upload": "no plugin uploads",
 

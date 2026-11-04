@@ -235,14 +235,15 @@ func (h *AgentHandler) ListTickets(w http.ResponseWriter, r *http.Request) {
 func (h *AgentHandler) agentIndexProps(w http.ResponseWriter, r *http.Request, raw url.Values) (map[string]any, bool) {
 	uid := h.userID(r)
 	q := normaliseInboxQuery(raw, uid)
-	queue := queueFor(q, uid)
+	views := h.inboxViews(r.Context(), uid)
+	queue := queueFor(q, uid, views)
 	props, ok := h.queueProps(w, r, inboxListQuery(q, queue))
 	if !ok {
 		return nil, false
 	}
 	h.rememberQueue(w, queue)
 	props["queue"] = queueProp(queue)
-	props["inbox"] = h.inboxProp(r.Context(), uid, queue)
+	props["inbox"] = h.inboxProp(r.Context(), uid, queue, views)
 	return props, true
 }
 
@@ -360,9 +361,10 @@ func (h *AgentHandler) renderShow(w http.ResponseWriter, r *http.Request, t *mod
 		return
 	}
 	props["customActions"] = h.customActionsFor(t, uid, "agent")
-	queue := recalledQueue(r, uid)
+	views := h.inboxViews(ctx, uid)
+	queue := recalledQueue(r, uid, views)
 	props["queue"] = queueProp(queue)
-	props["inbox"] = h.inboxProp(ctx, uid, queue)
+	props["inbox"] = h.inboxProp(ctx, uid, queue, views)
 	_ = h.renderer.Render(w, r, "Escalated/Agent/TicketShow", props)
 }
 
@@ -390,15 +392,15 @@ func (h *AgentHandler) agents(r *http.Request) []map[string]any {
 }
 
 // AdminListTickets renders Escalated/Admin/Tickets/Index: the queue's props
-// plus agents and savedViews (Laravel Admin\TicketController::index).
-// Saved views have no table in this package yet, so savedViews is empty.
+// plus agents and savedViews (Laravel Admin\TicketController::index): the
+// admin's own and shared saved views, by position.
 func (h *AgentHandler) AdminListTickets(w http.ResponseWriter, r *http.Request) {
 	props, ok := h.queueProps(w, r, r.URL.Query())
 	if !ok {
 		return
 	}
 	props["agents"] = h.agents(r)
-	props["savedViews"] = []any{}
+	props["savedViews"] = h.savedViewsProp(r)
 	_ = h.renderer.Render(w, r, "Escalated/Admin/Tickets/Index", props)
 }
 
@@ -541,4 +543,14 @@ func (h *AgentHandler) customActionsFor(t *models.Ticket, userID models.UserID, 
 		a["method"] = "post"
 	}
 	return out
+}
+
+// savedViewsProp is the admin ticket list's savedViews: the user's own and
+// shared saved views, by position.
+func (h *AgentHandler) savedViewsProp(r *http.Request) []*models.SavedView {
+	views, err := h.store.ListSavedViews(r.Context(), h.userID(r), true)
+	if err != nil || views == nil {
+		return []*models.SavedView{}
+	}
+	return views
 }

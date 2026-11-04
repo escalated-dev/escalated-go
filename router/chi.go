@@ -96,6 +96,7 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	macroH := handlers.NewMacroHandler(cfg.DB, macroSvc)
 	cannedSvc := services.NewCannedResponseService(cfg.DB, nil)
 	cannedH := handlers.NewCannedResponseHandler(cfg.DB, cannedSvc)
+	savedViewH := handlers.NewSavedViewHandler(s, cfg.UserIDFunc)
 	articleH := handlers.NewArticleHandler(cfg.DB, services.NewArticleService(cfg.DB, nil))
 	webhookH := handlers.NewWebhookHandler(cfg.DB, webhookDispatcher)
 	kbPages := &handlers.KBPages{DB: cfg.DB, Store: s}
@@ -488,6 +489,14 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Put("/canned-responses/{id}", cannedH.Update)
 				r.Patch("/canned-responses/{id}", cannedH.Update)
 				r.Delete("/canned-responses/{id}", cannedH.Delete)
+
+				// Saved views (laravel Admin\SavedViewController).
+				r.Get("/saved-views", savedViewH.List)
+				r.Post("/saved-views", savedViewH.Create)
+				r.Post("/saved-views/reorder", savedViewH.Reorder)
+				r.Put("/saved-views/{id}", savedViewH.Update)
+				r.Patch("/saved-views/{id}", savedViewH.Update)
+				r.Delete("/saved-views/{id}", savedViewH.Delete)
 
 				// Knowledge-base authoring admin CRUD (articles + categories).
 				// The public read path is /api/kb/... (published only); this is
