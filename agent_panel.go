@@ -1,9 +1,11 @@
 package escalated
 
 import (
+	"context"
 	"net/http"
 	"time"
 
+	"github.com/escalated-dev/escalated-go/models"
 	"github.com/escalated-dev/escalated-go/renderer"
 	"github.com/escalated-dev/escalated-go/services"
 )
@@ -98,4 +100,27 @@ func (e *Escalated) CustomerPresenceMiddleware(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// ChatAgentOnline reports whether an agent may get a new live chat: their own
+// status (ADR 2026-11-05-agent-panel-data) is "online", as escalated-laravel's
+// chat routing reads agent_profiles.chat_status. Away, offline and agents who
+// never set a status get no chats. Config.ChatAgentOnline, when set, must
+// also say yes (a host's own presence check). Without a database only the
+// host hook decides (nil: every agent).
+func (e *Escalated) ChatAgentOnline() func(ctx context.Context, agentID models.UserID) (bool, error) {
+	panel := e.AgentPanel()
+	hook := e.Config.ChatAgentOnline
+	if panel == nil {
+		return hook
+	}
+	return func(ctx context.Context, agentID models.UserID) (bool, error) {
+		if panel.Status(ctx, agentID) != "online" {
+			return false, nil
+		}
+		if hook == nil {
+			return true, nil
+		}
+		return hook(ctx, agentID)
+	}
 }

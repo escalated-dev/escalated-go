@@ -61,7 +61,9 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 	adminH.UserID = cfg.UserIDFunc
 	auditH := &handlers.AuditLogHandler{Store: auditStore, Renderer: rend, Users: cfg.UserDirectory}
 	// Agent live-chat console (accept, message, end).
-	chatSvc := services.NewChatSessionService(s, services.NewChatRoutingService(s), nil)
+	chatRouting := services.NewChatRoutingService(s)
+	chatRouting.AgentOnline = esc.ChatAgentOnline()
+	chatSvc := services.NewChatSessionService(s, chatRouting, nil)
 	chatSvc.Tickets = ticketSvc
 	chatH := handlers.NewChatHandler(s, chatSvc, cfg.UserIDFunc)
 	attachH := handlers.NewAttachmentHandler(s, cfg.RoutePrefix)

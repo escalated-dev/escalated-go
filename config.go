@@ -253,9 +253,10 @@ type Config struct {
 	// the Mailer.
 	MailFrom string
 
-	// ChatAgentOnline reports whether an agent is online and taking chats.
-	// The widget's chat availability uses it; nil counts every agent in the
-	// chat department as online.
+	// ChatAgentOnline is a host's own check that an agent is taking chats. Chat
+	// routing and the widget's chat availability first require the agent's
+	// own status to be "online" (Escalated.ChatAgentOnline); when set, this
+	// must also say yes. Nil leaves the agent's status alone to decide.
 	ChatAgentOnline func(ctx context.Context, agentID models.UserID) (bool, error)
 
 	// ChatAgentName returns an agent's display name for the widget's chat
