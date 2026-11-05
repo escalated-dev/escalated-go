@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.12] - 2026-11-04
+
 ### Upgrading
 - **Saved views are served.** `Migrate`/`MigrateSQLite` create a `saved_views` table (name, JSON filters, owning `user_id`, `is_shared`, `is_default`, `position`, `icon`, `color`), and the admin routes `GET|POST admin/saved-views`, `PUT|PATCH|DELETE admin/saved-views/{id}` and `POST admin/saved-views/reorder` (route names `escalated.admin.saved-views.*`, permission `ticket.view`) back the shared frontend's Save view dialog and saved view sidebar. Each agent list and ticket page request runs one more query to list the views, plus one count per saved view. `SavedViewHandler` now answers with escalated-laravel's shapes: the list is a bare array, store/update return the view itself, delete returns `{"message"}`, and invalid input is a 422 `{message, errors}`; `Show` is gone. `models.SavedView` gains `IsDefault`, and `Icon`/`Color` are now `*string` (null when unset). A host's own `store.Store` implementation needs no new methods.
 - **The agent ticket pages send the agent panel's optional `inbox` and `queue` props** (shared frontend `docs/agent-panel.md`, as escalated-laravel sends them). Each agent list and ticket page request runs twelve extra count queries (3 counts, 5 built-in views, 4 stats). They are not cached: this package has no cache. Older frontends ignore the props.
@@ -30,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Not sent
 - `is_unread` and `requester_online`: Escalated tracks no per-agent read state or customer presence, so the list rows carry neither. Live chat tickets are still marked through `is_live_chat`.
 - Queue and view names are English: this package sends no translated strings of its own.
+
+### Changed
+- The bundled widget is now `@escalated-dev/escalated` 0.12.8. The widget's source did not change in 0.12.8; the bundle is rebuilt with Vue 3.5.44, so it behaves as before.
 
 ## [0.2.11] - 2026-10-30
 
