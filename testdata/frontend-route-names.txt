@@ -172,6 +172,11 @@ escalated.admin.workflows.reorder
 escalated.admin.workflows.store
 escalated.admin.workflows.toggle
 escalated.admin.workflows.update
+escalated.agent.kb.search
+escalated.agent.notifications.index
+escalated.agent.notifications.read
+escalated.agent.notifications.read-all
+escalated.agent.status
 escalated.agent.tickets.assign
 escalated.agent.tickets.bulk
 escalated.agent.tickets.follow
@@ -181,10 +186,12 @@ escalated.agent.tickets.note
 escalated.agent.tickets.pin
 escalated.agent.tickets.presence
 escalated.agent.tickets.priority
+escalated.agent.tickets.read
 escalated.agent.tickets.reply
 escalated.agent.tickets.show
 escalated.agent.tickets.snooze
 escalated.agent.tickets.status
+escalated.agent.tickets.unread
 escalated.agent.tickets.unsnooze
 escalated.attachments.download
 escalated.customer.kb.feedback

@@ -32,8 +32,10 @@ func (h *KBHandler) ListArticles(w http.ResponseWriter, r *http.Request) {
 	args := []any{models.ArticleStatusPublished}
 
 	if search := strings.TrimSpace(r.URL.Query().Get("search")); search != "" {
-		q += " AND (title LIKE ? OR body LIKE ?)"
-		args = append(args, "%"+search+"%", "%"+search+"%")
+		// Case-insensitive on every database, % and _ taken literally.
+		q += " AND (LOWER(title) LIKE ? ESCAPE '!' OR LOWER(body) LIKE ? ESCAPE '!')"
+		like := "%" + escapeLike(strings.ToLower(search)) + "%"
+		args = append(args, like, like)
 	}
 	if cat := r.URL.Query().Get("category"); cat != "" {
 		q += " AND category_id = ?"

@@ -47,6 +47,14 @@ var builtInRoutes = map[string]NamedRoute{
 	"escalated.agent.tickets.unsnooze":   {"agent/tickets/{ticket}/unsnooze", routePost},
 	"escalated.agent.tickets.follow":     {"agent/tickets/{ticket}/follow", routePost},
 	"escalated.agent.tickets.pin":        {"agent/tickets/{ticket}/replies/{reply}/pin", routePost},
+	"escalated.agent.tickets.read":       {"agent/tickets/{ticket}/read", routePost},
+	"escalated.agent.tickets.unread":     {"agent/tickets/{ticket}/unread", routePost},
+	// The agent panel's data (ADR 2026-11-05-agent-panel-data).
+	"escalated.agent.status":                 {"agent/status", []string{http.MethodPut, http.MethodPost}},
+	"escalated.agent.kb.search":              {"agent/kb/search", routeGet},
+	"escalated.agent.notifications.index":    {"agent/notifications", routeGet},
+	"escalated.agent.notifications.read":     {"agent/notifications/{id}/read", routePost},
+	"escalated.agent.notifications.read-all": {"agent/notifications/read-all", routePost},
 	// The live chat on the ticket screen: {session} is the chat session id.
 	"escalated.admin.chat.end":      {"agent/chat/{session}/end", routePost},
 	"escalated.admin.chat.transfer": {"agent/chat/{session}/transfer", routePost},

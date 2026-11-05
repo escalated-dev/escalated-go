@@ -266,6 +266,8 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 			// limited to the ticket's requester in the handler.
 			r.Route("/tickets", func(r chi.Router) {
 				r.Use(middleware.RequireUser(cfg.UserIDFunc))
+				// The customer is on the site, for the agent pages' presence.
+				r.Use(esc.CustomerPresenceMiddleware)
 				r.Get("/", customerH.Index)
 				r.Post("/", customerH.Create)
 				r.Get("/create", customerH.CreateForm)
@@ -320,6 +322,16 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Post("/tickets/{id}/replies", agentH.Reply)
 				r.Post("/tickets/{id}/actions/{action}", agentH.CustomAction)
 				r.Post("/tickets/bulk", agentH.Bulk)
+				// The agent panel's data (ADR 2026-11-05-agent-panel-data).
+				panelH := agentPanelHandler(esc)
+				r.Put("/status", panelH.Status)
+				r.Post("/status", panelH.Status)
+				r.Get("/kb/search", panelH.KBSearch)
+				r.Get("/notifications", panelH.Notifications)
+				r.Post("/notifications/read-all", panelH.ReadAllNotifications)
+				r.Post("/notifications/{id}/read", panelH.ReadNotification)
+				r.Post("/tickets/{id}/read", agentH.MarkRead)
+				r.Post("/tickets/{id}/unread", agentH.MarkUnread)
 				// The ticket screen's writes (escalated.agent.tickets.*) and
 				// panels: subjects, typed links, side conversations.
 				mountTicketWrites(chiGroup{r: r, prefix: "/tickets"}, agentH)

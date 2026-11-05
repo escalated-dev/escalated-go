@@ -255,6 +255,10 @@ func (s *SQLiteStore) ListTickets(ctx context.Context, f models.TicketFilters) (
 		where = append(where, "updated_at >= ?")
 		args = append(args, *f.UpdatedSince)
 	}
+	if !f.UnreadFor.Empty() {
+		where = append(where, unreadClause(s.t("tickets"), s.t("ticket_reads"), "?", "?"))
+		args = append(args, string(f.UnreadFor), string(f.UnreadFor))
+	}
 
 	whereStr := ""
 	if len(where) > 0 {

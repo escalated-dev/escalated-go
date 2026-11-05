@@ -629,6 +629,7 @@ func migrationStatements(p string) []string {
 	stmts = append(stmts, pluginStatements(p)...)
 	stmts = append(stmts, roleStatements(p)...)
 	stmts = append(stmts, savedViewStatements(p, userCol)...)
+	stmts = append(stmts, agentPanelStatements(p)...)
 	return append(stmts, ssoStatements(p)...)
 }
 
@@ -652,6 +653,52 @@ func savedViewStatements(p, userCol string) []string {
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`, p+"saved_views", userCol),
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%ssv_user_shared ON %s (user_id, is_shared)", p, p+"saved_views"),
+	}
+}
+
+// agentPanelStatements create the agent panel's tables (ADR
+// 2026-11-05-agent-panel-data): ticket_reads (when each agent last read a
+// ticket; a NULL last_read_at is a ticket marked unread), customer_presence
+// (when a customer was last seen on the portal or the widget), notifications
+// (the agents' in-app notifications) and agent_statuses (each agent's own
+// online / away / offline status). User ids are stored as text, whatever the
+// host's key type. tickets.last_customer_activity_at is added by
+// upgradeTicketAccess.
+func agentPanelStatements(p string) []string {
+	return []string{
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			ticket_id BIGINT NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
+			user_id VARCHAR(255) NOT NULL,
+			last_read_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE (user_id, ticket_id)
+		)`, p+"ticket_reads", p+"tickets"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%stread_ticket ON %s (ticket_id)", p, p+"ticket_reads"),
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id BIGSERIAL PRIMARY KEY,
+			subject_type VARCHAR(32) NOT NULL,
+			subject_id VARCHAR(255) NOT NULL,
+			last_seen_at TIMESTAMPTZ NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE (subject_type, subject_id)
+		)`, p+"customer_presence"),
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			id VARCHAR(64) PRIMARY KEY,
+			user_id VARCHAR(255) NOT NULL,
+			type VARCHAR(64) NOT NULL,
+			data TEXT NOT NULL,
+			read_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"notifications"),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%snotif_user ON %s (user_id, read_at)", p, p+"notifications"),
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			user_id VARCHAR(255) PRIMARY KEY,
+			status VARCHAR(20) NOT NULL DEFAULT 'offline',
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`, p+"agent_statuses"),
 	}
 }
 

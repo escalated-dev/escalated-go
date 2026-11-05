@@ -115,8 +115,10 @@ func (h *KBPages) Index(w http.ResponseWriter, r *http.Request) {
 	where := ` WHERE status = ?`
 	args := []any{models.ArticleStatusPublished}
 	if search := strings.TrimSpace(q.Get("search")); search != "" {
-		where += ` AND (title LIKE ? OR body LIKE ?)`
-		args = append(args, "%"+search+"%", "%"+search+"%")
+		// Case-insensitive on every database, % and _ taken literally.
+		where += ` AND (LOWER(title) LIKE ? ESCAPE '!' OR LOWER(body) LIKE ? ESCAPE '!')`
+		like := "%" + escapeLike(strings.ToLower(search)) + "%"
+		args = append(args, like, like)
 	}
 	if cat := q.Get("category"); cat != "" {
 		id, err := strconv.ParseInt(cat, 10, 64)

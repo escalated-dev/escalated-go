@@ -250,6 +250,12 @@ func (s *PostgresStore) ListTickets(ctx context.Context, f models.TicketFilters)
 	if f.UpdatedSince != nil {
 		addFilter("updated_at >= $%d", *f.UpdatedSince)
 	}
+	if !f.UnreadFor.Empty() {
+		marker := fmt.Sprintf("$%d", argN)
+		where = append(where, unreadClause(s.t("tickets"), s.t("ticket_reads"), marker, marker))
+		args = append(args, string(f.UnreadFor))
+		argN++
+	}
 
 	whereStr := ""
 	if len(where) > 0 {

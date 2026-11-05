@@ -86,6 +86,15 @@ var RoutePermissions = func() []RouteEntry {
 		{"GET", staff + "/tickets/*", view},
 		{"GET", staff + "/tickets/*/{links,side-conversations}", view},
 		{"POST", staff + "/tickets/*/follow", view},
+		// The agent panel's data (ADR 2026-11-05-agent-panel-data): the
+		// agent's own read markers, status and notifications need no more
+		// than the agent gate; the knowledge-base search needs kb.view.
+		{"POST", agt + "/tickets/*/{read,unread}", view},
+		{"PUT|POST", agt + "/status", nil},
+		{"GET", agt + "/kb/search", []string{"kb.view"}},
+		{"GET", agt + "/notifications", nil},
+		{"POST", agt + "/notifications/read-all", nil},
+		{"POST", agt + "/notifications/*/read", nil},
 		{"POST", adm + "/tickets/*/split", []string{"ticket.create"}},
 		{"PUT", staff + "/tickets/*", edit},
 		{"POST", staff + "/tickets/*/{status,priority,tags,department}", edit},

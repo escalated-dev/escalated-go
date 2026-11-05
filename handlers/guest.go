@@ -134,6 +134,8 @@ func (h *GuestTicketHandler) Show(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "ticket not found", "message": "Ticket not found."})
 		return
 	}
+	// The customer is on the site (only agent pages ever show it).
+	seeTicketCustomer(r.Context(), h.tickets, t)
 	view := guestTicketView(t)
 	view["replies"] = guestReplies(r.Context(), h.store, t.ID)
 	writeJSON(w, http.StatusOK, map[string]any{"data": view})

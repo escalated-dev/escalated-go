@@ -452,6 +452,8 @@ func (h *WidgetHandler) TicketStatus(w http.ResponseWriter, r *http.Request) {
 		notFound()
 		return
 	}
+	// The customer is on the site (only agent pages ever show it).
+	seeTicketCustomer(r.Context(), h.tickets, t)
 
 	replies := guestReplies(r.Context(), h.store, t.ID)
 	// Latest first, at most 20, as Laravel sends them.
