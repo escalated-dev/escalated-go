@@ -6,7 +6,8 @@ The shared frontend's agent panel (`@escalated-dev/escalated`, `docs/agent-panel
 
 - `PUT` or `POST {prefix}/agent/status` (`escalated.agent.status`) with `{"status": "online" | "away" | "offline"}` stores the agent's status (`agent_statuses`, one row per agent). A JSON client gets `{"agent_status": "away"}`; an Inertia visit goes back. Anything else is a 422.
 - Staff pages share `escalated.agent_status` (`offline` until set) and `escalated.agent_statuses` (`["online", "away", "offline"]`).
-- No permission is needed beyond the agent gate. This package's live-chat routing does not read the status yet.
+- No permission is needed beyond the agent gate.
+- Live chat reads it, as escalated-laravel's chat routing: only `online` agents in a routing rule get new chats and count towards the widget's chat availability (`Escalated.ChatAgentOnline`). Away and offline agents, and agents who never set a status, are skipped. `Config.ChatAgentOnline`, when set, can only veto an online agent.
 
 ## Knowledge base search
 

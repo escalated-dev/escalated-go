@@ -38,8 +38,10 @@ func newWidgetStack(esc *escalated.Escalated, ticketSvc *services.TicketService,
 		return handlers.WidgetCrossOrigin(r.Context()) == "" && !cfg.UserIDFunc(r).Empty()
 	}
 	availability := services.NewChatAvailabilityService(s)
-	availability.AgentOnline = cfg.ChatAgentOnline
-	chatSvc := services.NewChatSessionService(s, services.NewChatRoutingService(s), nil)
+	availability.AgentOnline = esc.ChatAgentOnline()
+	routing := services.NewChatRoutingService(s)
+	routing.AgentOnline = esc.ChatAgentOnline()
+	chatSvc := services.NewChatSessionService(s, routing, nil)
 	chatSvc.Tickets = ticketSvc
 	chat := handlers.NewWidgetChatHandler(cfg.Widget, s, chatSvc, availability)
 	chat.AgentName = cfg.ChatAgentName

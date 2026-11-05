@@ -13,6 +13,12 @@ type ChatRoutingService struct {
 	store         store.Store
 	mu            sync.Mutex
 	roundRobinIdx map[int64]int
+
+	// AgentOnline, when set, reports whether an agent may get a new chat:
+	// Escalated.ChatAgentOnline, the agent's own status ("online" only, as
+	// escalated-laravel's chat routing). Agents it rejects are skipped. When
+	// nil, every agent a routing rule names is considered.
+	AgentOnline func(ctx context.Context, agentID models.UserID) (bool, error)
 }
 
 // NewChatRoutingService creates a new ChatRoutingService.
@@ -45,16 +51,31 @@ func (rs *ChatRoutingService) FindAvailableAgent(ctx context.Context, department
 }
 
 func (rs *ChatRoutingService) evaluateRule(ctx context.Context, rule *models.ChatRoutingRule) (*models.UserID, error) {
-	if len(rule.AgentIDs) == 0 {
+	agentIDs := rs.onlineAgents(ctx, rule.AgentIDs)
+	if len(agentIDs) == 0 {
 		return nil, nil
 	}
 
 	switch rule.Strategy {
 	case models.StrategyLeastActive:
-		return rs.leastActive(ctx, rule.AgentIDs, rule.MaxConcurrentChats)
+		return rs.leastActive(ctx, agentIDs, rule.MaxConcurrentChats)
 	default:
-		return rs.roundRobin(ctx, rule, rule.AgentIDs, rule.MaxConcurrentChats)
+		return rs.roundRobin(ctx, rule, agentIDs, rule.MaxConcurrentChats)
 	}
+}
+
+// onlineAgents keeps the agents AgentOnline accepts, in order.
+func (rs *ChatRoutingService) onlineAgents(ctx context.Context, agentIDs []models.UserID) []models.UserID {
+	if rs.AgentOnline == nil {
+		return agentIDs
+	}
+	online := make([]models.UserID, 0, len(agentIDs))
+	for _, id := range agentIDs {
+		if ok, err := rs.AgentOnline(ctx, id); err == nil && ok {
+			online = append(online, id)
+		}
+	}
+	return online
 }
 
 func (rs *ChatRoutingService) roundRobin(ctx context.Context, rule *models.ChatRoutingRule, agentIDs []models.UserID, maxChats int) (*models.UserID, error) {

@@ -139,6 +139,10 @@ func TestChatAgentOnlineHookDrivesAvailability(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
+		// The agent's own status comes first; the host hook can only veto.
+		if err := f.esc.AgentPanel().SetStatus(context.Background(), "5", "online"); err != nil {
+			t.Fatal(err)
+		}
 		code, out := f.call(t, "", http.MethodGet, "/widget/chat/availability", nil)
 		if code != http.StatusOK || out["available"] != online {
 			t.Errorf("agent online=%v: availability %d %v", online, code, out)

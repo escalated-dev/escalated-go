@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Upgrading
+- **Live chat goes only to agents who are online.** Chat routing (widget chat start, the agent console and department transfers) and the widget's chat availability now read the agent's own status, as escalated-laravel does: only `online` agents in a routing rule get new chats; `away` and `offline` agents, and agents who never set a status, are skipped. `Config.ChatAgentOnline` no longer decides alone: the agent must be online and the hook, when set, must also say yes. Agents must set themselves Online to receive chats.
 - **`Migrate` / `MigrateSQLite` add the agent panel's data** on the next start (ADR 2026-11-05-agent-panel-data): `tickets.last_customer_activity_at` and the `ticket_reads`, `customer_presence`, `notifications` and `agent_statuses` tables, on PostgreSQL and SQLite. Existing tickets get no customer activity, so none turn unread on upgrade.
 - **Agents get in-app notifications** (`Config.AgentPanel.DisableNotifications` switches them off). Assigning a ticket to yourself creates none (it already sent no email). The in-app `ticket_reply` notification is only for customer-side replies: another agent's reply still emails as before, but does not go into the feed.
 - **`inbox` gains `unread`** (three more count queries per agent list and ticket page) and the agent ticket rows gain `is_unread`, `requester_online` and `requester_last_seen_at`. Older frontends ignore them.
