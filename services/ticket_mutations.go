@@ -243,6 +243,9 @@ func (ts *TicketService) emit(event string, payload map[string]any, t *models.Ti
 	ts.dispatchWebhook(event, payload)
 	ts.runWorkflows(event, t)
 	ts.pluginEvent(event, t, payload)
+	if ts.Panel != nil {
+		ts.Panel.TicketEvent(context.Background(), event, t, payload, nil)
+	}
 }
 
 // UpdateMetadata replaces a ticket's metadata, records the activity and

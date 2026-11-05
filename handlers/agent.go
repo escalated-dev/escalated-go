@@ -56,6 +56,10 @@ type AgentHandler struct {
 	// Access is the ticket visibility settings; the agent ticket page's
 	// agents list leaves out agents who cannot see the ticket. Optional.
 	Access *ticketaccess.Access
+
+	// Panel keeps the agent panel's data: the list rows' is_unread and
+	// requester presence, and opening a ticket marks it read. Optional.
+	Panel *services.AgentPanel
 }
 
 // NewAgentHandler creates a new AgentHandler.
@@ -247,6 +251,7 @@ func (h *AgentHandler) agentIndexProps(w http.ResponseWriter, r *http.Request, r
 		return nil, false
 	}
 	h.rememberQueue(w, queue)
+	h.withPanelFields(r.Context(), uid, props["tickets"])
 	props["queue"] = queueProp(queue)
 	props["inbox"] = h.inboxProp(r.Context(), uid, queue, views)
 	return props, true
@@ -364,6 +369,14 @@ func (h *AgentHandler) renderShow(w http.ResponseWriter, r *http.Request, t *mod
 		props["is_snoozed"] = detail["is_snoozed"]
 		_ = h.renderer.Render(w, r, "Escalated/Admin/Tickets/Show", props)
 		return
+	}
+	// Opening the ticket in the agent panel is reading it; the page carries
+	// is_unread (false) and the requester's presence.
+	if h.Panel != nil {
+		_ = h.Panel.MarkRead(ctx, uid, t.ID)
+		for k, v := range h.Panel.RowFields(ctx, uid, []int64{t.ID})[t.ID] {
+			detail[k] = v
+		}
 	}
 	props["customActions"] = h.customActionsFor(t, uid, "agent")
 	// Laravel Agent\TicketController::show: who the ticket can be

@@ -75,6 +75,9 @@ type Escalated struct {
 
 	importsOnce sync.Once
 	imports     *services.ImportService
+
+	agentPanelOnce sync.Once
+	agentPanel     *services.AgentPanel
 }
 
 // Imports returns the import service behind the admin Import wizard: the
@@ -464,6 +467,7 @@ func (e *Escalated) NewTicketService() *services.TicketService {
 	ts.Workflows.Tickets = ts
 	ts.Notifications = e.Notifier
 	ts.Statuses = e.TicketStatuses()
+	ts.Panel = e.AgentPanel()
 	if e.Plugins != nil {
 		ts.Plugins = e.Plugins
 	}
@@ -726,7 +730,8 @@ func (e *Escalated) TwoFactorGate() *access.TwoFactorGate {
 }
 
 // AccessMiddleware shares escalated.features, escalated.permissions and
-// escalated.two_factor_required with every page; while two-factor is on,
+// escalated.two_factor_required with every page, and the agent panel's
+// agent_status, agent_statuses and notifications with every staff page; while two-factor is on,
 // challenges enrolled staff (TwoFactorGate); and while roles & permissions
 // is on, requires each admin, agent and staff API route's permission
 // (access.RoutePermissions). The routers mount it under the route prefix
@@ -744,7 +749,7 @@ func (e *Escalated) AccessMiddleware(next http.Handler) http.Handler {
 			return status, ok && err == nil
 		},
 	}
-	return e.AccessSharer().Middleware(e.TwoFactorGate().Middleware(enforcer.Middleware(next)))
+	return e.AccessSharer().Middleware(e.agentPanelShare(e.TwoFactorGate().Middleware(enforcer.Middleware(next))))
 }
 
 // AccessSharer is what AccessMiddleware shares with the pages; Allows

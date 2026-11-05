@@ -188,6 +188,7 @@ func wireUIPages(esc *escalated.Escalated, agentH *handlers.AgentHandler, custom
 	agentH.Agents = cfg.SkillAgentDirectory
 	agentH.IsAdmin = cfg.AdminCheck
 	agentH.Access = esc.Access
+	agentH.Panel = esc.AgentPanel()
 
 	customerH.DB = cfg.DB
 	customerH.TablePrefix = cfg.TablePrefix
@@ -318,6 +319,17 @@ func mountTicketWrites(r ticketRoutes, h *handlers.AgentHandler) {
 	r.Post("/{id}/unsnooze", h.Unsnooze)
 	r.Post("/{id}/follow", h.ToggleFollow)
 	r.Post("/{id}/replies/{reply}/pin", h.TogglePin)
+}
+
+// agentPanelHandler serves the agent panel's own endpoints (ADR
+// 2026-11-05-agent-panel-data).
+func agentPanelHandler(esc *escalated.Escalated) *handlers.AgentPanelHandler {
+	return &handlers.AgentPanelHandler{
+		Panel:       esc.AgentPanel(),
+		Store:       esc.Store,
+		UserID:      esc.Config.UserIDFunc,
+		RoutePrefix: esc.Config.RoutePrefix,
+	}
 }
 
 // mountTicketPanels adds the ticket screen's panels (subjects, typed links,

@@ -403,6 +403,10 @@ type TicketFilters struct {
 	ResolvedSince *time.Time `json:"resolved_since,omitempty"`
 	// UpdatedSince keeps tickets updated at or after this instant.
 	UpdatedSince *time.Time `json:"updated_since,omitempty"`
+	// UnreadFor keeps the tickets unread for this agent: marked unread, or
+	// with customer activity after the agent last read them (the agent
+	// inbox's unread counts, ADR 2026-11-05-agent-panel-data).
+	UnreadFor UserID `json:"-"`
 
 	// CountOnly asks ListTickets for the total alone: it returns no tickets
 	// and skips the page query.

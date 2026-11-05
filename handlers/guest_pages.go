@@ -202,6 +202,8 @@ func (h *GuestPages) Show(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// The customer is on the site (only agent pages ever show it).
+	seeTicketCustomer(r.Context(), h.Tickets, t)
 	h.renderShow(w, r, t, token, nil)
 }
 

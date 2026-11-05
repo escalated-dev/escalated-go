@@ -209,6 +209,10 @@ func (h *WidgetChatHandler) Messages(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// The visitor is on the site (only agent pages ever show it).
+	if h.sessions != nil {
+		seeTicketCustomer(r.Context(), h.sessions.Tickets, ticket)
+	}
 
 	isInternal := false
 	replies, err := h.store.ListReplies(r.Context(), models.ReplyFilters{TicketID: ticket.ID, Internal: &isInternal})

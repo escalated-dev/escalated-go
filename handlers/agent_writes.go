@@ -458,7 +458,11 @@ func validTicketType(v string) bool {
 }
 
 // bulkActions are the actions Laravel's BulkActionRequest accepts.
-var bulkActions = map[string]bool{"status": true, "priority": true, "assign": true, "tags": true, "department": true, "delete": true}
+var bulkActions = map[string]bool{"status": true, "priority": true, "assign": true, "tags": true, "department": true, "delete": true, "mark_read": true, "mark_unread": true}
+
+// valuelessBulkActions take no value: deleting, and the agent's own unread
+// markers (ADR 2026-11-05-agent-panel-data).
+var valuelessBulkActions = map[string]bool{"delete": true, "mark_read": true, "mark_unread": true}
 
 // Bulk handles POST /agent/tickets/bulk and /admin/tickets/bulk
 // (escalated.agent.tickets.bulk, escalated.admin.tickets.bulk): ticket_ids,
@@ -493,7 +497,7 @@ func (h *AgentHandler) Bulk(w http.ResponseWriter, r *http.Request) {
 	}
 	if !bulkActions[action] {
 		errs["action"] = "The selected action is invalid."
-	} else if action != "delete" && value == "" {
+	} else if !valuelessBulkActions[action] && value == "" {
 		errs["value"] = requiredMessage("value")
 	}
 	if len(errs) > 0 {
@@ -566,6 +570,14 @@ func (h *AgentHandler) Bulk(w http.ResponseWriter, r *http.Request) {
 			}
 		case "delete":
 			failed = h.store.DeleteTicket(ctx, id)
+		case "mark_read":
+			if h.Panel != nil {
+				failed = h.Panel.MarkRead(ctx, uid, id)
+			}
+		case "mark_unread":
+			if h.Panel != nil {
+				failed = h.Panel.MarkUnread(ctx, uid, id)
+			}
 		}
 		if failed == nil {
 			updated++

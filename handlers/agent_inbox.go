@@ -21,8 +21,9 @@ import (
 // through the same store query (and so the ticket visibility scope), so it is
 // what the agent would see by opening that list. Rail counts (counts, views)
 // are of unresolved, unsnoozed tickets unless a view names a status; stats are
-// for the current queue. Nothing is cached: a list request runs twelve count
-// queries.
+// for the current queue. unread counts the open tickets unread for the agent
+// in each workspace queue. Nothing is cached: a list request runs fifteen
+// count queries.
 
 // agentQueueCookie remembers the queue last shown in the list, for the ticket
 // page opened from it.
@@ -255,9 +256,10 @@ func (h *AgentHandler) inboxProp(ctx context.Context, uid models.UserID, queue a
 			"id": v.PropID, "name": v.Name, "count": h.countOpen(ctx, v.Filters), "filters": v.Filters,
 		})
 	}
-	mine := 0
+	mine, mineUnread := 0, 0
 	if !uid.Empty() {
 		mine = h.countOpen(ctx, map[string]any{"assigned_to": string(uid)})
+		mineUnread = h.countUnread(ctx, uid, map[string]any{"assigned_to": string(uid)})
 	}
 
 	return map[string]any{
@@ -265,6 +267,13 @@ func (h *AgentHandler) inboxProp(ctx context.Context, uid models.UserID, queue a
 			"mine":       mine,
 			"unassigned": h.countOpen(ctx, map[string]any{"unassigned": 1}),
 			"all":        h.countOpen(ctx, map[string]any{}),
+		},
+		// Of the same open tickets, those unread for this agent (ADR
+		// 2026-11-05-agent-panel-data).
+		"unread": map[string]any{
+			"mine":       mineUnread,
+			"unassigned": h.countUnread(ctx, uid, map[string]any{"unassigned": 1}),
+			"all":        h.countUnread(ctx, uid, map[string]any{}),
 		},
 		"views": views,
 		// Each stat is the list the tile opens: the queue plus the tile's filters.
@@ -285,6 +294,29 @@ func (h *AgentHandler) countOpen(ctx context.Context, filters map[string]any) in
 		filters["open"] = 1
 	}
 	return h.countTickets(ctx, filters)
+}
+
+// countUnread counts the open tickets (as countOpen) unread for the agent.
+func (h *AgentHandler) countUnread(ctx context.Context, uid models.UserID, filters map[string]any) int {
+	if uid.Empty() {
+		return 0
+	}
+	if s, _ := filters["status"].(string); s == "" {
+		filters = maps.Clone(filters)
+		filters["open"] = 1
+	}
+	f, err := h.ticketFilters(ctx, filterValues(filters))
+	if err != nil {
+		return 0
+	}
+	f.UnreadFor = uid
+	f.CountOnly = true
+	f.Limit = 1
+	_, total, err := h.store.ListTickets(ctx, f)
+	if err != nil {
+		return 0
+	}
+	return total
 }
 
 // countTickets is the total the list shows for these filters.

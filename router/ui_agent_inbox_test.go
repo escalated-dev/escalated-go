@@ -155,7 +155,7 @@ func TestAgentInboxPropsOnTheList(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			page := visit(t, h, inboxIndex, inboxAgent, "agent")
 			inbox := obj(t, page.Props, "inbox")
-			if keys := keysOf(inbox); !reflect.DeepEqual(sorted(keys), []string{"counts", "stats", "views"}) {
+			if keys := keysOf(inbox); !reflect.DeepEqual(sorted(keys), []string{"counts", "stats", "unread", "views"}) {
 				t.Errorf("inbox keys %v", keys)
 			}
 			// Unresolved, unsnoozed tickets in each queue.
@@ -387,10 +387,10 @@ func TestAgentListPreviewsTheLatestPublicReply(t *testing.T) {
 	if latest["body"] != "Customer-visible answer" || latest["id"] != float64(public.ID) {
 		t.Errorf("latest_reply %v, want the public reply", latest)
 	}
-	// Escalated tracks no per-agent read state or customer presence.
-	for _, k := range []string{"is_unread", "requester_online"} {
-		if _, ok := row[k]; ok {
-			t.Errorf("row has %q", k)
+	// Per-agent read state and the customer's presence (ADR 2026-11-05-agent-panel-data).
+	for _, k := range []string{"is_unread", "requester_online", "requester_last_seen_at"} {
+		if _, ok := row[k]; !ok {
+			t.Errorf("row has no %q", k)
 		}
 	}
 }

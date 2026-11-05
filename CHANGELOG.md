@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Upgrading
+- **`Migrate` / `MigrateSQLite` add the agent panel's data** on the next start (ADR 2026-11-05-agent-panel-data): `tickets.last_customer_activity_at` and the `ticket_reads`, `customer_presence`, `notifications` and `agent_statuses` tables, on PostgreSQL and SQLite. Existing tickets get no customer activity, so none turn unread on upgrade.
+- **Agents get in-app notifications** (`Config.AgentPanel.DisableNotifications` switches them off). Assigning a ticket to yourself creates none (it already sent no email). The in-app `ticket_reply` notification is only for customer-side replies: another agent's reply still emails as before, but does not go into the feed.
+- **`inbox` gains `unread`** (three more count queries per agent list and ticket page) and the agent ticket rows gain `is_unread`, `requester_online` and `requester_last_seen_at`. Older frontends ignore them.
+- The knowledge base API and pages search case-insensitively on every database and take `%` and `_` literally.
+
+### Added
+- **The agent panel's data** (ADR 2026-11-05-agent-panel-data, after escalated-laravel; `docs/agent-panel.md`):
+  - agent status: `PUT`/`POST {prefix}/agent/status` (`escalated.agent.status`), shared `escalated.agent_status` and `escalated.agent_statuses`;
+  - knowledge-base search for agents: `GET {prefix}/agent/kb/search` (`escalated.agent.kb.search`, `kb.view`), published articles, title matches first;
+  - unread tickets: `ticket_reads`, `escalated.agent.tickets.read` / `.unread`, bulk `mark_read` / `mark_unread`, `is_unread` on list rows (one query per page) and the ticket page, `inbox.unread` `{mine, unassigned, all}`, `TicketFilters.UnreadFor`;
+  - customer presence: the customer portal (`Escalated.CustomerPresenceMiddleware`), the guest pages and API and the widget record when the customer was last seen (throttled to 30 seconds); agent pages only show `requester_online` (within `Config.AgentPanel.PresenceOnlineWindow`, default 120 seconds) and `requester_last_seen_at`;
+  - notifications: `escalated.agent.notifications.index` / `.read` / `.read-all`, shared `escalated.notifications.unread_count`, types `ticket_assigned`, `ticket_reply`, `sla_warning`, `sla_breached`, `chat_transferred`; notifications about tickets the agent can no longer see are redacted; with a broadcaster (`Config.AgentPanel.Broadcaster`, else `Config.Plugins.Broadcaster`), `notification.created` on the agent's `user.<id>` channel.
+  - `Escalated.AgentPanel()` returns the service behind it.
+- The seven new route names are in the shared route list and the route-permission map.
+
+### Not sent
+- `mention` notifications: this package records no @mentions yet. Notification titles are English.
+- The agent status lives in `agent_statuses`: this package has no agent profiles, and its live-chat routing does not read the status yet.
+
 ## [0.2.12] - 2026-11-04
 
 ### Upgrading

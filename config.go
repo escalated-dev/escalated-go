@@ -315,6 +315,11 @@ type Config struct {
 	// and switches on the SDK plugin runtime. Every plugin is listed on Admin >
 	// Plugins, inactive until an admin activates it. See docs/plugins.md.
 	Plugins plugins.Config
+
+	// AgentPanel configures the agent panel's data: the agents' in-app
+	// notifications, customer presence and the notification broadcaster. See
+	// docs/agent-panel.md.
+	AgentPanel AgentPanelConfig
 }
 
 // DefaultConfig returns a Config with sensible defaults.

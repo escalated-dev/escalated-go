@@ -117,6 +117,7 @@ var parents = map[string]map[string]string{
 	"side_conversations": {"ticket_id": "tickets"}, "side_conversation_replies": {"side_conversation_id": "side_conversations"},
 	"mentions": {"reply_id": "replies"}, "chat_sessions": {"ticket_id": "tickets"},
 	"chat_messages": {"chat_session_id": "chat_sessions"}, "workflow_logs": {"ticket_id": "tickets"},
+	"ticket_reads": {"ticket_id": "tickets"},
 }
 
 func protected(name string) bool { _, ok := parents[name]; return name == "tickets" || ok }

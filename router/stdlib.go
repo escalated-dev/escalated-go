@@ -225,15 +225,17 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated, guestLimit *middl
 		// Customer routes — a signed-in user only. Show and Reply are further
 		// limited to the ticket's requester in the handler.
 		userMW := middleware.RequireUser(cfg.UserIDFunc)
-		mux.Handle("GET "+prefix+"/tickets", userMW(http.HandlerFunc(customerH.Index)))
-		mux.Handle("POST "+prefix+"/tickets", userMW(http.HandlerFunc(customerH.Create)))
-		mux.Handle("GET "+prefix+"/tickets/create", userMW(http.HandlerFunc(customerH.CreateForm)))
-		mux.Handle("GET "+prefix+"/tickets/{id}", userMW(http.HandlerFunc(customerH.Show)))
-		mux.Handle("POST "+prefix+"/tickets/{id}/replies", userMW(http.HandlerFunc(customerH.Reply)))
-		mux.Handle("POST "+prefix+"/tickets/{id}/rate", userMW(http.HandlerFunc(customerH.Rate)))
-		mux.Handle("POST "+prefix+"/tickets/{id}/reply", userMW(http.HandlerFunc(customerH.Reply)))
-		mux.Handle("POST "+prefix+"/tickets/{id}/close", userMW(http.HandlerFunc(customerH.Close)))
-		mux.Handle("POST "+prefix+"/tickets/{id}/reopen", userMW(http.HandlerFunc(customerH.Reopen)))
+		// The customer is on the site, for the agent pages' presence.
+		customerMW := func(h http.Handler) http.Handler { return userMW(esc.CustomerPresenceMiddleware(h)) }
+		mux.Handle("GET "+prefix+"/tickets", customerMW(http.HandlerFunc(customerH.Index)))
+		mux.Handle("POST "+prefix+"/tickets", customerMW(http.HandlerFunc(customerH.Create)))
+		mux.Handle("GET "+prefix+"/tickets/create", customerMW(http.HandlerFunc(customerH.CreateForm)))
+		mux.Handle("GET "+prefix+"/tickets/{id}", customerMW(http.HandlerFunc(customerH.Show)))
+		mux.Handle("POST "+prefix+"/tickets/{id}/replies", customerMW(http.HandlerFunc(customerH.Reply)))
+		mux.Handle("POST "+prefix+"/tickets/{id}/rate", customerMW(http.HandlerFunc(customerH.Rate)))
+		mux.Handle("POST "+prefix+"/tickets/{id}/reply", customerMW(http.HandlerFunc(customerH.Reply)))
+		mux.Handle("POST "+prefix+"/tickets/{id}/close", customerMW(http.HandlerFunc(customerH.Close)))
+		mux.Handle("POST "+prefix+"/tickets/{id}/reopen", customerMW(http.HandlerFunc(customerH.Reopen)))
 
 		// The guest ticket pages (escalated.guest.tickets.*) on the verified
 		// guest flow, behind the guest rate limits.
@@ -265,6 +267,16 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated, guestLimit *middl
 		mux.Handle("GET "+prefix+"/agent/tickets/{id}", agentMW(http.HandlerFunc(agentH.ShowTicket)))
 		mux.Handle("POST "+prefix+"/agent/tickets/{id}/replies", agentMW(http.HandlerFunc(agentH.Reply)))
 		mux.Handle("POST "+prefix+"/agent/tickets/bulk", agentMW(http.HandlerFunc(agentH.Bulk)))
+		// The agent panel's data (ADR 2026-11-05-agent-panel-data).
+		panelH := agentPanelHandler(esc)
+		mux.Handle("PUT "+prefix+"/agent/status", agentMW(http.HandlerFunc(panelH.Status)))
+		mux.Handle("POST "+prefix+"/agent/status", agentMW(http.HandlerFunc(panelH.Status)))
+		mux.Handle("GET "+prefix+"/agent/kb/search", agentMW(http.HandlerFunc(panelH.KBSearch)))
+		mux.Handle("GET "+prefix+"/agent/notifications", agentMW(http.HandlerFunc(panelH.Notifications)))
+		mux.Handle("POST "+prefix+"/agent/notifications/read-all", agentMW(http.HandlerFunc(panelH.ReadAllNotifications)))
+		mux.Handle("POST "+prefix+"/agent/notifications/{id}/read", agentMW(http.HandlerFunc(panelH.ReadNotification)))
+		mux.Handle("POST "+prefix+"/agent/tickets/{id}/read", agentMW(http.HandlerFunc(agentH.MarkRead)))
+		mux.Handle("POST "+prefix+"/agent/tickets/{id}/unread", agentMW(http.HandlerFunc(agentH.MarkUnread)))
 		agentTickets := muxGroup{mux: mux, prefix: prefix + "/agent/tickets", mw: agentMW}
 		mountTicketWrites(agentTickets, agentH)
 		mountTicketPanels(agentTickets, s, subjectH, linkH, scH)

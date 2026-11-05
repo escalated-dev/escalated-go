@@ -41,6 +41,11 @@ type TicketService struct {
 	// change is saved, for active plugins' actions (plugins.Host). Nil
 	// delivers nothing.
 	Plugins PluginEventSink
+
+	// Panel, when set, keeps the agent panel's data up to date: unread
+	// markers and the agents' in-app notifications (ADR
+	// 2026-11-05-agent-panel-data). Nil keeps none.
+	Panel *AgentPanel
 }
 
 // PluginEventSink receives the canonical domain events for plugins. It must
@@ -137,6 +142,10 @@ func (ts *TicketService) Create(ctx context.Context, in CreateTicketInput) (*mod
 		Action:   models.ActionTicketCreated,
 	})
 
+	if ts.Panel != nil {
+		ts.Panel.TicketCreated(ctx, t)
+	}
+
 	ts.dispatchWebhook("ticket.created", ticketWebhookPayload(t))
 	ts.runWorkflows("ticket.created", t)
 	ts.pluginEvent("ticket.created", t, nil)
@@ -218,6 +227,9 @@ func (ts *TicketService) announceAssigned(t *models.Ticket, agentID models.UserI
 	ts.pluginEvent("ticket.assigned", t, payload)
 	if ts.Notifications != nil {
 		ts.Notifications.TicketAssigned(t, agentID, causerID)
+	}
+	if ts.Panel != nil {
+		ts.Panel.TicketEvent(context.Background(), "ticket.assigned", t, payload, causerID)
 	}
 	ts.emitUpdated(t)
 }
@@ -436,6 +448,9 @@ func (ts *TicketService) AddReply(ctx context.Context, ticketID int64, body stri
 	}
 	if ts.Notifications != nil && !internal {
 		ts.Notifications.ReplyCreated(t, r)
+	}
+	if ts.Panel != nil && !internal {
+		ts.Panel.ReplyCreated(ctx, t, r)
 	}
 
 	return r, nil
