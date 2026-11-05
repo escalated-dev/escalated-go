@@ -37,6 +37,9 @@ type ImportHandler struct {
 	Renderer    renderer.Renderer
 	RoutePrefix string
 	UserID      func(r *http.Request) models.UserID
+	// CookiePath is the path of the credentials cookie: the wizard's URL
+	// path. Empty is {RoutePrefix}/admin/import.
+	CookiePath string
 }
 
 func (h *ImportHandler) base() string {
@@ -45,6 +48,13 @@ func (h *ImportHandler) base() string {
 		prefix = "/escalated"
 	}
 	return prefix + "/admin/import"
+}
+
+func (h *ImportHandler) cookiePath() string {
+	if h.CookiePath != "" {
+		return h.CookiePath
+	}
+	return h.base()
 }
 
 func (h *ImportHandler) ready(w http.ResponseWriter) bool {
@@ -148,7 +158,7 @@ func (h *ImportHandler) cookieName(a services.ImportAdapter) string {
 
 func (h *ImportHandler) setCredentials(w http.ResponseWriter, r *http.Request, a services.ImportAdapter, sealed string, maxAge int) {
 	http.SetCookie(w, &http.Cookie{
-		Name: h.cookieName(a), Value: sealed, Path: h.base(), MaxAge: maxAge,
+		Name: h.cookieName(a), Value: sealed, Path: h.cookiePath(), MaxAge: maxAge,
 		HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteLaxMode,
 	})
 }

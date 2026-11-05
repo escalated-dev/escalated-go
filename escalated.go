@@ -734,6 +734,11 @@ func (e *Escalated) TwoFactorGate() *access.TwoFactorGate {
 			SessionID:         cfg.Access.SessionID,
 			RegenerateSession: cfg.Access.RegenerateSession,
 		}
+		// The embedded admin lives outside the route prefix: the pass mark
+		// must reach it too.
+		if e.Embedding() {
+			e.twoFactorGate.CookiePath = "/"
+		}
 	})
 	return e.twoFactorGate
 }

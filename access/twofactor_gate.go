@@ -38,6 +38,9 @@ type TwoFactorGate struct {
 	// RegenerateSession, when set, gives the session a new id after a passed
 	// challenge (as Laravel's session()->regenerate()) and returns it.
 	RegenerateSession func(http.ResponseWriter, *http.Request) (string, error)
+	// CookiePath is the path of the gate's cookies. Empty is Prefix; "/"
+	// while the admin is embedded under another prefix.
+	CookiePath string
 	// Logf reports refusals and errors. Nil uses the log package.
 	Logf func(format string, args ...any)
 
@@ -178,7 +181,10 @@ func RetryAfter(wait time.Duration) string {
 }
 
 func (g *TwoFactorGate) cookie(r *http.Request, name, value string, maxAge int) *http.Cookie {
-	path := g.Prefix
+	path := g.CookiePath
+	if path == "" {
+		path = g.Prefix
+	}
 	if path == "" {
 		path = "/"
 	}

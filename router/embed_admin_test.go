@@ -600,3 +600,52 @@ func TestAdminNavigationHelperWithoutEmbedding(t *testing.T) {
 		t.Errorf("non-admin %v", got)
 	}
 }
+
+// Two-factor still challenges the embedded admin, returns to it after the
+// challenge, and its cookies reach the embedded URLs.
+func TestEmbeddedAdminKeepsTwoFactor(t *testing.T) {
+	for _, name := range []string{"chi", "stdlib"} {
+		t.Run(name, func(t *testing.T) {
+			f := newUIFixture(t, twoFactorOn(true), embedded(layoutEmbed()))
+			h := f.mounts()[name]
+			secret, _ := enrol(t, f.esc, uiAgent)
+			admin := newBrowser(h, uiAgent, "admin", "s1")
+			wantLocation(t, admin.get("/admin/support/departments"), "embedded admin", "/escalated/two-factor/challenge")
+			rec := admin.post("/escalated/two-factor/challenge", `{"code":"`+nowCode(secret)+`"}`)
+			wantLocation(t, rec, "verify", "/admin/support/departments")
+			for _, c := range rec.Result().Cookies() {
+				if c.MaxAge >= 0 && !strings.HasPrefix("/admin/support/departments", c.Path) {
+					t.Errorf("cookie %s has path %q, which the embedded admin does not send", c.Name, c.Path)
+				}
+			}
+			if rec := admin.get("/admin/support/departments"); rec.Code != http.StatusOK {
+				t.Errorf("after passing: %d", rec.Code)
+			}
+		})
+	}
+}
+
+// The import wizard keeps its credentials between steps in a cookie, which
+// must reach the embedded wizard.
+func TestEmbeddedImportWizardCookie(t *testing.T) {
+	for _, name := range []string{"chi", "stdlib"} {
+		t.Run(name, func(t *testing.T) {
+			f, _ := newImportFixture(t, embedded(layoutEmbed()))
+			c := &importClient{t: t, h: f.mounts()[name], role: "admin"}
+			body, _ := json.Marshal(map[string]any{"credentials": map[string]string{"subdomain": "acme", "api_token": fakeToken}})
+			rec := c.do(http.MethodPost, "/admin/support/import/fakedesk/test-connection", string(body))
+			if rec.Code != http.StatusOK {
+				t.Fatalf("test-connection: %d %s", rec.Code, rec.Body.String())
+			}
+			cookies := rec.Result().Cookies()
+			if len(cookies) == 0 {
+				t.Fatal("no credentials cookie")
+			}
+			for _, ck := range cookies {
+				if ck.Path != "/admin/support/import" {
+					t.Errorf("cookie %s path %q", ck.Name, ck.Path)
+				}
+			}
+		})
+	}
+}

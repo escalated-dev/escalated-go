@@ -46,6 +46,7 @@ func newImportHandler(esc *escalated.Escalated) *handlers.ImportHandler {
 		Renderer:    esc.Renderer,
 		RoutePrefix: esc.Config.RoutePrefix,
 		UserID:      esc.Config.UserIDFunc,
+		CookiePath:  esc.AdminBase() + "/import",
 	}
 }
 
