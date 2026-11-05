@@ -277,3 +277,11 @@ func seeTicketCustomer(ctx context.Context, tickets *services.TicketService, t *
 		tickets.Panel.SeeTicketCustomer(ctx, t)
 	}
 }
+
+// AgentSearch handles GET /admin/agents/search?q= (escalated.admin.agents.search),
+// the reply composer's @mention picker, as escalated-laravel's
+// AgentSearchController: up to 10 agents whose name or email contains q, as
+// [{id, name, email}]; [] without a query.
+func (h *AgentPanelHandler) AgentSearch(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, h.Panel.MentionSuggestions(r.Context(), r.URL.Query().Get("q")))
+}

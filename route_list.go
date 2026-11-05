@@ -63,6 +63,7 @@ var builtInRoutes = map[string]NamedRoute{
 	"escalated.admin.tickets.index":                    {"admin/tickets", routeGet},
 	"escalated.admin.tickets.bulk":                     {"admin/tickets/bulk", routePost},
 	"escalated.admin.tickets.merge-search":             {"admin/tickets/merge-search", routeGet},
+	"escalated.admin.agents.search":                    {"admin/agents/search", routeGet},
 	"escalated.admin.tickets.show":                     {"admin/tickets/{ticket}", routeGet},
 	"escalated.admin.tickets.update":                   {"admin/tickets/{ticket}", []string{http.MethodPut}},
 	"escalated.admin.tickets.reply":                    {"admin/tickets/{ticket}/reply", routePost},
