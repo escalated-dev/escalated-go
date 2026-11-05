@@ -2,7 +2,9 @@
 package router
 
 import (
+	"context"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -134,12 +136,17 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 		})
 	}
 
-	r.Route(cfg.RoutePrefix, func(r chi.Router) {
+	mount := r.Route(cfg.RoutePrefix, func(r chi.Router) {
 		// Outermost, so it also sees the refusals of the middleware below: an
 		// Inertia visit that ends in 403/404/419/429/500/503 gets the
 		// Escalated/Error page (docs/ui-pages.md).
 		if cfg.UIEnabled {
 			r.Use(middleware.InertiaErrorPage(rend, cfg.RoutePrefix, middleware.ErrorPageDebug(cfg.Debug)))
+		}
+		// Only while the admin is embedded (docs/embedding-admin.md): the
+		// standalone admin URLs answer 404 and redirects follow the move.
+		if esc.Embedding() {
+			r.Use(esc.EmbedRouting)
 		}
 		// API tokens authenticate first, so ticket visibility is the token owner's.
 		r.Use(esc.APITokenMiddleware)
@@ -153,6 +160,11 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 		r.Use(esc.Plugins.ShareMiddleware)
 		// ziggy: the route list the pages' route() reads (docs/ui-pages.md).
 		r.Use(esc.RouteListMiddleware)
+		// escalated.embed and escalated.navigation, only while the admin is
+		// embedded.
+		if esc.Embedding() {
+			r.Use(esc.EmbedShareMiddleware)
+		}
 		// Inertia protocol middleware scopes to the UI routes below, but chi
 		// requires every middleware to be registered before any route is added
 		// to a mux — so it must be declared here, ahead of the always-mounted
@@ -360,7 +372,11 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 
 			// Admin routes
 			r.Route("/admin", func(r chi.Router) {
-				r.Use(middleware.RequireAdmin(cfg.AdminCheck))
+				if esc.Embedding() {
+					r.Use(esc.AdminGate(middleware.RequireAdmin(cfg.AdminCheck)))
+				} else {
+					r.Use(middleware.RequireAdmin(cfg.AdminCheck))
+				}
 				// Admin > Plugins, the plugin lifecycle routes and the pages
 				// active plugins declare (escalated.admin.plugins.*,
 				// escalated.plugin.{slug}.page.*).
@@ -664,4 +680,22 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 			})
 		}
 	})
+	if esc.Embedding() {
+		mountEmbeddedAdminChi(r, esc, mount)
+	}
+}
+
+// mountEmbeddedAdminChi serves the admin under the embed prefix: the host's
+// middleware, then the Escalated mount at the standalone admin path.
+func mountEmbeddedAdminChi(r chi.Router, esc *escalated.Escalated, mount chi.Router) {
+	prefix := strings.TrimRight(esc.Config.RoutePrefix, "/")
+	h := esc.EmbeddedAdminHandler(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		rctx := chi.NewRouteContext()
+		rctx.Routes = mount
+		rctx.RoutePath = strings.TrimPrefix(req.URL.Path, prefix)
+		mount.ServeHTTP(w, req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx)))
+	}))
+	base := esc.AdminBase()
+	r.Handle(base, h)
+	r.Handle(base+"/*", h)
 }

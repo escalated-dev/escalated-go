@@ -342,6 +342,14 @@ func BuiltInRoutes(prefix string) map[string]NamedRoute {
 // one with an empty URI removes it.
 func (e *Escalated) RouteList() map[string]NamedRoute {
 	routes := BuiltInRoutes(e.Config.RoutePrefix)
+	// While the admin is embedded its names point under the embed prefix.
+	if e.Embedding() {
+		for name, route := range routes {
+			if embedded, ok := e.embeddedAdminURL("/" + route.URI); ok {
+				routes[name] = NamedRoute{URI: strings.TrimLeft(embedded, "/"), Methods: route.Methods}
+			}
+		}
+	}
 	for name, route := range e.Config.RouteOverrides {
 		if route.URI == "" {
 			delete(routes, name)
@@ -378,11 +386,20 @@ func (e *Escalated) RouteListMiddleware(next http.Handler) http.Handler {
 				"port":     nil,
 				"defaults": map[string]any{},
 				"routes":   routes,
-				"location": origin + r.URL.RequestURI(),
+				"location": origin + requestURI(r),
 			}
 		})
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// requestURI is the request's path and query as the browser sent them: the
+// embedded URL on an embedded admin request.
+func requestURI(r *http.Request) string {
+	if s := embedFrom(r.Context()); s != nil {
+		return s.original.RequestURI()
+	}
+	return r.URL.RequestURI()
 }
 
 // requestOrigin is the scheme and host the request came in on.

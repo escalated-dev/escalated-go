@@ -68,8 +68,12 @@ type Options struct {
 	DB          *sql.DB
 	TablePrefix string
 	RoutePrefix string
-	AdminCheck  func(r *http.Request) bool
-	UserID      func(r *http.Request) models.UserID
+	// AdminBase is the URL path the admin is served at: the plugin pages'
+	// menu links and the Plugins page's flash cookie use it. Empty is
+	// {RoutePrefix}/admin.
+	AdminBase  string
+	AdminCheck func(r *http.Request) bool
+	UserID     func(r *http.Request) models.UserID
 	// UserName and UserEmail name the host's users for ctx.currentUser.
 	UserName  func(ctx context.Context, id models.UserID) string
 	UserEmail func(ctx context.Context, id models.UserID) (string, error)
@@ -99,6 +103,7 @@ type Host struct {
 	clientIP    func(r *http.Request) string
 	logger      *log.Logger
 	routePrefix string
+	adminBase   string
 	reserved    map[string]bool
 	broadcaster *services.Broadcaster
 	domain      *Domain
@@ -135,6 +140,18 @@ type nativeFilter struct {
 	handler  FilterFunc
 }
 
+// admin is the URL path of the admin (Options.AdminBase).
+func (h *Host) admin() string {
+	if h.adminBase != "" {
+		return h.adminBase
+	}
+	prefix := h.routePrefix
+	if prefix == "" {
+		prefix = "/escalated"
+	}
+	return prefix + "/admin"
+}
+
 // New validates the configured native plugins and returns the registry. Two
 // plugins with one slug, or a malformed plugin, are an error naming them.
 func New(cfg Config, opts Options) (*Host, error) {
@@ -152,6 +169,7 @@ func New(cfg Config, opts Options) (*Host, error) {
 		clientIP:    opts.ClientIP,
 		logger:      logger,
 		routePrefix: strings.TrimRight(opts.RoutePrefix, "/"),
+		adminBase:   strings.TrimRight(opts.AdminBase, "/"),
 		reserved:    map[string]bool{},
 		broadcaster: cfg.Broadcaster,
 	}

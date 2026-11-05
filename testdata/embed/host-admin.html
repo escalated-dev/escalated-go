@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Acme admin</title>
+    <script type="module" src="/assets/admin.js"></script>
+</head>
+<body>
+    <header class="host-header">Acme admin</header>
+    <div class="host-shell">
+        <aside class="host-sidebar">
+            <a href="/admin">Dashboard</a>
+            <p class="menu-heading">Support</p>
+            <ul>
+                {{ range .escalatedNavigation }}
+                <li><a href="{{ .URL }}"{{ if .Active }} class="active" aria-current="page"{{ end }}>{{ .Label }}</a></li>
+                {{ end }}
+            </ul>
+        </aside>
+        <main class="host-main">
+            <script data-page="app" type="application/json">{{ marshal .page }}</script>
+            <div id="app"></div>
+        </main>
+    </div>
+    <script>{{ .escalatedRouteHelper }}</script>
+</body>
+</html>

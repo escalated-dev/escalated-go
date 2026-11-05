@@ -162,13 +162,13 @@ func (h *Handler) toIndex(w http.ResponseWriter, r *http.Request, kind, message 
 	http.SetCookie(w, &http.Cookie{
 		Name:     flashCookie,
 		Value:    base64.RawURLEncoding.EncodeToString(raw),
-		Path:     h.prefix() + "/admin/plugins",
+		Path:     h.Host.admin() + "/plugins",
 		MaxAge:   60,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   r.TLS != nil,
 	})
-	http.Redirect(w, r, h.prefix()+"/admin/plugins", http.StatusSeeOther)
+	http.Redirect(w, r, h.Host.admin()+"/plugins", http.StatusSeeOther)
 }
 
 func (h *Handler) takeFlash(w http.ResponseWriter, r *http.Request) map[string]string {
@@ -176,7 +176,7 @@ func (h *Handler) takeFlash(w http.ResponseWriter, r *http.Request) map[string]s
 	if err != nil {
 		return nil
 	}
-	http.SetCookie(w, &http.Cookie{Name: flashCookie, Value: "", Path: h.prefix() + "/admin/plugins", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode})
+	http.SetCookie(w, &http.Cookie{Name: flashCookie, Value: "", Path: h.Host.admin() + "/plugins", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 	raw, err := base64.RawURLEncoding.DecodeString(c.Value)
 	if err != nil {
 		return nil

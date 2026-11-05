@@ -29,10 +29,7 @@ func (h *Host) UIExtensions(r *http.Request) map[string]any {
 	menuItems := []map[string]any{}
 	pageComponents := map[string][]map[string]any{}
 	dashboardWidgets := []map[string]any{}
-	prefix := h.routePrefix
-	if prefix == "" {
-		prefix = "/escalated"
-	}
+	adminBase := h.admin()
 	for _, e := range active {
 		for _, p := range e.manifest.Pages {
 			route := pageRoute(p)
@@ -55,7 +52,7 @@ func (h *Host) UIExtensions(r *http.Request) map[string]any {
 			}
 			menuItems = append(menuItems, map[string]any{
 				"label":    p.Menu.Label,
-				"route":    prefix + "/admin/plugins/" + e.slug + "/" + route,
+				"route":    adminBase + "/plugins/" + e.slug + "/" + route,
 				"icon":     icon,
 				"position": orDefault(p.Menu.Position, 100),
 				"section":  section,
