@@ -52,3 +52,17 @@ func TestExtractUsernameFromEmail(t *testing.T) {
 		t.Errorf("expected john, got %s", result)
 	}
 }
+
+func TestExtractMentionsBracedFullNames(t *testing.T) {
+	result := ExtractMentions("Hey @{John Doe}, and @alice")
+	if len(result) != 2 || result[0] != "John Doe" || result[1] != "alice" {
+		t.Errorf("got %v", result)
+	}
+}
+
+func TestExtractMentionsIgnoresWordsInsideBraces(t *testing.T) {
+	result := ExtractMentions("@{Mary @Ann Lee}")
+	if len(result) != 1 || result[0] != "Mary @Ann Lee" {
+		t.Errorf("got %v", result)
+	}
+}

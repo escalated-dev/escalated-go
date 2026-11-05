@@ -452,6 +452,9 @@ func (ts *TicketService) AddReply(ctx context.Context, ticketID int64, body stri
 	if ts.Panel != nil && !internal {
 		ts.Panel.ReplyCreated(ctx, t, r)
 	}
+	if ts.Panel != nil {
+		ts.Panel.ReplyMentions(ctx, t, r)
+	}
 
 	return r, nil
 }

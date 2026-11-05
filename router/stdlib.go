@@ -320,6 +320,8 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated, guestLimit *middl
 		mux.Handle("DELETE "+prefix+"/admin/tags/{id}", adminMW(http.HandlerFunc(adminH.DeleteTag)))
 		mux.Handle("PUT "+prefix+"/admin/tags/{id}", adminMW(http.HandlerFunc(adminH.UpdateTag)))
 		mux.Handle("PATCH "+prefix+"/admin/tags/{id}", adminMW(http.HandlerFunc(adminH.UpdateTag)))
+		// The composer's @mention picker (Laravel AgentSearchController).
+		mux.Handle("GET "+prefix+"/admin/agents/search", adminMW(http.HandlerFunc(agentPanelHandler(esc).AgentSearch)))
 		// Ticket merge (Laravel TicketMergeController).
 		mux.Handle("GET "+prefix+"/admin/tickets/merge-search", adminMW(http.HandlerFunc(mergeH.Search)))
 		mux.Handle("POST "+prefix+"/admin/tickets/{id}/merge", adminMW(http.HandlerFunc(mergeH.Merge)))

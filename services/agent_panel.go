@@ -34,6 +34,7 @@ const unavailableTitle = "A ticket you can no longer view"
 var notificationTitles = map[string]string{
 	"ticket_assigned":  "%s was assigned to you",
 	"ticket_reply":     "New reply on %s",
+	"mention":          "%[2]s mentioned you on %[1]s",
 	"sla_warning":      "SLA due soon on %s",
 	"sla_breached":     "SLA breached on %s",
 	"chat_transferred": "A chat was transferred to you (%s)",
@@ -50,6 +51,9 @@ var notificationTitles = map[string]string{
 type AgentPanel struct {
 	DB     *sql.DB
 	Prefix string
+	// Agents lists the staff a mention can name (Config.SkillAgentDirectory).
+	// Nil: mentions name nobody and the mention picker lists nobody.
+	Agents func(ctx context.Context) ([]MentionAgent, error)
 	// Access, when set, redacts notifications about tickets the agent can no
 	// longer see before they are broadcast.
 	Access *ticketaccess.Access
@@ -423,6 +427,55 @@ func (p *AgentPanel) ReplyCreated(ctx context.Context, t *models.Ticket, r *mode
 	}
 }
 
+// ReplyMentions handles @mentions in an agent's reply or internal note, as
+// escalated-laravel's MentionService: each agent it names (Agents, by name or
+// email, ignoring case) who may see the ticket gets a mention notification.
+// A customer's or system reply mentions nobody, and nobody is notified of
+// their own mention.
+func (p *AgentPanel) ReplyMentions(ctx context.Context, t *models.Ticket, r *models.Reply) {
+	if p == nil || t == nil || r == nil || r.IsSystem || p.Agents == nil || CustomerSide(t, r) {
+		return
+	}
+	agents := p.mentionableAgents(ctx)
+	mentioned := MentionedAgents(r.Body, agents)
+	if len(mentioned) == 0 {
+		return
+	}
+	by := "Someone"
+	if r.AuthorID != nil {
+		for _, agent := range agents {
+			if agent.ID == *r.AuthorID && agent.Name != "" {
+				by = agent.Name
+			}
+		}
+	}
+	for _, agent := range mentioned {
+		if p.Access != nil && p.Access.Restricted() && !p.Access.CanViewUser(ctx, agent.ID, t.ID, true) {
+			continue
+		}
+		p.Notify(ctx, agent.ID, "mention", t, map[string]any{"reply_id": r.ID, "mentioned_by": by}, r.AuthorID)
+	}
+}
+
+// MentionSuggestions is the composer's mention picker
+// (escalated.admin.agents.search): up to 10 agents whose name or email
+// contains q.
+func (p *AgentPanel) MentionSuggestions(ctx context.Context, q string) []AgentSearchResult {
+	if p == nil || p.Agents == nil {
+		return []AgentSearchResult{}
+	}
+	return MentionSuggestions(q, p.mentionableAgents(ctx), MentionSuggestionsLimit)
+}
+
+func (p *AgentPanel) mentionableAgents(ctx context.Context) []MentionAgent {
+	agents, err := p.Agents(ctx)
+	if err != nil {
+		p.logf("escalated: mention agents: %v", err)
+		return nil
+	}
+	return agents
+}
+
 // TicketEvent handles the other ticket events: assignment, SLA warnings and
 // breaches and chat transfers notify; a chat starting or a visitor's chat
 // message is customer activity.
@@ -656,6 +709,14 @@ func (p *AgentPanel) item(n notificationRow, ticket *ticketSummary, hasTicket bo
 			prefix = "/escalated"
 		}
 		out["url"] = prefix + "/agent/tickets/" + ticket.Reference
+	}
+	if kind == "mention" {
+		by, _ := n.Data["mentioned_by"].(string)
+		if by == "" {
+			by = "Someone"
+		}
+		out["title"] = fmt.Sprintf(notificationTitles[kind], reference, by)
+		return out
 	}
 	out["title"] = fmt.Sprintf(notificationTitles[kind], reference)
 	return out

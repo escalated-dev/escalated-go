@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The knowledge base API and pages search case-insensitively on every database and take `%` and `_` literally.
 
 ### Added
+- **@mention notifications**, as escalated-laravel: an agent mentioned in an agent's reply or internal note (`@{Full Name}`, what the composer's picker inserts, or `@name`; matched to `Config.SkillAgentDirectory` by name or email, ignoring case) gets a `mention` notification in the feed ("X mentioned you on ESC-...", published as `notification.created` with a broadcaster). Nobody is notified of their own mention; customer and system replies mention nobody. The composer's mention picker searches at `GET {prefix}/admin/agents/search?q=` (`escalated.admin.agents.search`, `ticket.view`): up to 10 `{ id, name, email }`. `services.AgentSearchResult` is now `{id, name, email}` with a `models.UserID` id. In-app only (no mention email).
 - **The agent panel's data** (ADR 2026-11-05-agent-panel-data, after escalated-laravel; `docs/agent-panel.md`):
   - agent status: `PUT`/`POST {prefix}/agent/status` (`escalated.agent.status`), shared `escalated.agent_status` and `escalated.agent_statuses`;
   - knowledge-base search for agents: `GET {prefix}/agent/kb/search` (`escalated.agent.kb.search`, `kb.view`), published articles, title matches first;

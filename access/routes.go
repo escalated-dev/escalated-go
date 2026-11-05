@@ -82,6 +82,7 @@ var RoutePermissions = func() []RouteEntry {
 		{"GET", agt + "/", view},
 		{"POST", staff + "/tickets/bulk", view}, // plus each action's, see Required
 		{"GET", adm + "/tickets/merge-search", view},
+		{"GET", adm + "/agents/search", view},
 		{"GET", staff + "/tickets", view},
 		{"GET", staff + "/tickets/*", view},
 		{"GET", staff + "/tickets/*/{links,side-conversations}", view},

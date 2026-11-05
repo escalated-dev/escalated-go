@@ -378,6 +378,8 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Put("/tags/{id}", adminH.UpdateTag)
 				r.Patch("/tags/{id}", adminH.UpdateTag)
 				r.Delete("/tags/{id}", adminH.DeleteTag)
+				// The composer's @mention picker (Laravel AgentSearchController).
+				r.Get("/agents/search", agentPanelHandler(esc).AgentSearch)
 				// Ticket merge (Laravel TicketMergeController).
 				r.Get("/tickets/merge-search", mergeH.Search)
 				r.Post("/tickets/{id}/merge", mergeH.Merge)

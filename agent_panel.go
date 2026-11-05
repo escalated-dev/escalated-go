@@ -3,6 +3,7 @@ package escalated
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/escalated-dev/escalated-go/models"
@@ -51,6 +52,20 @@ func (e *Escalated) AgentPanel() *services.AgentPanel {
 			NotificationsDisabled: cfg.AgentPanel.DisableNotifications,
 			OnlineWindow:          cfg.AgentPanel.PresenceOnlineWindow,
 			RoutePrefix:           cfg.RoutePrefix,
+		}
+		if dir := cfg.SkillAgentDirectory; dir != nil {
+			// The staff a mention can name: the host's agent directory.
+			e.agentPanel.Agents = func(ctx context.Context) ([]services.MentionAgent, error) {
+				rows, err := dir.ListAgentsForSkillForm(ctx)
+				if err != nil {
+					return nil, err
+				}
+				out := make([]services.MentionAgent, 0, len(rows))
+				for _, row := range rows {
+					out = append(out, services.MentionAgent{ID: models.UserID(strconv.FormatInt(row.ID, 10)), Name: row.Name, Email: row.Email})
+				}
+				return out, nil
+			}
 		}
 	})
 	return e.agentPanel
