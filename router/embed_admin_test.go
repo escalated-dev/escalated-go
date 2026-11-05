@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"reflect"
 	"regexp"
 	"strings"
@@ -647,5 +648,19 @@ func TestEmbeddedImportWizardCookie(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// docs/embedding-admin.md shows the root view the tests render.
+func TestEmbeddingDocsShowTheTestedRootView(t *testing.T) {
+	read := func(path string) string {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return strings.ReplaceAll(string(b), "\r\n", "\n")
+	}
+	if !strings.Contains(read("../docs/embedding-admin.md"), read("../testdata/embed/host-admin.html")) {
+		t.Error("docs/embedding-admin.md does not show testdata/embed/host-admin.html verbatim")
 	}
 }

@@ -174,6 +174,27 @@ func main() {
 }
 ```
 
+## Embedding the admin in your own admin panel (optional)
+
+Escalated's admin is a standalone panel at `{RoutePrefix}/admin` by default,
+and nothing changes unless you configure this. If your app already has an
+admin panel, you can show Escalated's admin screens inside it instead: under
+your URL prefix and middleware, in your Vue + Inertia layout, in your
+server-rendered admin template, or in an iframe on an allow-listed origin.
+
+```go
+cfg.EmbedAdmin(escalated.EmbedConfig{
+    Prefix:     "admin/support", // the admin moves to /admin/support/...
+    Middleware: []func(http.Handler) http.Handler{requireAdminSession},
+    Layout:     "Layouts/AdminLayout",
+})
+```
+
+Route names do not change, Escalated's admin gate stays on unless you
+replace it, and pages carry the admin menu (`escalated.navigation`, or
+`esc.AdminNavigation(r)`) for your sidebar. See
+[docs/embedding-admin.md](docs/embedding-admin.md).
+
 ## Configuration
 
 | Field | Type | Default | Description |
@@ -193,6 +214,7 @@ func main() {
 | `TicketSubjectTypes` | `[]string` | nil | Allowlist of `subject_type` values for API attach; empty disables API attach |
 | `UserName` | `func(ctx, models.UserID) string` | nil | Display names for the shared pages (requesters, assignees, authors). See [the shared pages](docs/ui-pages.md) |
 | `Plugins` | `plugins.Config` | none | Native plugins, the SDK plugin runtime and the capability check. See [plugins](docs/plugins.md) |
+| `UI.Embed` | `escalated.EmbedConfig` | off | Embed the admin in your own admin panel (`cfg.EmbedAdmin`). See [embedding the admin](docs/embedding-admin.md) |
 | `Access` | `access.Config` | all off | The install-level access switches (roles & permissions, two-factor, single sign-on). See [access control](docs/access-control.md) |
 
 ### Which database you are on
