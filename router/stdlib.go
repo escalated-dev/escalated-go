@@ -30,13 +30,32 @@ func MountStdlib(mux *http.ServeMux, esc *escalated.Escalated) {
 	// escalated.features / escalated.permissions on every page, and the route
 	// permissions while roles & permissions is on (docs/access-control.md).
 	// ziggy: the route list the pages' route() reads (docs/ui-pages.md).
-	pages := esc.APITokenMiddleware(esc.AccessMiddleware(esc.TicketAccessMiddleware(esc.Plugins.ShareMiddleware(esc.RouteListMiddleware(inner)))))
+	var routes http.Handler = inner
+	// escalated.embed and escalated.navigation, only while the admin is
+	// embedded (docs/embedding-admin.md).
+	if esc.Embedding() {
+		routes = esc.EmbedShareMiddleware(routes)
+	}
+	pages := esc.APITokenMiddleware(esc.AccessMiddleware(esc.TicketAccessMiddleware(esc.Plugins.ShareMiddleware(esc.RouteListMiddleware(routes)))))
+	// While the admin is embedded the standalone admin URLs answer 404 and
+	// redirects follow the move.
+	if esc.Embedding() {
+		pages = esc.EmbedRouting(pages)
+	}
 	// Outermost: an Inertia visit that ends in 403/404/419/429/500/503 gets
 	// the Escalated/Error page (docs/ui-pages.md).
 	if esc.Config.UIEnabled {
 		pages = middleware.InertiaErrorPage(esc.Renderer, prefix, middleware.ErrorPageDebug(esc.Config.Debug))(pages)
 	}
 	mux.Handle(prefix+"/", pages)
+	if esc.Embedding() {
+		// The admin under the embed prefix: the host's middleware, then the
+		// mount above at the standalone admin path.
+		embeddedAdmin := esc.EmbeddedAdminHandler(pages)
+		base := esc.AdminBase()
+		mux.Handle(base, embeddedAdmin)
+		mux.Handle(base+"/", embeddedAdmin)
+	}
 
 	if esc.Config.EnableWidget {
 		stack := newWidgetStack(esc, ticketSvc, guestLimit)
@@ -303,6 +322,9 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated, guestLimit *middl
 
 		// Admin routes (wrapped with admin middleware)
 		adminMW := middleware.RequireAdmin(cfg.AdminCheck)
+		if esc.Embedding() {
+			adminMW = esc.AdminGate(adminMW)
+		}
 		// Admin > Plugins, the plugin lifecycle routes and the pages active
 		// plugins declare (escalated.admin.plugins.*,
 		// escalated.plugin.{slug}.page.*).

@@ -78,6 +78,8 @@ type Escalated struct {
 
 	agentPanelOnce sync.Once
 	agentPanel     *services.AgentPanel
+
+	routeNamesState
 }
 
 // Imports returns the import service behind the admin Import wizard: the
@@ -273,6 +275,7 @@ func newPluginHost(cfg Config) (*plugins.Host, error) {
 		DB:          cfg.DB,
 		TablePrefix: cfg.TablePrefix,
 		RoutePrefix: cfg.RoutePrefix,
+		AdminBase:   adminBase(cfg),
 		AdminCheck:  cfg.AdminCheck,
 		UserID:      cfg.UserIDFunc,
 		UserName:    cfg.UserName,
@@ -281,6 +284,11 @@ func newPluginHost(cfg Config) (*plugins.Host, error) {
 		Reserved:    reserved,
 		Version:     Version,
 	})
+}
+
+// adminBase is Escalated.AdminBase for a resolved config.
+func adminBase(cfg Config) string {
+	return (&Escalated{Config: cfg}).AdminBase()
 }
 
 // Close stops what New started in the background: the plugin runtime.
@@ -370,6 +378,7 @@ func applyDefaults(cfg *Config) {
 	if cfg.APITokenOwner == nil {
 		cfg.APITokenOwner = handlers.APITokenOwnerFromDirectory(cfg.UserDirectory)
 	}
+	cfg.UI.Embed = resolveEmbed(cfg.UI.Embed)
 	tokenAwareChecks(cfg)
 }
 

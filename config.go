@@ -317,6 +317,11 @@ type Config struct {
 	// Plugins, inactive until an admin activates it. See docs/plugins.md.
 	Plugins plugins.Config
 
+	// UI holds the UI options. UI.Embed moves the admin into the host's own
+	// admin panel (ADR 2026-11-05-embeddable-admin); off by default. See
+	// docs/embedding-admin.md and Config.EmbedAdmin.
+	UI UIConfig
+
 	// AgentPanel configures the agent panel's data: the agents' in-app
 	// notifications, customer presence and the notification broadcaster. See
 	// docs/agent-panel.md.
