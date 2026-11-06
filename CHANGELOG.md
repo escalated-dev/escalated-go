@@ -28,6 +28,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `Escalated.AgentPanel()` returns the service behind it.
 - The seven new route names are in the shared route list and the route-permission map.
 
+### Fixed
+- **`router.MountStdlib` no longer panics with `EnableNewsletters` on.** The
+  campaign edit pattern (`GET .../admin/newsletters/{newsletter}/edit`)
+  conflicted with the list and template show patterns, which Go's
+  `ServeMux` refuses. It is now `.../{newsletter}/{action}` answering only
+  `edit` (anything else is a 404), so the newsletter admin works on the
+  standard-library router, and `.../lists/edit` and `.../templates/edit`
+  reach the list and template screens as they do on chi. The route snapshot
+  now covers the newsletter routes on both routers.
+
 ### Not sent
 - `mention` notifications: this package records no @mentions yet. Notification titles are English.
 - The agent status lives in `agent_statuses`: this package has no agent profiles, and its live-chat routing does not read the status yet.
