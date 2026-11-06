@@ -601,7 +601,18 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated, guestLimit *middl
 			mux.Handle("GET "+prefix+"/admin/newsletters/settings", adminMW(http.HandlerFunc(newsletterH.SettingsShow)))
 			mux.Handle("PUT "+prefix+"/admin/newsletters/settings", adminMW(http.HandlerFunc(newsletterH.SettingsUpdate)))
 			mux.Handle("GET "+prefix+"/admin/newsletters/{newsletter}", adminMW(http.HandlerFunc(newsletterH.CampaignShow)))
-			mux.Handle("GET "+prefix+"/admin/newsletters/{newsletter}/edit", adminMW(http.HandlerFunc(newsletterH.CampaignEdit)))
+			// "{newsletter}/edit" would conflict with "lists/{list}" and
+			// "templates/{template}" (both match ".../lists/edit"), which the
+			// ServeMux refuses with a panic. "{newsletter}/{action}" is less
+			// specific than both, so lists/edit and templates/edit go to their
+			// show routes, as they do on chi, and only "edit" is answered here.
+			mux.Handle("GET "+prefix+"/admin/newsletters/{newsletter}/{action}", adminMW(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.PathValue("action") != "edit" {
+					http.NotFound(w, r)
+					return
+				}
+				newsletterH.CampaignEdit(w, r)
+			})))
 			mux.Handle("PUT "+prefix+"/admin/newsletters/{newsletter}", adminMW(http.HandlerFunc(newsletterH.CampaignUpdate)))
 			mux.Handle("DELETE "+prefix+"/admin/newsletters/{newsletter}", adminMW(http.HandlerFunc(newsletterH.CampaignDestroy)))
 		}

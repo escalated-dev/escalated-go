@@ -89,8 +89,6 @@ func snapshotConfigs(t *testing.T) map[string]escalated.Config {
 	all := base
 	all.EnableWidget = true
 	all.APITokensEnabled = true
-	// MountStdlib panics with newsletters on (two of their ServeMux patterns
-	// conflict), so this one is snapshotted through chi only.
 	news := base
 	news.EnableNewsletters = true
 	return map[string]escalated.Config{"default": base, "optional_groups_on": all, "newsletters_on": news}
@@ -107,11 +105,8 @@ func takeRouteSnapshot(t *testing.T, cfg escalated.Config) routeSnapshot {
 
 	r := chi.NewRouter()
 	MountChi(r, esc)
-	var inner *http.ServeMux
-	if !cfg.EnableNewsletters {
-		inner = http.NewServeMux()
-		mountStdlib(inner, esc, middleware.NewGuestRateLimiter(cfg.GuestRateLimit))
-	}
+	inner := http.NewServeMux()
+	mountStdlib(inner, esc, middleware.NewGuestRateLimiter(cfg.GuestRateLimit))
 
 	snap := routeSnapshot{Names: esc.RouteList()}
 	err = chi.Walk(r, func(method, route string, h http.Handler, mws ...func(http.Handler) http.Handler) error {
@@ -120,9 +115,6 @@ func takeRouteSnapshot(t *testing.T, cfg escalated.Config) routeSnapshot {
 			names = append(names, funcName(mw))
 		}
 		snap.Chi = append(snap.Chi, chiRoute{Method: method, Pattern: route, Handler: handlerName(h), Middleware: names})
-		if inner == nil {
-			return nil
-		}
 		path := routeParam.ReplaceAllString(route, "1")
 		path = strings.ReplaceAll(path, "/*", "/x")
 		if strings.HasSuffix(path, "/agent/") || strings.HasSuffix(path, "/agent") {
