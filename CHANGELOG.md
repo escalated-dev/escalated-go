@@ -7,10 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added (optional)
-- **Optional: embed the admin in your own admin panel (off by default; no change unless configured).** ADR 2026-11-05-embeddable-admin, after escalated-laravel; `docs/embedding-admin.md`. `Config.UI.Embed` / `Config.EmbedAdmin(escalated.EmbedConfig{...})` (env `ESCALATED_EMBED`, `ESCALATED_EMBED_MODE`, `ESCALATED_EMBED_PREFIX`, `ESCALATED_EMBED_FRAME_ANCESTORS`) moves every admin route under the host's prefix (default `admin/support`) and middleware on both routers, with the same handlers and route names (the `ziggy` list and the admin's redirects follow; the old `{RoutePrefix}/admin` URLs answer 404). Escalated's admin gate stays unless `ReplaceAdminGate`; two-factor and route permissions always apply. Pages share `escalated.embed` and `escalated.navigation` (also `Escalated.AdminNavigation(r)`); `RootView` is an `html/template` root view for embedded pages only; iframe mode sends `frame-ancestors` and drops `X-Frame-Options` on embedded responses only. The agent panel, customer, guest, widget, API, SSO, two-factor enrolment and the newsletter admin do not move. A snapshot test (`testdata/embed/default-routes.json`) proves the route table is unchanged without it.
+## [0.2.13] - 2026-11-05
 
 ### Upgrading
+- **Optional: embed the admin in your own admin panel (off by default; no change unless configured).** See docs/embedding-admin.md. A snapshot test proves the route table is unchanged without it.
 - **Live chat goes only to agents who are online.** Chat routing (widget chat start, the agent console and department transfers) and the widget's chat availability now read the agent's own status, as escalated-laravel does: only `online` agents in a routing rule get new chats; `away` and `offline` agents, and agents who never set a status, are skipped. `Config.ChatAgentOnline` no longer decides alone: the agent must be online and the hook, when set, must also say yes. Agents must set themselves Online to receive chats.
 - **`Migrate` / `MigrateSQLite` add the agent panel's data** on the next start (ADR 2026-11-05-agent-panel-data): `tickets.last_customer_activity_at` and the `ticket_reads`, `customer_presence`, `notifications` and `agent_statuses` tables, on PostgreSQL and SQLite. Existing tickets get no customer activity, so none turn unread on upgrade.
 - **Agents get in-app notifications** (`Config.AgentPanel.DisableNotifications` switches them off). Assigning a ticket to yourself creates none (it already sent no email). The in-app `ticket_reply` notification is only for customer-side replies: another agent's reply still emails as before, but does not go into the feed.
@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The knowledge base API and pages search case-insensitively on every database and take `%` and `_` literally.
 
 ### Added
+- **Optional: embed the admin in your own admin panel (off by default; no change unless configured).** ADR 2026-11-05-embeddable-admin, after escalated-laravel; `docs/embedding-admin.md`. `Config.UI.Embed` / `Config.EmbedAdmin(escalated.EmbedConfig{...})` (env `ESCALATED_EMBED`, `ESCALATED_EMBED_MODE`, `ESCALATED_EMBED_PREFIX`, `ESCALATED_EMBED_FRAME_ANCESTORS`) moves every admin route under the host's prefix (default `admin/support`) and middleware on both routers, with the same handlers and route names (the `ziggy` list and the admin's redirects follow; the old `{RoutePrefix}/admin` URLs answer 404). Escalated's admin gate stays unless `ReplaceAdminGate`; two-factor and route permissions always apply. Pages share `escalated.embed` and `escalated.navigation` (also `Escalated.AdminNavigation(r)`); `RootView` is an `html/template` root view for embedded pages only; iframe mode sends `frame-ancestors` and drops `X-Frame-Options` on embedded responses only. The agent panel, customer, guest, widget, API, SSO, two-factor enrolment and the newsletter admin do not move. A snapshot test (`testdata/embed/default-routes.json`) proves the route table is unchanged without it.
 - **@mention notifications**, as escalated-laravel: an agent mentioned in an agent's reply or internal note (`@{Full Name}`, what the composer's picker inserts, or `@name`; matched to `Config.SkillAgentDirectory` by name or email, ignoring case) gets a `mention` notification in the feed ("X mentioned you on ESC-...", published as `notification.created` with a broadcaster). Nobody is notified of their own mention; customer and system replies mention nobody. The composer's mention picker searches at `GET {prefix}/admin/agents/search?q=` (`escalated.admin.agents.search`, `ticket.view`): up to 10 `{ id, name, email }`. `services.AgentSearchResult` is now `{id, name, email}` with a `models.UserID` id. In-app only (no mention email).
 - **The agent panel's data** (ADR 2026-11-05-agent-panel-data, after escalated-laravel; `docs/agent-panel.md`):
   - agent status: `PUT`/`POST {prefix}/agent/status` (`escalated.agent.status`), shared `escalated.agent_status` and `escalated.agent_statuses`;
@@ -39,8 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   now covers the newsletter routes on both routers.
 
 ### Not sent
-- `mention` notifications: this package records no @mentions yet. Notification titles are English.
-- The agent status lives in `agent_statuses`: this package has no agent profiles, and its live-chat routing does not read the status yet.
+- Notification titles are English.
+- The agent status lives in `agent_statuses`: this package has no agent profiles.
 
 ## [0.2.12] - 2026-11-04
 
