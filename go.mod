@@ -1,6 +1,6 @@
 module github.com/escalated-dev/escalated-go
 
-go 1.26.9
+go 1.27
 
 require (
 	github.com/beevik/etree v1.8.1
@@ -8,7 +8,7 @@ require (
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/lib/pq v1.12.3
-	github.com/petaki/inertia-go v1.15.0
+	github.com/petaki/inertia-go v1.17.0
 	github.com/pquerna/otp v1.5.0
 	github.com/russellhaering/gosaml2 v0.12.0
 	github.com/russellhaering/goxmldsig v1.6.1
