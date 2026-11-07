@@ -19,10 +19,3 @@ updates:
       # module's minimum Go moves to 1.27.
       - dependency-name: "github.com/petaki/inertia-go"
         versions: [">=1.16.0"]
-
-  - package-ecosystem: "gomod"
-    directory: "/docker/host-app"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
