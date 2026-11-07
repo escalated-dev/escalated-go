@@ -13,6 +13,12 @@ updates:
       interval: "weekly"
     labels:
       - "dependencies"
+    ignore:
+      # inertia-go 1.16+ declares `go 1.27`, which would raise this module's
+      # go directive and drop Go 1.26 for every host (#204). Revisit when the
+      # module's minimum Go moves to 1.27.
+      - dependency-name: "github.com/petaki/inertia-go"
+        versions: [">=1.16.0"]
 
   - package-ecosystem: "gomod"
     directory: "/docker/host-app"
