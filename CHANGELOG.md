@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.14] - 2026-11-07
+
 ### Changed
 - **Dependencies:** modernc.org/sqlite 1.61.1 (with modernc.org/libc 1.79.0 and golang.org/x/sys 0.49.0). github.com/petaki/inertia-go stays on 1.15.0: 1.16 and later require Go 1.27, which would raise the minimum Go for every host.
 
