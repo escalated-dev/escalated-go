@@ -1,251 +1,173 @@
-<p align="center">
-  <b>العربية</b> •
-  <a href="README.de.md">Deutsch</a> •
-  <a href="../../README.md">English</a> •
-  <a href="README.es.md">Español</a> •
-  <a href="README.fr.md">Français</a> •
-  <a href="README.it.md">Italiano</a> •
-  <a href="README.ja.md">日本語</a> •
-  <a href="README.ko.md">한국어</a> •
-  <a href="README.nl.md">Nederlands</a> •
-  <a href="README.pl.md">Polski</a> •
-  <a href="README.pt-BR.md">Português (BR)</a> •
-  <a href="README.ru.md">Русский</a> •
-  <a href="README.tr.md">Türkçe</a> •
+<p align="center"><sub>
+  <b>العربية</b> ·
+  <a href="README.de.md">Deutsch</a> ·
+  <a href="../../README.md">English</a> ·
+  <a href="README.es.md">Español</a> ·
+  <a href="README.fr.md">Français</a> ·
+  <a href="README.it.md">Italiano</a> ·
+  <a href="README.ja.md">日本語</a> ·
+  <a href="README.ko.md">한국어</a> ·
+  <a href="README.nl.md">Nederlands</a> ·
+  <a href="README.pl.md">Polski</a> ·
+  <a href="README.pt-BR.md">Português (BR)</a> ·
+  <a href="README.ru.md">Русский</a> ·
+  <a href="README.tr.md">Türkçe</a> ·
   <a href="README.zh-CN.md">简体中文</a>
+</sub></p>
+
+<p align="center">
+  <a href="https://escalated.dev"><img src="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/logo.png" width="72" height="72" alt="Escalated"></a>
 </p>
 
-# Escalated Go
+<h1 align="center">Escalated for Go</h1>
 
-نظام تذاكر دعم قابل للتضمين لتطبيقات Go. يعمل مع `net/http` القياسي و Chi وأي موجه يقبل `http.HandlerFunc`.
+<p align="center">
+  أضف نظام دعم فني متكاملًا إلى تطبيق Go الخاص بك.<br>
+  تذاكر، واتفاقيات مستوى الخدمة (SLA)، وقواعد تصعيد، وصندوق وارد للوكلاء، وبوابة للعملاء، تعمل كلها على قاعدة بياناتك الخاصة.
+</p>
+
+<p align="center">
+  <a href="https://escalated.dev"><b>الموقع</b></a> ·
+  <a href="https://escalated.dev/docs"><b>التوثيق</b></a> ·
+  <a href="https://escalated.dev/cloud"><b>Cloud</b></a> ·
+  <a href="../../CHANGELOG.md"><b>سجل التغييرات</b></a>
+</p>
+
+<br>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/inbox-dark.png">
+  <img src="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/inbox-light.png" alt="صندوق وارد الوكلاء في Escalated: طرق عرض محفوظة مع أعداد، وعدّادات تنازلية لـ SLA، وأولويات على كل تذكرة" width="100%">
+</picture>
+
+## ماذا يفعل
+
+<table>
+  <tr>
+    <td width="40%">
+      <h3>صندوق وارد يمكن لوكلائك العمل فيه طوال اليوم</h3>
+      المحادثة والملاحظات الداخلية والردود الجاهزة ومؤقتات SLA في شاشة واحدة. تصل التذاكر أيضًا بالبريد الإلكتروني عبر Mailgun أو Postmark أو SES.
+    </td>
+    <td width="60%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/ticket-dark.png">
+        <img src="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/ticket-light.png" alt="تذكرة مفتوحة في مساحة عمل الوكيل مع محرر الرد">
+      </picture>
+    </td>
+  </tr>
+  <tr>
+    <td width="60%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/dashboard-dark.png">
+        <img src="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/dashboard-light.png" alt="صفحة التقارير في لوحة الإدارة مع أوقات الاستجابة وCSAT وخروقات SLA">
+      </picture>
+    </td>
+    <td width="40%">
+      <h3>اتفاقيات SLA وقواعد تصعيد تراها بوضوح</h3>
+      أهداف للاستجابة والحل حسب الأولوية مع ساعات العمل، وقواعد تصعّد التذكرة أو تعيد إسنادها عندما يفوت الهدف، وتقارير عن الخروقات.
+    </td>
+  </tr>
+</table>
 
 ## الميزات
 
-- تذاكر مع حالات وأولويات وأنواع وتتبع SLA
-- ردود (عامة، ملاحظات داخلية، رسائل نظام)
-- أقسام وعلامات
-- سياسات SLA مع أهداف استجابة/حل لكل أولوية
-- لوحة تحكم الوكيل وإعدادات المسؤول
-- واجهة مستخدم Inertia.js أو وضع JSON API بدون واجهة
-- دعم PostgreSQL و SQLite
-- معالجات HTTP مستقلة عن إطار العمل
-- ترحيلات SQL مضمنة
+<table>
+<tr>
+<td width="33%" valign="top">
 
-### الميزات
+**التذاكر**
+- الحالات والأولويات وأنواع التذاكر
+- ردود عامة وملاحظات داخلية ورسائل نظام
+- فصل رد إلى تذكرة جديدة
+- تأجيل مع استئناف تلقائي
+- ربط التذاكر بالكيانات الخاصة بك
 
-- **Ticket splitting** — تقسيم رد إلى تذكرة مستقلة جديدة مع الحفاظ على السياق الأصلي
-- **Ticket snooze** — تأجيل التذاكر مع إعدادات مسبقة (ساعة، 4 ساعات، غداً، الأسبوع القادم)؛ مجدول goroutine في الخلفية يوقظها تلقائياً حسب الجدول
-- **Saved views / custom queues** — حفظ وتسمية ومشاركة إعدادات التصفية المسبقة كعروض تذاكر قابلة لإعادة الاستخدام
-- **Embeddable support widget** — أداة `<script>` خفيفة مع بحث قاعدة المعرفة ونموذج التذكرة والتحقق من الحالة
-- **Email threading** — تتضمن رسائل البريد الصادرة رؤوس `In-Reply-To` و `References` الصحيحة لسلسلة الرسائل في عملاء البريد
-- **Branded email templates** — شعار قابل للتكوين ولون أساسي ونص تذييل لجميع رسائل البريد الصادرة
-- **Real-time updates** — نقطة نهاية Server-Sent Events (SSE) لتحديثات التذاكر المباشرة مع استطلاع احتياطي تلقائي
-- **Knowledge base toggle** — تمكين أو تعطيل قاعدة المعرفة العامة من إعدادات المسؤول
+</td>
+<td width="33%" valign="top">
 
-## التثبيت
+**مساحة عمل الوكيل وSLA**
+- لوحة الوكيل وطرق العرض المحفوظة
+- الأقسام والوسوم
+- تحديثات مباشرة عبر Server-Sent Events
+- أهداف الاستجابة والحل حسب الأولوية
+- تتبع SLA على كل تذكرة
 
-```bash
-go get github.com/escalated-dev/escalated-go
-```
+</td>
+<td width="33%" valign="top">
 
-يتطلب Go 1.26.9 أو إصدارًا أحدث للحصول على إصلاحات أمان المكتبة القياسية.
+**العملاء**
+- بوابة العملاء عند تفعيل الواجهة
+- وصول ضيف موثّق برمز يُرسل بالبريد
+- أداة قابلة للتضمين مع بحث في قاعدة المعرفة ودردشة
+- قاعدة معرفة يمكن تشغيلها أو إيقافها
 
-## Quick Start with Chi
+</td>
+</tr>
+<tr>
+<td width="33%" valign="top">
 
-```go
-package main
+**البريد الإلكتروني**
+- إشعارات مرتبطة في سلاسل عبر Message-ID
+- ردود واردة من webhooks مزود الخدمة
+- سلاسل صحيحة في برامج البريد
+- قوالب تحمل علامتك التجارية
 
-import (
-    "database/sql"
-    "log"
-    "net/http"
+</td>
+<td width="33%" valign="top">
 
-    "github.com/go-chi/chi/v5"
-    _ "github.com/lib/pq"
+**الإدارة والوصول**
+- إعدادات من لوحة الإدارة
+- الأدوار والصلاحيات والتحقق بخطوتين وSSO
+- إضافات Go أصلية وإضافات SDK
 
-    escalated "github.com/escalated-dev/escalated-go"
-    "github.com/escalated-dev/escalated-go/migrations"
-    "github.com/escalated-dev/escalated-go/models"
-    "github.com/escalated-dev/escalated-go/router"
-)
+</td>
+<td width="33%" valign="top">
 
-func main() {
-    db, err := sql.Open("postgres", "postgres://localhost/myapp?sslmode=disable")
-    if err != nil {
-        log.Fatal(err)
-    }
+**مصمم لـ Go**
+- يعمل مع net/http وChi وغيرها
+- واجهة Inertia أو JSON API بدون واجهة
+- PostgreSQL وSQLite
+- ترحيلات SQL مضمّنة
 
-    // Run migrations
-    if err := migrations.Migrate(db, "escalated_"); err != nil {
-        log.Fatal(err)
-    }
+</td>
+</tr>
+</table>
 
-    // Configure
-    cfg := escalated.DefaultConfig()
-    cfg.DB = db
-    cfg.RoutePrefix = "/support"
-    cfg.AdminCheck = func(r *http.Request) bool {
-        // Replace with an admin check using your verified session or JWT.
-        return false
-    }
-    cfg.AgentCheck = func(r *http.Request) bool {
-        // Replace with an agent check using your verified session or JWT.
-        return false
-    }
-    cfg.UserIDFunc = func(r *http.Request) models.UserID {
-        // Return the user ID from your host app's verified session or JWT.
-        return models.UserID("")
-    }
+<p align="center"><sub><a href="../features.md">كل الميزات بالتفصيل</a></sub></p>
 
-    esc, err := escalated.New(cfg)
-    if err != nil {
-        log.Fatal(err)
-    }
+<p align="center">
+  <a href="https://go.dev"><img src="https://img.shields.io/badge/Go_1.26+-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go 1.26+"></a>
+  <a href="https://www.postgresql.org"><img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL"></a>
+  <a href="https://www.sqlite.org"><img src="https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite"></a>
+  <a href="https://inertiajs.com"><img src="https://img.shields.io/badge/Inertia-9553E9?style=for-the-badge&logo=inertia&logoColor=white" alt="Inertia"></a>
+  <a href="https://vuejs.org"><img src="https://img.shields.io/badge/Vue_3-4FC08D?style=for-the-badge&logo=vuedotjs&logoColor=white" alt="Vue 3"></a>
+</p>
 
-    // Mount routes
-    r := chi.NewRouter()
-    router.MountChi(r, esc)
+## البدء السريع
 
-    log.Println("Listening on :8080")
-    log.Fatal(http.ListenAndServe(":8080", r))
-}
-```
-
-## بدء سريع مع المكتبة القياسية
+ثبّته باستخدام `go get github.com/escalated-dev/escalated-go`، ثم:
 
 ```go
-package main
-
-import (
-    "database/sql"
-    "log"
-    "net/http"
-
-    _ "modernc.org/sqlite"
-
-    escalated "github.com/escalated-dev/escalated-go"
-    "github.com/escalated-dev/escalated-go/migrations"
-    "github.com/escalated-dev/escalated-go/router"
-)
-
-func main() {
-    db, err := sql.Open("sqlite", "escalated.db")
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    // Run SQLite migrations
-    if err := migrations.MigrateSQLite(db, "escalated_"); err != nil {
-        log.Fatal(err)
-    }
-
-    // Configure (headless API mode)
-    cfg := escalated.DefaultConfig()
-    cfg.DB = db
-    cfg.UIEnabled = false
-
-    esc, err := escalated.NewSQLite(cfg)
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    // Mount on the standard-library mux
-    mux := http.NewServeMux()
-    router.MountStdlib(mux, esc)
-
-    log.Println("Listening on :8080")
-    log.Fatal(http.ListenAndServe(":8080", mux))
-}
+migrations.Migrate(db, "escalated_")
+cfg := escalated.DefaultConfig()
+cfg.DB = db
+esc, err := escalated.New(cfg)
+router.MountChi(r, esc)
 ```
 
-## الإعدادات
+يتطلب Go 1.26.9 أو أحدث. اضبط أولًا `AdminCheck` و`AgentCheck` و`UserIDFunc` على فحوصات الجلسة الخاصة بك؛ وإلى أن تفعل ذلك، فإنها ترفض الوصول. يحتوي [دليل البدء](../getting-started.md) على الأمثلة الكاملة لـ Chi والمكتبة القياسية.
 
-| الحقل | النوع | الافتراضي | الوصف |
-|-------|------|---------|-------------|
-| `RoutePrefix` | `string` | `/escalated` | بادئة URL لجميع المسارات |
-| `UIEnabled` | `bool` | `true` | تركيب مسارات واجهة Inertia؛ `false` لـ JSON API فقط |
-| `TablePrefix` | `string` | `escalated_` | بادئة اسم جدول قاعدة البيانات |
-| `AdminCheck` | `func(*http.Request) bool` | `false` | يعيد true للمستخدمين المسؤولين |
-| `AgentCheck` | `func(*http.Request) bool` | `false` | يعيد true لمستخدمي الوكلاء |
-| `UserIDFunc` | `func(*http.Request) models.UserID` | `""` | يستخرج معرف المستخدم الحالي من الطلب |
-| `DB` | `*sql.DB` | required | اتصال قاعدة البيانات |
+## اعرف المزيد
 
-## مسارات API
+- [كل الميزات](../features.md) · [البدء](../getting-started.md) · [الإعدادات](../configuration.md) · [مسارات API](../api-routes.md)
+- [إجراءات ومخازن وحالات وترجمات مخصصة](../customization.md) · [صفحات الواجهة](../ui-pages.md)
+- [التحكم في الوصول](../access-control.md) · [رموز API](../api-tokens.md) · [الوصول إلى التذاكر وتوجيهها](../ticket-access-and-routing.md)
+- [رسائل الإشعارات](../notification-emails.md) · [تضمين الأداة](../embedding-the-widget.md) · [وصول الضيف](../guest-access.md)
+- [لوحة الوكيل](../agent-panel.md) · [تضمين لوحة الإدارة](../embedding-admin.md)
+- [الإضافات](../plugins.md) · [النشرات البريدية](../newsletters.md)
 
-جميع المسارات مسبوقة بـ `RoutePrefix` (الافتراضي `/escalated`).
-
-### JSON API (مركب دائماً)
-
-| الطريقة | المسار | الوصف |
-|--------|------|-------------|
-| `GET` | `/api/tickets` | عرض التذاكر (مع فلاتر) |
-| `POST` | `/api/tickets` | إنشاء تذكرة |
-| `GET` | `/api/tickets/{id}` | الحصول على تذكرة مع الردود والأنشطة |
-| `PATCH` | `/api/tickets/{id}` | تحديث تذكرة |
-| `POST` | `/api/tickets/{id}/replies` | إضافة رد |
-| `GET` | `/api/departments` | عرض الأقسام |
-| `GET` | `/api/tags` | عرض العلامات |
-
-### واجهة العميل (عندما `UIEnabled: true`)
-
-| الطريقة | المسار | الوصف |
-|--------|------|-------------|
-| `GET` | `/tickets` | تذاكري |
-| `POST` | `/tickets` | إرسال تذكرة |
-| `GET` | `/tickets/{id}` | عرض التذكرة |
-| `POST` | `/tickets/{id}/replies` | الرد على التذكرة |
-
-### واجهة الوكيل (تتطلب `AgentCheck`)
-
-| الطريقة | المسار | الوصف |
-|--------|------|-------------|
-| `GET` | `/agent/` | لوحة تحكم الوكيل |
-| `GET` | `/agent/tickets` | قائمة التذاكر |
-| `GET` | `/agent/tickets/{id}` | تفاصيل التذكرة |
-| `POST` | `/agent/tickets/{id}/assign` | تعيين تذكرة |
-| `POST` | `/agent/tickets/{id}/replies` | رد / ملاحظة داخلية |
-| `POST` | `/agent/tickets/{id}/status` | تغيير الحالة |
-
-### واجهة المسؤول (تتطلب `AdminCheck`)
-
-| الطريقة | المسار | الوصف |
-|--------|------|-------------|
-| `GET/POST/PATCH/DELETE` | `/admin/departments` | إدارة الأقسام |
-| `GET/POST/DELETE` | `/admin/tags` | إدارة العلامات |
-| `GET/POST/DELETE` | `/admin/sla-policies` | إدارة سياسات SLA |
-
-## متجر مخصص
-
-نفّذ واجهة `store.Store` لاستخدام قاعدة بيانات مختلفة:
-
-```go
-esc, _ := escalated.New(cfg)
-esc.Store = myCustomStore // satisfies store.Store interface
-```
-
-## حالات التذكرة
-
-| القيمة | الاسم |
-|-------|------|
-| 0 | open |
-| 1 | in_progress |
-| 2 | waiting_on_customer |
-| 3 | waiting_on_agent |
-| 4 | escalated |
-| 5 | resolved |
-| 6 | closed |
-| 7 | reopened |
-
-## الأولويات
-
-| القيمة | الاسم |
-|-------|------|
-| 0 | low |
-| 1 | medium |
-| 2 | high |
-| 3 | urgent |
-| 4 | critical |
+يتوفر Escalated أيضًا لـ [Laravel](https://github.com/escalated-dev/escalated-laravel)، [Rails](https://github.com/escalated-dev/escalated-rails)، [Django](https://github.com/escalated-dev/escalated-django)، [NestJS](https://github.com/escalated-dev/escalated-nestjs)، [AdonisJS](https://github.com/escalated-dev/escalated-adonis)، [Symfony](https://github.com/escalated-dev/escalated-symfony)، [Phoenix](https://github.com/escalated-dev/escalated-phoenix)، [.NET](https://github.com/escalated-dev/escalated-dotnet)، [Spring](https://github.com/escalated-dev/escalated-spring)، [WordPress](https://github.com/escalated-dev/escalated-wordpress) و[Filament](https://github.com/escalated-dev/escalated-filament). توجد الواجهة في [escalated](https://github.com/escalated-dev/escalated).
 
 ## الترخيص
 
-MIT
+MIT. Copyright (c) Escalated.dev. راجع [LICENSE](../../LICENSE).

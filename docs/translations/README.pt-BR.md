@@ -1,251 +1,173 @@
-<p align="center">
-  <a href="README.ar.md">العربية</a> •
-  <a href="README.de.md">Deutsch</a> •
-  <a href="../../README.md">English</a> •
-  <a href="README.es.md">Español</a> •
-  <a href="README.fr.md">Français</a> •
-  <a href="README.it.md">Italiano</a> •
-  <a href="README.ja.md">日本語</a> •
-  <a href="README.ko.md">한국어</a> •
-  <a href="README.nl.md">Nederlands</a> •
-  <a href="README.pl.md">Polski</a> •
-  <b>Português (BR)</b> •
-  <a href="README.ru.md">Русский</a> •
-  <a href="README.tr.md">Türkçe</a> •
+<p align="center"><sub>
+  <a href="README.ar.md">العربية</a> ·
+  <a href="README.de.md">Deutsch</a> ·
+  <a href="../../README.md">English</a> ·
+  <a href="README.es.md">Español</a> ·
+  <a href="README.fr.md">Français</a> ·
+  <a href="README.it.md">Italiano</a> ·
+  <a href="README.ja.md">日本語</a> ·
+  <a href="README.ko.md">한국어</a> ·
+  <a href="README.nl.md">Nederlands</a> ·
+  <a href="README.pl.md">Polski</a> ·
+  <b>Português (BR)</b> ·
+  <a href="README.ru.md">Русский</a> ·
+  <a href="README.tr.md">Türkçe</a> ·
   <a href="README.zh-CN.md">简体中文</a>
+</sub></p>
+
+<p align="center">
+  <a href="https://escalated.dev"><img src="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/logo.png" width="72" height="72" alt="Escalated"></a>
 </p>
 
-# Escalated Go
+<h1 align="center">Escalated for Go</h1>
 
-Sistema de tickets de suporte incorporável para aplicações Go. Funciona com `net/http` padrão, Chi e qualquer roteador que aceite `http.HandlerFunc`.
+<p align="center">
+  Adicione um helpdesk completo ao seu app Go.<br>
+  Tickets, SLAs, regras de escalonamento, uma caixa de entrada para agentes e um portal do cliente, rodando no seu próprio banco de dados.
+</p>
 
-## Funcionalidades
+<p align="center">
+  <a href="https://escalated.dev"><b>Site</b></a> ·
+  <a href="https://escalated.dev/docs"><b>Documentação</b></a> ·
+  <a href="https://escalated.dev/cloud"><b>Cloud</b></a> ·
+  <a href="../../CHANGELOG.md"><b>Registro de alterações</b></a>
+</p>
 
-- Tickets com status, prioridades, tipos e rastreamento de SLA
-- Respostas (públicas, notas internas, mensagens do sistema)
+<br>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/inbox-dark.png">
+  <img src="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/inbox-light.png" alt="A caixa de entrada dos agentes no Escalated: visualizações salvas com contadores, contagens regressivas de SLA e prioridades em cada ticket" width="100%">
+</picture>
+
+## O que ele faz
+
+<table>
+  <tr>
+    <td width="40%">
+      <h3>Uma caixa de entrada onde seus agentes podem trabalhar o dia todo</h3>
+      Conversa, notas internas, respostas prontas e timers de SLA em uma só tela. Os tickets também chegam por e-mail via Mailgun, Postmark ou SES.
+    </td>
+    <td width="60%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/ticket-dark.png">
+        <img src="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/ticket-light.png" alt="Um ticket aberto no espaço de trabalho do agente com o editor de resposta">
+      </picture>
+    </td>
+  </tr>
+  <tr>
+    <td width="60%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/dashboard-dark.png">
+        <img src="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/dashboard-light.png" alt="A página de relatórios do admin com tempos de resposta, CSAT e violações de SLA">
+      </picture>
+    </td>
+    <td width="40%">
+      <h3>SLAs e regras de escalonamento que você consegue ver</h3>
+      Metas de resposta e resolução por prioridade com horário comercial, regras que escalonam ou reatribuem quando uma meta escapa, e relatórios de violações.
+    </td>
+  </tr>
+</table>
+
+## Recursos
+
+<table>
+<tr>
+<td width="33%" valign="top">
+
+**Tickets**
+- Status, prioridades e tipos de ticket
+- Respostas públicas, notas internas, mensagens do sistema
+- Separar uma resposta em um novo ticket
+- Adiar com retomada automática
+- Assuntos de ticket ligados às suas entidades
+
+</td>
+<td width="33%" valign="top">
+
+**Espaço do agente e SLAs**
+- Painel do agente e visualizações salvas
 - Departamentos e tags
-- Políticas de SLA com metas de resposta/resolução por prioridade
-- Painel do agente e configuração do administrador
-- Interface Inertia.js ou modo API JSON sem interface
-- Suporte a PostgreSQL e SQLite
-- Handlers HTTP independentes de framework
-- Migrações SQL incorporadas
+- Atualizações ao vivo via Server-Sent Events
+- Metas de resposta e resolução por prioridade
+- Acompanhamento de SLA em cada ticket
 
-### Funcionalidades
+</td>
+<td width="33%" valign="top">
 
-- **Ticket splitting** — Dividir uma resposta em um novo ticket independente preservando o contexto original
-- **Ticket snooze** — Adiar tickets com predefinições (1h, 4h, amanhã, próxima semana); um agendador goroutine em segundo plano os desperta automaticamente conforme programado
-- **Saved views / custom queues** — Salvar, nomear e compartilhar predefinições de filtro como visualizações de tickets reutilizáveis
-- **Embeddable support widget** — Widget `<script>` leve com busca na KB, formulário de ticket e verificação de status
-- **Email threading** — E-mails enviados incluem cabeçalhos `In-Reply-To` e `References` corretos para encadeamento adequado em clientes de e-mail
-- **Branded email templates** — Logo configurável, cor primária e texto de rodapé para todos os e-mails enviados
-- **Real-time updates** — Endpoint Server-Sent Events (SSE) para atualizações de tickets ao vivo com fallback automático de polling
-- **Knowledge base toggle** — Ativar ou desativar a base de conhecimento pública nas configurações do administrador
+**Clientes**
+- Portal do cliente quando a interface está ativa
+- Acesso de convidado verificado por código enviado por e-mail
+- Widget incorporável com busca na base de conhecimento e chat
+- Base de conhecimento, ligada ou desligada
 
-## Instalação
+</td>
+</tr>
+<tr>
+<td width="33%" valign="top">
 
-```bash
-go get github.com/escalated-dev/escalated-go
-```
+**E-mail**
+- Notificações agrupadas em threads por Message-ID
+- Respostas recebidas pelos webhooks do provedor
+- Threads corretas nos clientes de e-mail
+- Templates com a sua marca
 
-Requer Go 1.26.9 ou posterior com as correções de segurança da biblioteca padrão.
+</td>
+<td width="33%" valign="top">
 
-## Quick Start with Chi
+**Admin e acesso**
+- Configuração pelo admin
+- Papéis, permissões, autenticação em dois fatores, SSO
+- Plugins Go nativos e plugins do SDK
 
-```go
-package main
+</td>
+<td width="33%" valign="top">
 
-import (
-    "database/sql"
-    "log"
-    "net/http"
+**Feito para Go**
+- Funciona com net/http, Chi e outros
+- Interface Inertia ou API JSON headless
+- PostgreSQL e SQLite
+- Migrações SQL embutidas
 
-    "github.com/go-chi/chi/v5"
-    _ "github.com/lib/pq"
+</td>
+</tr>
+</table>
 
-    escalated "github.com/escalated-dev/escalated-go"
-    "github.com/escalated-dev/escalated-go/migrations"
-    "github.com/escalated-dev/escalated-go/models"
-    "github.com/escalated-dev/escalated-go/router"
-)
+<p align="center"><sub><a href="../features.md">Todos os recursos em detalhes</a></sub></p>
 
-func main() {
-    db, err := sql.Open("postgres", "postgres://localhost/myapp?sslmode=disable")
-    if err != nil {
-        log.Fatal(err)
-    }
+<p align="center">
+  <a href="https://go.dev"><img src="https://img.shields.io/badge/Go_1.26+-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go 1.26+"></a>
+  <a href="https://www.postgresql.org"><img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL"></a>
+  <a href="https://www.sqlite.org"><img src="https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite"></a>
+  <a href="https://inertiajs.com"><img src="https://img.shields.io/badge/Inertia-9553E9?style=for-the-badge&logo=inertia&logoColor=white" alt="Inertia"></a>
+  <a href="https://vuejs.org"><img src="https://img.shields.io/badge/Vue_3-4FC08D?style=for-the-badge&logo=vuedotjs&logoColor=white" alt="Vue 3"></a>
+</p>
 
-    // Run migrations
-    if err := migrations.Migrate(db, "escalated_"); err != nil {
-        log.Fatal(err)
-    }
+## Início rápido
 
-    // Configure
-    cfg := escalated.DefaultConfig()
-    cfg.DB = db
-    cfg.RoutePrefix = "/support"
-    cfg.AdminCheck = func(r *http.Request) bool {
-        // Replace with an admin check using your verified session or JWT.
-        return false
-    }
-    cfg.AgentCheck = func(r *http.Request) bool {
-        // Replace with an agent check using your verified session or JWT.
-        return false
-    }
-    cfg.UserIDFunc = func(r *http.Request) models.UserID {
-        // Return the user ID from your host app's verified session or JWT.
-        return models.UserID("")
-    }
-
-    esc, err := escalated.New(cfg)
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    // Mount routes
-    r := chi.NewRouter()
-    router.MountChi(r, esc)
-
-    log.Println("Listening on :8080")
-    log.Fatal(http.ListenAndServe(":8080", r))
-}
-```
-
-## Início Rápido com a Biblioteca Padrão
+Instale com `go get github.com/escalated-dev/escalated-go` e depois:
 
 ```go
-package main
-
-import (
-    "database/sql"
-    "log"
-    "net/http"
-
-    _ "modernc.org/sqlite"
-
-    escalated "github.com/escalated-dev/escalated-go"
-    "github.com/escalated-dev/escalated-go/migrations"
-    "github.com/escalated-dev/escalated-go/router"
-)
-
-func main() {
-    db, err := sql.Open("sqlite", "escalated.db")
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    // Run SQLite migrations
-    if err := migrations.MigrateSQLite(db, "escalated_"); err != nil {
-        log.Fatal(err)
-    }
-
-    // Configure (headless API mode)
-    cfg := escalated.DefaultConfig()
-    cfg.DB = db
-    cfg.UIEnabled = false
-
-    esc, err := escalated.NewSQLite(cfg)
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    // Mount on the standard-library mux
-    mux := http.NewServeMux()
-    router.MountStdlib(mux, esc)
-
-    log.Println("Listening on :8080")
-    log.Fatal(http.ListenAndServe(":8080", mux))
-}
+migrations.Migrate(db, "escalated_")
+cfg := escalated.DefaultConfig()
+cfg.DB = db
+esc, err := escalated.New(cfg)
+router.MountChi(r, esc)
 ```
 
-## Configuração
+Requer Go 1.26.9 ou mais recente. Primeiro defina `AdminCheck`, `AgentCheck` e `UserIDFunc` com as suas próprias verificações de sessão; enquanto você não fizer isso, eles negam o acesso. O [guia de primeiros passos](../getting-started.md) traz os exemplos completos para Chi e a biblioteca padrão.
 
-| Campo | Tipo | Padrão | Descrição |
-|-------|------|---------|-------------|
-| `RoutePrefix` | `string` | `/escalated` | Prefixo de URL para todas as rotas |
-| `UIEnabled` | `bool` | `true` | Montar rotas de interface Inertia; `false` para apenas API JSON |
-| `TablePrefix` | `string` | `escalated_` | Prefixo do nome da tabela do banco de dados |
-| `AdminCheck` | `func(*http.Request) bool` | `false` | Retorna true para usuários administradores |
-| `AgentCheck` | `func(*http.Request) bool` | `false` | Retorna true para usuários agentes |
-| `UserIDFunc` | `func(*http.Request) models.UserID` | `""` | Extrai o ID do usuário atual da requisição |
-| `DB` | `*sql.DB` | required | Conexão com o banco de dados |
+## Saiba mais
 
-## Rotas da API
+- [Todos os recursos](../features.md) · [Primeiros passos](../getting-started.md) · [Configuração](../configuration.md) · [Rotas da API](../api-routes.md)
+- [Ações, stores, status e traduções personalizados](../customization.md) · [Páginas da interface](../ui-pages.md)
+- [Controle de acesso](../access-control.md) · [Tokens de API](../api-tokens.md) · [Acesso a tickets e roteamento](../ticket-access-and-routing.md)
+- [E-mails de notificação](../notification-emails.md) · [Incorporar o widget](../embedding-the-widget.md) · [Acesso de convidado](../guest-access.md)
+- [Painel do agente](../agent-panel.md) · [Incorporar o admin](../embedding-admin.md)
+- [Plugins](../plugins.md) · [Newsletters](../newsletters.md)
 
-Todas as rotas são prefixadas com `RoutePrefix` (padrão `/escalated`).
-
-### JSON API (sempre montada)
-
-| Método | Caminho | Descrição |
-|--------|------|-------------|
-| `GET` | `/api/tickets` | Listar tickets (com filtros) |
-| `POST` | `/api/tickets` | Criar um ticket |
-| `GET` | `/api/tickets/{id}` | Obter ticket com respostas e atividades |
-| `PATCH` | `/api/tickets/{id}` | Atualizar um ticket |
-| `POST` | `/api/tickets/{id}/replies` | Adicionar uma resposta |
-| `GET` | `/api/departments` | Listar departamentos |
-| `GET` | `/api/tags` | Listar tags |
-
-### UI do Cliente (quando `UIEnabled: true`)
-
-| Método | Caminho | Descrição |
-|--------|------|-------------|
-| `GET` | `/tickets` | Meus tickets |
-| `POST` | `/tickets` | Enviar um ticket |
-| `GET` | `/tickets/{id}` | Visualizar ticket |
-| `POST` | `/tickets/{id}/replies` | Responder ao ticket |
-
-### UI do Agente (requer `AgentCheck`)
-
-| Método | Caminho | Descrição |
-|--------|------|-------------|
-| `GET` | `/agent/` | Painel do agente |
-| `GET` | `/agent/tickets` | Fila de tickets |
-| `GET` | `/agent/tickets/{id}` | Detalhe do ticket |
-| `POST` | `/agent/tickets/{id}/assign` | Atribuir ticket |
-| `POST` | `/agent/tickets/{id}/replies` | Resposta / nota interna |
-| `POST` | `/agent/tickets/{id}/status` | Alterar status |
-
-### UI do Admin (requer `AdminCheck`)
-
-| Método | Caminho | Descrição |
-|--------|------|-------------|
-| `GET/POST/PATCH/DELETE` | `/admin/departments` | Gerenciar departamentos |
-| `GET/POST/DELETE` | `/admin/tags` | Gerenciar tags |
-| `GET/POST/DELETE` | `/admin/sla-policies` | Gerenciar políticas de SLA |
-
-## Store personalizado
-
-Implemente a interface `store.Store` para usar um banco de dados diferente:
-
-```go
-esc, _ := escalated.New(cfg)
-esc.Store = myCustomStore // satisfies store.Store interface
-```
-
-## Status do ticket
-
-| Valor | Nome |
-|-------|------|
-| 0 | open |
-| 1 | in_progress |
-| 2 | waiting_on_customer |
-| 3 | waiting_on_agent |
-| 4 | escalated |
-| 5 | resolved |
-| 6 | closed |
-| 7 | reopened |
-
-## Prioridades
-
-| Valor | Nome |
-|-------|------|
-| 0 | low |
-| 1 | medium |
-| 2 | high |
-| 3 | urgent |
-| 4 | critical |
+O Escalated também está disponível para [Laravel](https://github.com/escalated-dev/escalated-laravel), [Rails](https://github.com/escalated-dev/escalated-rails), [Django](https://github.com/escalated-dev/escalated-django), [NestJS](https://github.com/escalated-dev/escalated-nestjs), [AdonisJS](https://github.com/escalated-dev/escalated-adonis), [Symfony](https://github.com/escalated-dev/escalated-symfony), [Phoenix](https://github.com/escalated-dev/escalated-phoenix), [.NET](https://github.com/escalated-dev/escalated-dotnet), [Spring](https://github.com/escalated-dev/escalated-spring), [WordPress](https://github.com/escalated-dev/escalated-wordpress) e [Filament](https://github.com/escalated-dev/escalated-filament). A interface fica em [escalated](https://github.com/escalated-dev/escalated).
 
 ## Licença
 
-MIT
+MIT. Copyright (c) Escalated.dev. Veja [LICENSE](../../LICENSE).

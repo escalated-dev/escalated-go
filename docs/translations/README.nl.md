@@ -1,251 +1,173 @@
-<p align="center">
-  <a href="README.ar.md">العربية</a> •
-  <a href="README.de.md">Deutsch</a> •
-  <a href="../../README.md">English</a> •
-  <a href="README.es.md">Español</a> •
-  <a href="README.fr.md">Français</a> •
-  <a href="README.it.md">Italiano</a> •
-  <a href="README.ja.md">日本語</a> •
-  <a href="README.ko.md">한국어</a> •
-  <b>Nederlands</b> •
-  <a href="README.pl.md">Polski</a> •
-  <a href="README.pt-BR.md">Português (BR)</a> •
-  <a href="README.ru.md">Русский</a> •
-  <a href="README.tr.md">Türkçe</a> •
+<p align="center"><sub>
+  <a href="README.ar.md">العربية</a> ·
+  <a href="README.de.md">Deutsch</a> ·
+  <a href="../../README.md">English</a> ·
+  <a href="README.es.md">Español</a> ·
+  <a href="README.fr.md">Français</a> ·
+  <a href="README.it.md">Italiano</a> ·
+  <a href="README.ja.md">日本語</a> ·
+  <a href="README.ko.md">한국어</a> ·
+  <b>Nederlands</b> ·
+  <a href="README.pl.md">Polski</a> ·
+  <a href="README.pt-BR.md">Português (BR)</a> ·
+  <a href="README.ru.md">Русский</a> ·
+  <a href="README.tr.md">Türkçe</a> ·
   <a href="README.zh-CN.md">简体中文</a>
+</sub></p>
+
+<p align="center">
+  <a href="https://escalated.dev"><img src="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/logo.png" width="72" height="72" alt="Escalated"></a>
 </p>
 
-# Escalated Go
+<h1 align="center">Escalated for Go</h1>
 
-Inbedbaar support-ticketsysteem voor Go-applicaties. Werkt met standaard `net/http`, Chi en elke router die `http.HandlerFunc` accepteert.
+<p align="center">
+  Voeg een complete helpdesk toe aan je Go-app.<br>
+  Tickets, SLA's, escalatieregels, een inbox voor agents en een klantportaal, op je eigen database.
+</p>
+
+<p align="center">
+  <a href="https://escalated.dev"><b>Website</b></a> ·
+  <a href="https://escalated.dev/docs"><b>Documentatie</b></a> ·
+  <a href="https://escalated.dev/cloud"><b>Cloud</b></a> ·
+  <a href="../../CHANGELOG.md"><b>Wijzigingslog</b></a>
+</p>
+
+<br>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/inbox-dark.png">
+  <img src="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/inbox-light.png" alt="De agent-inbox van Escalated: opgeslagen weergaven met tellers, SLA-afteltimers en prioriteiten op elk ticket" width="100%">
+</picture>
+
+## Wat het doet
+
+<table>
+  <tr>
+    <td width="40%">
+      <h3>Een inbox waarin je agents de hele dag kunnen werken</h3>
+      Gesprek, interne notities, standaardantwoorden en SLA-timers op één scherm. Tickets komen ook binnen per e-mail via Mailgun, Postmark of SES.
+    </td>
+    <td width="60%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/ticket-dark.png">
+        <img src="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/ticket-light.png" alt="Een geopend ticket in de werkruimte van de agent met de antwoordeditor">
+      </picture>
+    </td>
+  </tr>
+  <tr>
+    <td width="60%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/dashboard-dark.png">
+        <img src="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/dashboard-light.png" alt="De rapportpagina in het beheer met reactietijden, CSAT en SLA-overschrijdingen">
+      </picture>
+    </td>
+    <td width="40%">
+      <h3>SLA's en escalatieregels die je kunt zien</h3>
+      Reactie- en oplosdoelen per prioriteit met kantooruren, regels die escaleren of opnieuw toewijzen wanneer een doel niet wordt gehaald, en rapporten over overschrijdingen.
+    </td>
+  </tr>
+</table>
 
 ## Functies
 
-- Tickets met statussen, prioriteiten, typen en SLA-tracking
-- Antwoorden (openbaar, interne notities, systeemberichten)
+<table>
+<tr>
+<td width="33%" valign="top">
+
+**Tickets**
+- Statussen, prioriteiten en tickettypen
+- Openbare antwoorden, interne notities, systeemberichten
+- Een antwoord afsplitsen naar een nieuw ticket
+- Uitstellen met automatisch heropenen
+- Ticketonderwerpen gekoppeld aan je eigen entiteiten
+
+</td>
+<td width="33%" valign="top">
+
+**Agentwerkruimte en SLA's**
+- Agentdashboard en opgeslagen weergaven
 - Afdelingen en tags
-- SLA-beleid met respons-/oplossingsdoelen per prioriteit
-- Agent-dashboard en admin-configuratie
-- Inertia.js-UI of headless JSON API-modus
-- PostgreSQL- en SQLite-ondersteuning
-- Framework-onafhankelijke HTTP-handlers
-- Ingebedde SQL-migraties
+- Live updates via Server-Sent Events
+- Reactie- en oplosdoelen per prioriteit
+- SLA-bewaking op elk ticket
 
-### Functies
+</td>
+<td width="33%" valign="top">
 
-- **Ticket splitting** — Een antwoord opsplitsen in een nieuw zelfstandig ticket met behoud van de oorspronkelijke context
-- **Ticket snooze** — Tickets snoozen met voorinstellingen (1u, 4u, morgen, volgende week); een achtergrond-goroutine-scheduler wekt ze automatisch op schema
-- **Saved views / custom queues** — Filter-voorinstellingen opslaan, benoemen en delen als herbruikbare ticketweergaven
-- **Embeddable support widget** — Lichtgewicht `<script>`-widget met KB-zoeken, ticketformulier en statuscontrole
-- **Email threading** — Uitgaande e-mails bevatten juiste `In-Reply-To`- en `References`-headers voor correct threading in mailclients
-- **Branded email templates** — Configureerbaar logo, primaire kleur en voettekst voor alle uitgaande e-mails
-- **Real-time updates** — Server-Sent Events (SSE)-endpoint voor live ticketupdates met automatische polling-fallback
-- **Knowledge base toggle** — Openbare kennisbank in- of uitschakelen vanuit admin-instellingen
+**Klanten**
+- Klantportaal wanneer de UI aan staat
+- Geverifieerde gasttoegang met een code per e-mail
+- Insluitbare widget met zoeken in de kennisbank en chat
+- Kennisbank, aan of uit
 
-## Installatie
+</td>
+</tr>
+<tr>
+<td width="33%" valign="top">
 
-```bash
-go get github.com/escalated-dev/escalated-go
-```
+**E-mail**
+- Meldingen in threads via Message-ID
+- Inkomende antwoorden via webhooks van de provider
+- Correcte threads in mailclients
+- Sjablonen in je eigen huisstijl
 
-Vereist Go 1.26.9 of nieuwer met de beveiligingsupdates voor de standaardbibliotheek.
+</td>
+<td width="33%" valign="top">
 
-## Quick Start with Chi
+**Beheer en toegang**
+- Configuratie in het beheer
+- Rollen, rechten, tweestapsverificatie, SSO
+- Native Go- en SDK-plugins
 
-```go
-package main
+</td>
+<td width="33%" valign="top">
 
-import (
-    "database/sql"
-    "log"
-    "net/http"
+**Gemaakt voor Go**
+- Werkt met net/http, Chi en meer
+- Inertia-UI of headless JSON-API
+- PostgreSQL en SQLite
+- Ingebouwde SQL-migraties
 
-    "github.com/go-chi/chi/v5"
-    _ "github.com/lib/pq"
+</td>
+</tr>
+</table>
 
-    escalated "github.com/escalated-dev/escalated-go"
-    "github.com/escalated-dev/escalated-go/migrations"
-    "github.com/escalated-dev/escalated-go/models"
-    "github.com/escalated-dev/escalated-go/router"
-)
+<p align="center"><sub><a href="../features.md">Alle functies in detail</a></sub></p>
 
-func main() {
-    db, err := sql.Open("postgres", "postgres://localhost/myapp?sslmode=disable")
-    if err != nil {
-        log.Fatal(err)
-    }
+<p align="center">
+  <a href="https://go.dev"><img src="https://img.shields.io/badge/Go_1.26+-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go 1.26+"></a>
+  <a href="https://www.postgresql.org"><img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL"></a>
+  <a href="https://www.sqlite.org"><img src="https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite"></a>
+  <a href="https://inertiajs.com"><img src="https://img.shields.io/badge/Inertia-9553E9?style=for-the-badge&logo=inertia&logoColor=white" alt="Inertia"></a>
+  <a href="https://vuejs.org"><img src="https://img.shields.io/badge/Vue_3-4FC08D?style=for-the-badge&logo=vuedotjs&logoColor=white" alt="Vue 3"></a>
+</p>
 
-    // Run migrations
-    if err := migrations.Migrate(db, "escalated_"); err != nil {
-        log.Fatal(err)
-    }
+## Snel aan de slag
 
-    // Configure
-    cfg := escalated.DefaultConfig()
-    cfg.DB = db
-    cfg.RoutePrefix = "/support"
-    cfg.AdminCheck = func(r *http.Request) bool {
-        // Replace with an admin check using your verified session or JWT.
-        return false
-    }
-    cfg.AgentCheck = func(r *http.Request) bool {
-        // Replace with an agent check using your verified session or JWT.
-        return false
-    }
-    cfg.UserIDFunc = func(r *http.Request) models.UserID {
-        // Return the user ID from your host app's verified session or JWT.
-        return models.UserID("")
-    }
-
-    esc, err := escalated.New(cfg)
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    // Mount routes
-    r := chi.NewRouter()
-    router.MountChi(r, esc)
-
-    log.Println("Listening on :8080")
-    log.Fatal(http.ListenAndServe(":8080", r))
-}
-```
-
-## Snelle Start met de Standaardbibliotheek
+Installeer met `go get github.com/escalated-dev/escalated-go` en daarna:
 
 ```go
-package main
-
-import (
-    "database/sql"
-    "log"
-    "net/http"
-
-    _ "modernc.org/sqlite"
-
-    escalated "github.com/escalated-dev/escalated-go"
-    "github.com/escalated-dev/escalated-go/migrations"
-    "github.com/escalated-dev/escalated-go/router"
-)
-
-func main() {
-    db, err := sql.Open("sqlite", "escalated.db")
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    // Run SQLite migrations
-    if err := migrations.MigrateSQLite(db, "escalated_"); err != nil {
-        log.Fatal(err)
-    }
-
-    // Configure (headless API mode)
-    cfg := escalated.DefaultConfig()
-    cfg.DB = db
-    cfg.UIEnabled = false
-
-    esc, err := escalated.NewSQLite(cfg)
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    // Mount on the standard-library mux
-    mux := http.NewServeMux()
-    router.MountStdlib(mux, esc)
-
-    log.Println("Listening on :8080")
-    log.Fatal(http.ListenAndServe(":8080", mux))
-}
+migrations.Migrate(db, "escalated_")
+cfg := escalated.DefaultConfig()
+cfg.DB = db
+esc, err := escalated.New(cfg)
+router.MountChi(r, esc)
 ```
 
-## Configuratie
+Vereist Go 1.26.9 of nieuwer. Stel eerst `AdminCheck`, `AgentCheck` en `UserIDFunc` in op je eigen sessiecontroles; tot je dat doet, weigeren ze toegang. De [handleiding om te beginnen](../getting-started.md) bevat de volledige voorbeelden voor Chi en de standaardbibliotheek.
 
-| Veld | Type | Standaard | Beschrijving |
-|-------|------|---------|-------------|
-| `RoutePrefix` | `string` | `/escalated` | URL-voorvoegsel voor alle routes |
-| `UIEnabled` | `bool` | `true` | Inertia UI-routes aankoppelen; `false` voor alleen JSON API |
-| `TablePrefix` | `string` | `escalated_` | Voorvoegsel voor databasetabelnaam |
-| `AdminCheck` | `func(*http.Request) bool` | `false` | Geeft true terug voor admin-gebruikers |
-| `AgentCheck` | `func(*http.Request) bool` | `false` | Geeft true terug voor agent-gebruikers |
-| `UserIDFunc` | `func(*http.Request) models.UserID` | `""` | Haalt de ID van de huidige gebruiker uit het verzoek |
-| `DB` | `*sql.DB` | required | Databaseverbinding |
+## Meer weten
 
-## API-routes
+- [Alle functies](../features.md) · [Aan de slag](../getting-started.md) · [Configuratie](../configuration.md) · [API-routes](../api-routes.md)
+- [Eigen acties, stores, statussen en vertalingen](../customization.md) · [UI-pagina's](../ui-pages.md)
+- [Toegangsbeheer](../access-control.md) · [API-tokens](../api-tokens.md) · [Tickettoegang en routering](../ticket-access-and-routing.md)
+- [Meldingsmails](../notification-emails.md) · [De widget insluiten](../embedding-the-widget.md) · [Gasttoegang](../guest-access.md)
+- [Agentpaneel](../agent-panel.md) · [Het beheer insluiten](../embedding-admin.md)
+- [Plugins](../plugins.md) · [Nieuwsbrieven](../newsletters.md)
 
-Alle routes zijn voorzien van het voorvoegsel `RoutePrefix` (standaard `/escalated`).
-
-### JSON API (altijd aangekoppeld)
-
-| Methode | Pad | Beschrijving |
-|--------|------|-------------|
-| `GET` | `/api/tickets` | Tickets weergeven (met filters) |
-| `POST` | `/api/tickets` | Een ticket aanmaken |
-| `GET` | `/api/tickets/{id}` | Ticket ophalen met antwoorden en activiteiten |
-| `PATCH` | `/api/tickets/{id}` | Een ticket bijwerken |
-| `POST` | `/api/tickets/{id}/replies` | Een antwoord toevoegen |
-| `GET` | `/api/departments` | Afdelingen weergeven |
-| `GET` | `/api/tags` | Tags weergeven |
-
-### Klant-UI (wanneer `UIEnabled: true`)
-
-| Methode | Pad | Beschrijving |
-|--------|------|-------------|
-| `GET` | `/tickets` | Mijn tickets |
-| `POST` | `/tickets` | Een ticket indienen |
-| `GET` | `/tickets/{id}` | Ticket bekijken |
-| `POST` | `/tickets/{id}/replies` | Antwoorden op ticket |
-
-### Agent-UI (vereist `AgentCheck`)
-
-| Methode | Pad | Beschrijving |
-|--------|------|-------------|
-| `GET` | `/agent/` | Agent-dashboard |
-| `GET` | `/agent/tickets` | Ticketwachtrij |
-| `GET` | `/agent/tickets/{id}` | Ticketdetail |
-| `POST` | `/agent/tickets/{id}/assign` | Ticket toewijzen |
-| `POST` | `/agent/tickets/{id}/replies` | Antwoord / interne notitie |
-| `POST` | `/agent/tickets/{id}/status` | Status wijzigen |
-
-### Admin-UI (vereist `AdminCheck`)
-
-| Methode | Pad | Beschrijving |
-|--------|------|-------------|
-| `GET/POST/PATCH/DELETE` | `/admin/departments` | Afdelingen beheren |
-| `GET/POST/DELETE` | `/admin/tags` | Tags beheren |
-| `GET/POST/DELETE` | `/admin/sla-policies` | SLA-beleid beheren |
-
-## Aangepaste store
-
-Implementeer de `store.Store`-interface om een andere database te gebruiken:
-
-```go
-esc, _ := escalated.New(cfg)
-esc.Store = myCustomStore // satisfies store.Store interface
-```
-
-## Ticketstatussen
-
-| Waarde | Naam |
-|-------|------|
-| 0 | open |
-| 1 | in_progress |
-| 2 | waiting_on_customer |
-| 3 | waiting_on_agent |
-| 4 | escalated |
-| 5 | resolved |
-| 6 | closed |
-| 7 | reopened |
-
-## Prioriteiten
-
-| Waarde | Naam |
-|-------|------|
-| 0 | low |
-| 1 | medium |
-| 2 | high |
-| 3 | urgent |
-| 4 | critical |
+Escalated is ook beschikbaar voor [Laravel](https://github.com/escalated-dev/escalated-laravel), [Rails](https://github.com/escalated-dev/escalated-rails), [Django](https://github.com/escalated-dev/escalated-django), [NestJS](https://github.com/escalated-dev/escalated-nestjs), [AdonisJS](https://github.com/escalated-dev/escalated-adonis), [Symfony](https://github.com/escalated-dev/escalated-symfony), [Phoenix](https://github.com/escalated-dev/escalated-phoenix), [.NET](https://github.com/escalated-dev/escalated-dotnet), [Spring](https://github.com/escalated-dev/escalated-spring), [WordPress](https://github.com/escalated-dev/escalated-wordpress) en [Filament](https://github.com/escalated-dev/escalated-filament). De UI staat in [escalated](https://github.com/escalated-dev/escalated).
 
 ## Licentie
 
-MIT
+MIT. Copyright (c) Escalated.dev. Zie [LICENSE](../../LICENSE).
