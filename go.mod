@@ -12,7 +12,7 @@ require (
 	github.com/pquerna/otp v1.5.0
 	github.com/russellhaering/gosaml2 v0.12.0
 	github.com/russellhaering/goxmldsig v1.6.1
-	golang.org/x/oauth2 v0.37.0
+	golang.org/x/oauth2 v0.38.0
 	modernc.org/sqlite v1.61.1
 )
 
