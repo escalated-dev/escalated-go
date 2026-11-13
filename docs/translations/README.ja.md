@@ -1,251 +1,173 @@
-<p align="center">
-  <a href="README.ar.md">العربية</a> •
-  <a href="README.de.md">Deutsch</a> •
-  <a href="../../README.md">English</a> •
-  <a href="README.es.md">Español</a> •
-  <a href="README.fr.md">Français</a> •
-  <a href="README.it.md">Italiano</a> •
-  <b>日本語</b> •
-  <a href="README.ko.md">한국어</a> •
-  <a href="README.nl.md">Nederlands</a> •
-  <a href="README.pl.md">Polski</a> •
-  <a href="README.pt-BR.md">Português (BR)</a> •
-  <a href="README.ru.md">Русский</a> •
-  <a href="README.tr.md">Türkçe</a> •
+<p align="center"><sub>
+  <a href="README.ar.md">العربية</a> ·
+  <a href="README.de.md">Deutsch</a> ·
+  <a href="../../README.md">English</a> ·
+  <a href="README.es.md">Español</a> ·
+  <a href="README.fr.md">Français</a> ·
+  <a href="README.it.md">Italiano</a> ·
+  <b>日本語</b> ·
+  <a href="README.ko.md">한국어</a> ·
+  <a href="README.nl.md">Nederlands</a> ·
+  <a href="README.pl.md">Polski</a> ·
+  <a href="README.pt-BR.md">Português (BR)</a> ·
+  <a href="README.ru.md">Русский</a> ·
+  <a href="README.tr.md">Türkçe</a> ·
   <a href="README.zh-CN.md">简体中文</a>
+</sub></p>
+
+<p align="center">
+  <a href="https://escalated.dev"><img src="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/logo.png" width="72" height="72" alt="Escalated"></a>
 </p>
 
-# Escalated Go
+<h1 align="center">Escalated for Go</h1>
 
-Goアプリケーション向けの組み込み可能なサポートチケットシステム。標準の`net/http`、Chi、および`http.HandlerFunc`を受け付ける任意のルーターで動作します。
+<p align="center">
+  Go アプリに本格的なヘルプデスクを追加できます。<br>
+  チケット、SLA、エスカレーションルール、エージェント用受信箱、カスタマーポータルが、あなた自身のデータベース上で動きます。
+</p>
+
+<p align="center">
+  <a href="https://escalated.dev"><b>ウェブサイト</b></a> ·
+  <a href="https://escalated.dev/docs"><b>ドキュメント</b></a> ·
+  <a href="https://escalated.dev/cloud"><b>Cloud</b></a> ·
+  <a href="../../CHANGELOG.md"><b>変更履歴</b></a>
+</p>
+
+<br>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/inbox-dark.png">
+  <img src="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/inbox-light.png" alt="Escalated のエージェント受信箱: 件数付きの保存ビュー、SLA のカウントダウン、各チケットの優先度" width="100%">
+</picture>
+
+## できること
+
+<table>
+  <tr>
+    <td width="40%">
+      <h3>エージェントが一日中作業できる受信箱</h3>
+      会話、社内メモ、定型返信、SLA タイマーをひとつの画面に。チケットは Mailgun、Postmark、SES 経由のメールでも届きます。
+    </td>
+    <td width="60%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/ticket-dark.png">
+        <img src="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/ticket-light.png" alt="返信エディタ付きでエージェントのワークスペースに開いたチケット">
+      </picture>
+    </td>
+  </tr>
+  <tr>
+    <td width="60%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/dashboard-dark.png">
+        <img src="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/dashboard-light.png" alt="応答時間、CSAT、SLA 違反を表示する管理画面のレポートページ">
+      </picture>
+    </td>
+    <td width="40%">
+      <h3>見える SLA とエスカレーションルール</h3>
+      営業時間を考慮した優先度ごとの応答・解決目標、目標を外れたときにエスカレーションや再割り当てを行うルール、そして違反レポート。
+    </td>
+  </tr>
+</table>
 
 ## 機能
 
-- ステータス、優先度、タイプ、SLAトラッキング付きチケット
-- 返信（公開、内部メモ、システムメッセージ）
-- 部門とタグ
-- 優先度ごとの応答/解決目標を持つSLAポリシー
-- エージェントダッシュボードと管理設定
-- Inertia.js UIまたはヘッドレスJSON APIモード
-- PostgreSQLとSQLiteサポート
-- フレームワーク非依存のHTTPハンドラー
-- 組み込みSQLマイグレーション
+<table>
+<tr>
+<td width="33%" valign="top">
 
-### 機能
+**チケット**
+- ステータス、優先度、チケット種別
+- 公開返信、社内メモ、システムメッセージ
+- 返信を新しいチケットに分割
+- 自動で再開するスヌーズ
+- あなたのエンティティに紐づくチケット
 
-- **Ticket splitting** — 返信を元のコンテキストを保持しながら新しい独立チケットに分割
-- **Ticket snooze** — プリセット（1時間、4時間、明日、来週）でチケットをスヌーズ；バックグラウンドのgoroutineスケジューラがスケジュール通りに自動的にウェイクアップ
-- **Saved views / custom queues** — フィルタープリセットを再利用可能なチケットビューとして保存、命名、共有
-- **Embeddable support widget** — KB検索、チケットフォーム、ステータス確認を備えた軽量`<script>`ウィジェット
-- **Email threading** — 送信メールにはメールクライアントでの正しいスレッディングのための適切な`In-Reply-To`と`References`ヘッダーが含まれる
-- **Branded email templates** — すべての送信メールに設定可能なロゴ、プライマリカラー、フッターテキスト
-- **Real-time updates** — 自動ポーリングフォールバック付きのライブチケット更新用Server-Sent Events (SSE)エンドポイント
-- **Knowledge base toggle** — 管理設定から公開ナレッジベースの有効/無効を切り替え
+</td>
+<td width="33%" valign="top">
 
-## インストール
+**エージェントワークスペースと SLA**
+- エージェントダッシュボードと保存ビュー
+- 部署とタグ
+- Server-Sent Events によるリアルタイム更新
+- 優先度ごとの応答・解決目標
+- すべてのチケットで SLA を追跡
 
-```bash
-go get github.com/escalated-dev/escalated-go
-```
+</td>
+<td width="33%" valign="top">
 
-標準ライブラリのセキュリティ修正を含む Go 1.26.9 以降が必要です。
+**顧客**
+- UI を有効にしたときのカスタマーポータル
+- メールで届くコードによる認証済みゲストアクセス
+- ナレッジベース検索とチャット付きの埋め込みウィジェット
+- ナレッジベース(オン・オフ切り替え可)
 
-## Quick Start with Chi
+</td>
+</tr>
+<tr>
+<td width="33%" valign="top">
 
-```go
-package main
+**メール**
+- Message-ID でスレッド化される通知
+- プロバイダの Webhook からの受信返信
+- メールクライアントで正しく表示されるスレッド
+- ブランドに合わせたテンプレート
 
-import (
-    "database/sql"
-    "log"
-    "net/http"
+</td>
+<td width="33%" valign="top">
 
-    "github.com/go-chi/chi/v5"
-    _ "github.com/lib/pq"
+**管理とアクセス**
+- 管理画面での設定
+- ロール、権限、二要素認証、SSO
+- ネイティブ Go プラグインと SDK プラグイン
 
-    escalated "github.com/escalated-dev/escalated-go"
-    "github.com/escalated-dev/escalated-go/migrations"
-    "github.com/escalated-dev/escalated-go/models"
-    "github.com/escalated-dev/escalated-go/router"
-)
+</td>
+<td width="33%" valign="top">
 
-func main() {
-    db, err := sql.Open("postgres", "postgres://localhost/myapp?sslmode=disable")
-    if err != nil {
-        log.Fatal(err)
-    }
+**Go のために設計**
+- net/http、Chi などで動作
+- Inertia UI またはヘッドレス JSON API
+- PostgreSQL と SQLite
+- 埋め込み SQL マイグレーション
 
-    // Run migrations
-    if err := migrations.Migrate(db, "escalated_"); err != nil {
-        log.Fatal(err)
-    }
+</td>
+</tr>
+</table>
 
-    // Configure
-    cfg := escalated.DefaultConfig()
-    cfg.DB = db
-    cfg.RoutePrefix = "/support"
-    cfg.AdminCheck = func(r *http.Request) bool {
-        // Replace with an admin check using your verified session or JWT.
-        return false
-    }
-    cfg.AgentCheck = func(r *http.Request) bool {
-        // Replace with an agent check using your verified session or JWT.
-        return false
-    }
-    cfg.UserIDFunc = func(r *http.Request) models.UserID {
-        // Return the user ID from your host app's verified session or JWT.
-        return models.UserID("")
-    }
+<p align="center"><sub><a href="../features.md">すべての機能の詳細</a></sub></p>
 
-    esc, err := escalated.New(cfg)
-    if err != nil {
-        log.Fatal(err)
-    }
+<p align="center">
+  <a href="https://go.dev"><img src="https://img.shields.io/badge/Go_1.26+-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go 1.26+"></a>
+  <a href="https://www.postgresql.org"><img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL"></a>
+  <a href="https://www.sqlite.org"><img src="https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite"></a>
+  <a href="https://inertiajs.com"><img src="https://img.shields.io/badge/Inertia-9553E9?style=for-the-badge&logo=inertia&logoColor=white" alt="Inertia"></a>
+  <a href="https://vuejs.org"><img src="https://img.shields.io/badge/Vue_3-4FC08D?style=for-the-badge&logo=vuedotjs&logoColor=white" alt="Vue 3"></a>
+</p>
 
-    // Mount routes
-    r := chi.NewRouter()
-    router.MountChi(r, esc)
+## クイックスタート
 
-    log.Println("Listening on :8080")
-    log.Fatal(http.ListenAndServe(":8080", r))
-}
-```
-
-## 標準ライブラリでのクイックスタート
+`go get github.com/escalated-dev/escalated-go` でインストールしてから、次のようにします。
 
 ```go
-package main
-
-import (
-    "database/sql"
-    "log"
-    "net/http"
-
-    _ "modernc.org/sqlite"
-
-    escalated "github.com/escalated-dev/escalated-go"
-    "github.com/escalated-dev/escalated-go/migrations"
-    "github.com/escalated-dev/escalated-go/router"
-)
-
-func main() {
-    db, err := sql.Open("sqlite", "escalated.db")
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    // Run SQLite migrations
-    if err := migrations.MigrateSQLite(db, "escalated_"); err != nil {
-        log.Fatal(err)
-    }
-
-    // Configure (headless API mode)
-    cfg := escalated.DefaultConfig()
-    cfg.DB = db
-    cfg.UIEnabled = false
-
-    esc, err := escalated.NewSQLite(cfg)
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    // Mount on the standard-library mux
-    mux := http.NewServeMux()
-    router.MountStdlib(mux, esc)
-
-    log.Println("Listening on :8080")
-    log.Fatal(http.ListenAndServe(":8080", mux))
-}
+migrations.Migrate(db, "escalated_")
+cfg := escalated.DefaultConfig()
+cfg.DB = db
+esc, err := escalated.New(cfg)
+router.MountChi(r, esc)
 ```
 
-## 設定
+Go 1.26.9 以降が必要です。まず `AdminCheck`、`AgentCheck`、`UserIDFunc` に自分のセッションチェックを設定してください。設定するまでは、これらはアクセスを拒否します。[入門ガイド](../getting-started.md)に Chi と標準ライブラリの完全な例があります。
 
-| フィールド | 型 | デフォルト | 説明 |
-|-------|------|---------|-------------|
-| `RoutePrefix` | `string` | `/escalated` | すべてのルートのURLプレフィックス |
-| `UIEnabled` | `bool` | `true` | Inertia UIルートをマウント；`false`でJSON APIのみ |
-| `TablePrefix` | `string` | `escalated_` | データベーステーブル名のプレフィックス |
-| `AdminCheck` | `func(*http.Request) bool` | `false` | 管理者ユーザーの場合trueを返す |
-| `AgentCheck` | `func(*http.Request) bool` | `false` | エージェントユーザーの場合trueを返す |
-| `UserIDFunc` | `func(*http.Request) models.UserID` | `""` | リクエストから現在のユーザーIDを抽出 |
-| `DB` | `*sql.DB` | required | データベース接続 |
+## さらに詳しく
 
-## APIルート
+- [すべての機能](../features.md) · [はじめに](../getting-started.md) · [設定](../configuration.md) · [API ルート](../api-routes.md)
+- [カスタムアクション、ストア、ステータス、翻訳](../customization.md) · [UI ページ](../ui-pages.md)
+- [アクセス制御](../access-control.md) · [API トークン](../api-tokens.md) · [チケットのアクセスとルーティング](../ticket-access-and-routing.md)
+- [通知メール](../notification-emails.md) · [ウィジェットの埋め込み](../embedding-the-widget.md) · [ゲストアクセス](../guest-access.md)
+- [エージェントパネル](../agent-panel.md) · [管理画面の埋め込み](../embedding-admin.md)
+- [プラグイン](../plugins.md) · [ニュースレター](../newsletters.md)
 
-すべてのルートは`RoutePrefix`（デフォルト`/escalated`）がプレフィックスされます。
-
-### JSON API（常にマウント）
-
-| メソッド | パス | 説明 |
-|--------|------|-------------|
-| `GET` | `/api/tickets` | チケット一覧（フィルター付き） |
-| `POST` | `/api/tickets` | チケット作成 |
-| `GET` | `/api/tickets/{id}` | 返信とアクティビティ付きチケット取得 |
-| `PATCH` | `/api/tickets/{id}` | チケット更新 |
-| `POST` | `/api/tickets/{id}/replies` | 返信追加 |
-| `GET` | `/api/departments` | 部門一覧 |
-| `GET` | `/api/tags` | タグ一覧 |
-
-### 顧客UI（`UIEnabled: true`の場合）
-
-| メソッド | パス | 説明 |
-|--------|------|-------------|
-| `GET` | `/tickets` | マイチケット |
-| `POST` | `/tickets` | チケット送信 |
-| `GET` | `/tickets/{id}` | チケット表示 |
-| `POST` | `/tickets/{id}/replies` | チケットに返信 |
-
-### エージェントUI（`AgentCheck`が必要）
-
-| メソッド | パス | 説明 |
-|--------|------|-------------|
-| `GET` | `/agent/` | エージェントダッシュボード |
-| `GET` | `/agent/tickets` | チケットキュー |
-| `GET` | `/agent/tickets/{id}` | チケット詳細 |
-| `POST` | `/agent/tickets/{id}/assign` | チケット割り当て |
-| `POST` | `/agent/tickets/{id}/replies` | 返信 / 内部メモ |
-| `POST` | `/agent/tickets/{id}/status` | ステータス変更 |
-
-### 管理UI（`AdminCheck`が必要）
-
-| メソッド | パス | 説明 |
-|--------|------|-------------|
-| `GET/POST/PATCH/DELETE` | `/admin/departments` | 部門管理 |
-| `GET/POST/DELETE` | `/admin/tags` | タグ管理 |
-| `GET/POST/DELETE` | `/admin/sla-policies` | SLAポリシー管理 |
-
-## カスタムストア
-
-異なるデータベースを使用するには`store.Store`インターフェースを実装します：
-
-```go
-esc, _ := escalated.New(cfg)
-esc.Store = myCustomStore // satisfies store.Store interface
-```
-
-## チケットステータス
-
-| 値 | 名前 |
-|-------|------|
-| 0 | open |
-| 1 | in_progress |
-| 2 | waiting_on_customer |
-| 3 | waiting_on_agent |
-| 4 | escalated |
-| 5 | resolved |
-| 6 | closed |
-| 7 | reopened |
-
-## 優先度
-
-| 値 | 名前 |
-|-------|------|
-| 0 | low |
-| 1 | medium |
-| 2 | high |
-| 3 | urgent |
-| 4 | critical |
+Escalated は [Laravel](https://github.com/escalated-dev/escalated-laravel)、[Rails](https://github.com/escalated-dev/escalated-rails)、[Django](https://github.com/escalated-dev/escalated-django)、[NestJS](https://github.com/escalated-dev/escalated-nestjs)、[AdonisJS](https://github.com/escalated-dev/escalated-adonis)、[Symfony](https://github.com/escalated-dev/escalated-symfony)、[Phoenix](https://github.com/escalated-dev/escalated-phoenix)、[.NET](https://github.com/escalated-dev/escalated-dotnet)、[Spring](https://github.com/escalated-dev/escalated-spring)、[WordPress](https://github.com/escalated-dev/escalated-wordpress)、[Filament](https://github.com/escalated-dev/escalated-filament) 向けにも提供されています。UI は [escalated](https://github.com/escalated-dev/escalated) にあります。
 
 ## ライセンス
 
-MIT
+MIT. Copyright (c) Escalated.dev. 詳しくは [LICENSE](../../LICENSE) を参照してください。

@@ -1,251 +1,173 @@
-<p align="center">
-  <a href="README.ar.md">العربية</a> •
-  <a href="README.de.md">Deutsch</a> •
-  <a href="../../README.md">English</a> •
-  <a href="README.es.md">Español</a> •
-  <a href="README.fr.md">Français</a> •
-  <a href="README.it.md">Italiano</a> •
-  <a href="README.ja.md">日本語</a> •
-  <a href="README.ko.md">한국어</a> •
-  <a href="README.nl.md">Nederlands</a> •
-  <a href="README.pl.md">Polski</a> •
-  <a href="README.pt-BR.md">Português (BR)</a> •
-  <a href="README.ru.md">Русский</a> •
-  <a href="README.tr.md">Türkçe</a> •
+<p align="center"><sub>
+  <a href="README.ar.md">العربية</a> ·
+  <a href="README.de.md">Deutsch</a> ·
+  <a href="../../README.md">English</a> ·
+  <a href="README.es.md">Español</a> ·
+  <a href="README.fr.md">Français</a> ·
+  <a href="README.it.md">Italiano</a> ·
+  <a href="README.ja.md">日本語</a> ·
+  <a href="README.ko.md">한국어</a> ·
+  <a href="README.nl.md">Nederlands</a> ·
+  <a href="README.pl.md">Polski</a> ·
+  <a href="README.pt-BR.md">Português (BR)</a> ·
+  <a href="README.ru.md">Русский</a> ·
+  <a href="README.tr.md">Türkçe</a> ·
   <b>简体中文</b>
+</sub></p>
+
+<p align="center">
+  <a href="https://escalated.dev"><img src="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/logo.png" width="72" height="72" alt="Escalated"></a>
 </p>
 
-# Escalated Go
+<h1 align="center">Escalated for Go</h1>
 
-适用于 Go 应用程序的可嵌入式支持工单系统。兼容标准 `net/http`、Chi 以及任何接受 `http.HandlerFunc` 的路由器。
+<p align="center">
+  为你的 Go 应用加上一套完整的客服工单系统。<br>
+  工单、SLA、升级规则、客服收件箱和客户门户，直接运行在你自己的数据库上。
+</p>
+
+<p align="center">
+  <a href="https://escalated.dev"><b>网站</b></a> ·
+  <a href="https://escalated.dev/docs"><b>文档</b></a> ·
+  <a href="https://escalated.dev/cloud"><b>Cloud</b></a> ·
+  <a href="../../CHANGELOG.md"><b>更新日志</b></a>
+</p>
+
+<br>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/inbox-dark.png">
+  <img src="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/inbox-light.png" alt="Escalated 客服收件箱：带计数的已保存视图、SLA 倒计时以及每个工单的优先级" width="100%">
+</picture>
+
+## 它能做什么
+
+<table>
+  <tr>
+    <td width="40%">
+      <h3>客服可以整天在里面工作的收件箱</h3>
+      对话、内部备注、预设回复和 SLA 计时器都在一个界面上。工单也可以通过 Mailgun、Postmark 或 SES 以邮件方式进入。
+    </td>
+    <td width="60%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/ticket-dark.png">
+        <img src="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/ticket-light.png" alt="在客服工作区中打开的工单和回复编辑器">
+      </picture>
+    </td>
+  </tr>
+  <tr>
+    <td width="60%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/dashboard-dark.png">
+        <img src="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/dashboard-light.png" alt="管理后台报表页面，显示响应时间、CSAT 和 SLA 违约">
+      </picture>
+    </td>
+    <td width="40%">
+      <h3>看得见的 SLA 和升级规则</h3>
+      按优先级设定响应和解决目标并考虑工作时间，目标落空时自动升级或重新分配的规则，以及违约报表。
+    </td>
+  </tr>
+</table>
 
 ## 功能
 
-- 带有状态、优先级、类型和 SLA 跟踪的工单
-- 回复（公开、内部备注、系统消息）
+<table>
+<tr>
+<td width="33%" valign="top">
+
+**工单**
+- 状态、优先级和工单类型
+- 公开回复、内部备注、系统消息
+- 把一条回复拆分为新工单
+- 暂缓处理并自动唤醒
+- 工单可关联到你自己的实体
+
+</td>
+<td width="33%" valign="top">
+
+**客服工作区和 SLA**
+- 客服仪表盘和已保存视图
 - 部门和标签
-- 按优先级设置响应/解决目标的 SLA 策略
-- 客服人员仪表板和管理员配置
-- Inertia.js UI 或无头 JSON API 模式
-- PostgreSQL 和 SQLite 支持
-- 与框架无关的 HTTP 处理程序
-- 嵌入式 SQL 迁移
+- 通过 Server-Sent Events 实时更新
+- 按优先级设定响应和解决目标
+- 每个工单都有 SLA 跟踪
 
-### 功能
+</td>
+<td width="33%" valign="top">
 
-- **Ticket splitting** — 将回复拆分为新的独立工单，同时保留原始上下文
-- **Ticket snooze** — 使用预设（1小时、4小时、明天、下周）休眠工单；后台 goroutine 调度器按计划自动唤醒
-- **Saved views / custom queues** — 将过滤预设保存、命名和共享为可重用的工单视图
-- **Embeddable support widget** — 轻量级 `<script>` 小部件，包含知识库搜索、工单表单和状态检查
-- **Email threading** — 外发电子邮件包含正确的 `In-Reply-To` 和 `References` 标头，确保邮件客户端中的正确线程化
-- **Branded email templates** — 所有外发电子邮件的可配置徽标、主色调和页脚文本
-- **Real-time updates** — 用于实时工单更新的 Server-Sent Events (SSE) 端点，带自动轮询回退
-- **Knowledge base toggle** — 从管理员设置中启用或禁用公共知识库
+**客户**
+- 启用 UI 时提供客户门户
+- 通过邮件验证码验证的访客访问
+- 可嵌入的小组件，支持知识库搜索和聊天
+- 知识库，可开可关
 
-## 安装
+</td>
+</tr>
+<tr>
+<td width="33%" valign="top">
 
-```bash
-go get github.com/escalated-dev/escalated-go
-```
+**邮件**
+- 按 Message-ID 串联的通知
+- 通过服务商 Webhook 接收回复
+- 在邮件客户端中正确归入会话
+- 带品牌的邮件模板
 
-需要 Go 1.26.9 或更高版本，其中包含标准库安全修复。
+</td>
+<td width="33%" valign="top">
 
-## Quick Start with Chi
+**管理和访问**
+- 后台配置
+- 角色、权限、双因素认证、SSO
+- 原生 Go 插件和 SDK 插件
 
-```go
-package main
+</td>
+<td width="33%" valign="top">
 
-import (
-    "database/sql"
-    "log"
-    "net/http"
+**为 Go 打造**
+- 支持 net/http、Chi 等
+- Inertia UI 或无头 JSON API
+- PostgreSQL 和 SQLite
+- 内嵌 SQL 迁移
 
-    "github.com/go-chi/chi/v5"
-    _ "github.com/lib/pq"
+</td>
+</tr>
+</table>
 
-    escalated "github.com/escalated-dev/escalated-go"
-    "github.com/escalated-dev/escalated-go/migrations"
-    "github.com/escalated-dev/escalated-go/models"
-    "github.com/escalated-dev/escalated-go/router"
-)
+<p align="center"><sub><a href="../features.md">查看全部功能详情</a></sub></p>
 
-func main() {
-    db, err := sql.Open("postgres", "postgres://localhost/myapp?sslmode=disable")
-    if err != nil {
-        log.Fatal(err)
-    }
+<p align="center">
+  <a href="https://go.dev"><img src="https://img.shields.io/badge/Go_1.26+-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go 1.26+"></a>
+  <a href="https://www.postgresql.org"><img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL"></a>
+  <a href="https://www.sqlite.org"><img src="https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite"></a>
+  <a href="https://inertiajs.com"><img src="https://img.shields.io/badge/Inertia-9553E9?style=for-the-badge&logo=inertia&logoColor=white" alt="Inertia"></a>
+  <a href="https://vuejs.org"><img src="https://img.shields.io/badge/Vue_3-4FC08D?style=for-the-badge&logo=vuedotjs&logoColor=white" alt="Vue 3"></a>
+</p>
 
-    // Run migrations
-    if err := migrations.Migrate(db, "escalated_"); err != nil {
-        log.Fatal(err)
-    }
+## 快速开始
 
-    // Configure
-    cfg := escalated.DefaultConfig()
-    cfg.DB = db
-    cfg.RoutePrefix = "/support"
-    cfg.AdminCheck = func(r *http.Request) bool {
-        // Replace with an admin check using your verified session or JWT.
-        return false
-    }
-    cfg.AgentCheck = func(r *http.Request) bool {
-        // Replace with an agent check using your verified session or JWT.
-        return false
-    }
-    cfg.UserIDFunc = func(r *http.Request) models.UserID {
-        // Return the user ID from your host app's verified session or JWT.
-        return models.UserID("")
-    }
-
-    esc, err := escalated.New(cfg)
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    // Mount routes
-    r := chi.NewRouter()
-    router.MountChi(r, esc)
-
-    log.Println("Listening on :8080")
-    log.Fatal(http.ListenAndServe(":8080", r))
-}
-```
-
-## 使用标准库快速开始
+用 `go get github.com/escalated-dev/escalated-go` 安装，然后：
 
 ```go
-package main
-
-import (
-    "database/sql"
-    "log"
-    "net/http"
-
-    _ "modernc.org/sqlite"
-
-    escalated "github.com/escalated-dev/escalated-go"
-    "github.com/escalated-dev/escalated-go/migrations"
-    "github.com/escalated-dev/escalated-go/router"
-)
-
-func main() {
-    db, err := sql.Open("sqlite", "escalated.db")
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    // Run SQLite migrations
-    if err := migrations.MigrateSQLite(db, "escalated_"); err != nil {
-        log.Fatal(err)
-    }
-
-    // Configure (headless API mode)
-    cfg := escalated.DefaultConfig()
-    cfg.DB = db
-    cfg.UIEnabled = false
-
-    esc, err := escalated.NewSQLite(cfg)
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    // Mount on the standard-library mux
-    mux := http.NewServeMux()
-    router.MountStdlib(mux, esc)
-
-    log.Println("Listening on :8080")
-    log.Fatal(http.ListenAndServe(":8080", mux))
-}
+migrations.Migrate(db, "escalated_")
+cfg := escalated.DefaultConfig()
+cfg.DB = db
+esc, err := escalated.New(cfg)
+router.MountChi(r, esc)
 ```
 
-## 配置
+需要 Go 1.26.9 或更高版本。先把 `AdminCheck`、`AgentCheck` 和 `UserIDFunc` 设置为你自己的会话检查；在你设置之前，它们会拒绝访问。[入门指南](../getting-started.md)里有 Chi 和标准库的完整示例。
 
-| 字段 | 类型 | 默认值 | 描述 |
-|-------|------|---------|-------------|
-| `RoutePrefix` | `string` | `/escalated` | 所有路由的 URL 前缀 |
-| `UIEnabled` | `bool` | `true` | 挂载 Inertia UI 路由；`false` 则仅 JSON API |
-| `TablePrefix` | `string` | `escalated_` | 数据库表名前缀 |
-| `AdminCheck` | `func(*http.Request) bool` | `false` | 管理员用户返回 true |
-| `AgentCheck` | `func(*http.Request) bool` | `false` | 客服人员用户返回 true |
-| `UserIDFunc` | `func(*http.Request) models.UserID` | `""` | 从请求中提取当前用户 ID |
-| `DB` | `*sql.DB` | required | 数据库连接 |
+## 了解更多
 
-## API 路由
+- [全部功能](../features.md) · [入门](../getting-started.md) · [配置](../configuration.md) · [API 路由](../api-routes.md)
+- [自定义操作、存储、状态和翻译](../customization.md) · [UI 页面](../ui-pages.md)
+- [访问控制](../access-control.md) · [API 令牌](../api-tokens.md) · [工单访问和路由](../ticket-access-and-routing.md)
+- [通知邮件](../notification-emails.md) · [嵌入小组件](../embedding-the-widget.md) · [访客访问](../guest-access.md)
+- [客服面板](../agent-panel.md) · [嵌入管理后台](../embedding-admin.md)
+- [插件](../plugins.md) · [邮件简报](../newsletters.md)
 
-所有路由都以 `RoutePrefix`（默认 `/escalated`）为前缀。
-
-### JSON API（始终挂载）
-
-| 方法 | 路径 | 描述 |
-|--------|------|-------------|
-| `GET` | `/api/tickets` | 列出工单（带过滤器） |
-| `POST` | `/api/tickets` | 创建工单 |
-| `GET` | `/api/tickets/{id}` | 获取工单及回复和活动 |
-| `PATCH` | `/api/tickets/{id}` | 更新工单 |
-| `POST` | `/api/tickets/{id}/replies` | 添加回复 |
-| `GET` | `/api/departments` | 列出部门 |
-| `GET` | `/api/tags` | 列出标签 |
-
-### 客户 UI（当 `UIEnabled: true` 时）
-
-| 方法 | 路径 | 描述 |
-|--------|------|-------------|
-| `GET` | `/tickets` | 我的工单 |
-| `POST` | `/tickets` | 提交工单 |
-| `GET` | `/tickets/{id}` | 查看工单 |
-| `POST` | `/tickets/{id}/replies` | 回复工单 |
-
-### 客服人员 UI（需要 `AgentCheck`）
-
-| 方法 | 路径 | 描述 |
-|--------|------|-------------|
-| `GET` | `/agent/` | 客服人员仪表板 |
-| `GET` | `/agent/tickets` | 工单队列 |
-| `GET` | `/agent/tickets/{id}` | 工单详情 |
-| `POST` | `/agent/tickets/{id}/assign` | 分配工单 |
-| `POST` | `/agent/tickets/{id}/replies` | 回复 / 内部备注 |
-| `POST` | `/agent/tickets/{id}/status` | 更改状态 |
-
-### 管理员 UI（需要 `AdminCheck`）
-
-| 方法 | 路径 | 描述 |
-|--------|------|-------------|
-| `GET/POST/PATCH/DELETE` | `/admin/departments` | 管理部门 |
-| `GET/POST/DELETE` | `/admin/tags` | 管理标签 |
-| `GET/POST/DELETE` | `/admin/sla-policies` | 管理 SLA 策略 |
-
-## 自定义存储
-
-实现 `store.Store` 接口以使用不同的数据库：
-
-```go
-esc, _ := escalated.New(cfg)
-esc.Store = myCustomStore // satisfies store.Store interface
-```
-
-## 工单状态
-
-| 值 | 名称 |
-|-------|------|
-| 0 | open |
-| 1 | in_progress |
-| 2 | waiting_on_customer |
-| 3 | waiting_on_agent |
-| 4 | escalated |
-| 5 | resolved |
-| 6 | closed |
-| 7 | reopened |
-
-## 优先级
-
-| 值 | 名称 |
-|-------|------|
-| 0 | low |
-| 1 | medium |
-| 2 | high |
-| 3 | urgent |
-| 4 | critical |
+Escalated 也提供 [Laravel](https://github.com/escalated-dev/escalated-laravel)、[Rails](https://github.com/escalated-dev/escalated-rails)、[Django](https://github.com/escalated-dev/escalated-django)、[NestJS](https://github.com/escalated-dev/escalated-nestjs)、[AdonisJS](https://github.com/escalated-dev/escalated-adonis)、[Symfony](https://github.com/escalated-dev/escalated-symfony)、[Phoenix](https://github.com/escalated-dev/escalated-phoenix)、[.NET](https://github.com/escalated-dev/escalated-dotnet)、[Spring](https://github.com/escalated-dev/escalated-spring)、[WordPress](https://github.com/escalated-dev/escalated-wordpress) 和 [Filament](https://github.com/escalated-dev/escalated-filament) 版本。UI 位于 [escalated](https://github.com/escalated-dev/escalated)。
 
 ## 许可证
 
-MIT
+MIT。Copyright (c) Escalated.dev。参见 [LICENSE](../../LICENSE)。

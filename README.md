@@ -1,601 +1,173 @@
-<p align="center">
-  <a href="docs/translations/README.ar.md">العربية</a> •
-  <a href="docs/translations/README.de.md">Deutsch</a> •
-  <b>English</b> •
-  <a href="docs/translations/README.es.md">Español</a> •
-  <a href="docs/translations/README.fr.md">Français</a> •
-  <a href="docs/translations/README.it.md">Italiano</a> •
-  <a href="docs/translations/README.ja.md">日本語</a> •
-  <a href="docs/translations/README.ko.md">한국어</a> •
-  <a href="docs/translations/README.nl.md">Nederlands</a> •
-  <a href="docs/translations/README.pl.md">Polski</a> •
-  <a href="docs/translations/README.pt-BR.md">Português (BR)</a> •
-  <a href="docs/translations/README.ru.md">Русский</a> •
-  <a href="docs/translations/README.tr.md">Türkçe</a> •
+<p align="center"><sub>
+  <a href="docs/translations/README.ar.md">العربية</a> ·
+  <a href="docs/translations/README.de.md">Deutsch</a> ·
+  <b>English</b> ·
+  <a href="docs/translations/README.es.md">Español</a> ·
+  <a href="docs/translations/README.fr.md">Français</a> ·
+  <a href="docs/translations/README.it.md">Italiano</a> ·
+  <a href="docs/translations/README.ja.md">日本語</a> ·
+  <a href="docs/translations/README.ko.md">한국어</a> ·
+  <a href="docs/translations/README.nl.md">Nederlands</a> ·
+  <a href="docs/translations/README.pl.md">Polski</a> ·
+  <a href="docs/translations/README.pt-BR.md">Português (BR)</a> ·
+  <a href="docs/translations/README.ru.md">Русский</a> ·
+  <a href="docs/translations/README.tr.md">Türkçe</a> ·
   <a href="docs/translations/README.zh-CN.md">简体中文</a>
+</sub></p>
+
+<p align="center">
+  <a href="https://escalated.dev"><img src="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/logo.png" width="72" height="72" alt="Escalated"></a>
 </p>
 
-# Escalated Go
+<h1 align="center">Escalated for Go</h1>
 
-[![Views](https://hits.sh/github.com/escalated-dev/escalated-go.svg?style=flat&label=views&color=007ec6)](https://hits.sh/github.com/escalated-dev/escalated-go/)
+<p align="center">
+  Add a complete helpdesk to your Go app.<br>
+  Tickets, SLAs, escalation rules, an agent inbox and a customer portal, running on your own database.
+</p>
 
-Embeddable support ticket system for Go applications. Works with standard `net/http`, Chi, and any router that accepts `http.HandlerFunc`.
+<p align="center">
+  <a href="https://escalated.dev"><b>Website</b></a> ·
+  <a href="https://escalated.dev/docs"><b>Docs</b></a> ·
+  <a href="https://escalated.dev/cloud"><b>Cloud</b></a> ·
+  <a href="CHANGELOG.md"><b>Changelog</b></a>
+</p>
+
+<br>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/inbox-dark.png">
+  <img src="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/inbox-light.png" alt="The Escalated agent inbox: saved views with counts, SLA countdowns and priorities on every ticket" width="100%">
+</picture>
+
+## What it does
+
+<table>
+  <tr>
+    <td width="40%">
+      <h3>An inbox your agents can work in all day</h3>
+      Conversation, internal notes, canned replies and SLA timers on one screen. Tickets also arrive by email through Mailgun, Postmark or SES.
+    </td>
+    <td width="60%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/ticket-dark.png">
+        <img src="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/ticket-light.png" alt="A ticket open in the agent workspace with the reply composer">
+      </picture>
+    </td>
+  </tr>
+  <tr>
+    <td width="60%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/dashboard-dark.png">
+        <img src="https://raw.githubusercontent.com/escalated-dev/escalated/main/docs/assets/readme/dashboard-light.png" alt="The admin reports page with response times, CSAT and SLA breaches">
+      </picture>
+    </td>
+    <td width="40%">
+      <h3>SLAs and escalation rules you can see</h3>
+      Response and resolution targets per priority with business hours, rules that escalate or reassign when they slip, and reports on breaches.
+    </td>
+  </tr>
+</table>
 
 ## Features
 
-- Tickets with statuses, priorities, types, and SLA tracking
-- Replies (public, internal notes, system messages)
+<table>
+<tr>
+<td width="33%" valign="top">
+
+**Tickets**
+- Statuses, priorities and ticket types
+- Public replies, internal notes, system messages
+- Split a reply into a new ticket
+- Snooze with automatic wake
+- Ticket subjects linked to your entities
+
+</td>
+<td width="33%" valign="top">
+
+**Agent workspace and SLAs**
+- Agent dashboard and saved views
 - Departments and tags
-- SLA policies with per-priority response/resolution targets
-- Agent dashboard and admin configuration
-- Inertia.js UI or headless JSON API mode
-- PostgreSQL and SQLite support
-- Framework-agnostic HTTP handlers
+- Live updates over Server-Sent Events
+- Response and resolution targets per priority
+- SLA tracking on every ticket
+
+</td>
+<td width="33%" valign="top">
+
+**Customers**
+- Customer portal when the UI is on
+- Verified guest access by emailed code
+- Embeddable widget with KB search and chat
+- Knowledge base, on or off
+
+</td>
+</tr>
+<tr>
+<td width="33%" valign="top">
+
+**Email**
+- Notifications threaded by Message-ID
+- Inbound replies from provider webhooks
+- Correct threading in mail clients
+- Branded templates
+
+</td>
+<td width="33%" valign="top">
+
+**Admin and access**
+- Admin configuration
+- Roles, permissions, two-factor, SSO
+- Native Go and SDK plugins
+
+</td>
+<td width="33%" valign="top">
+
+**Built for Go**
+- Works with net/http, Chi and more
+- Inertia UI or headless JSON API
+- PostgreSQL and SQLite
 - Embedded SQL migrations
 
-### Additional Features
+</td>
+</tr>
+</table>
 
-- **Ticket splitting** — Split a reply into a new standalone ticket while preserving the original context
-- **Ticket snooze** — Snooze tickets with presets (1h, 4h, tomorrow, next week); a background goroutine scheduler auto-wakes them on schedule
-- **Saved views / custom queues** — Save, name, and share filter presets as reusable ticket views
-- **Notification emails** — Requesters, assignees and followers are emailed about new tickets, replies, assignments, status changes, escalations and SLA breaches through your mailer, threaded by `Message-ID` (see [notification emails](docs/notification-emails.md))
-- **Embeddable support widget** — Lightweight `<script>` widget with KB search, ticket form and live chat, mounted by `Config.EnableWidget`; other sites you list can embed it (see [embedding the widget](docs/embedding-the-widget.md))
-- **Email threading** — Outbound emails include proper `In-Reply-To` and `References` headers for correct threading in mail clients
-- **Inbound email replies** — `email.InboundEmailService` turns provider webhooks into replies or new tickets. With an inbound secret set, only the signed Reply-To address links mail to a ticket; without one, the `In-Reply-To` / `References` headers and the `[ESC-...]` subject reference are used. A matched email becomes a reply only when `From` is the ticket's requester (the guest email, or the requester's email via `WithRequesterEmailResolver`), and it is posted as that requester. A requester's reply to a resolved or closed ticket reopens it. Anyone else, including an address belonging to an agent, gets a new ticket
-- **Branded email templates** — Configurable logo, primary color, and footer text for all outbound emails
-- **Real-time updates** — Server-Sent Events (SSE) endpoint for live ticket updates with automatic polling fallback
-- **Knowledge base toggle** — Enable or disable the public knowledge base from admin settings
-- **Roles & permissions** — Optional, per install (`Config.Access.RolesPermissions`): every admin, agent and API route then needs its permission from the user's Escalated roles, managed on Admin > Roles (see [access control](docs/access-control.md))
-- **Two-factor authentication** — Optional, per install (`Config.Access.TwoFactor`): staff enrol a TOTP app and are challenged after your login, with recovery codes and an admin "require two-factor" setting (see [access control](docs/access-control.md))
-- **Single sign-on** — Optional, per install (`Config.Access.SSO`): SAML 2.0, OAuth 2 / OIDC or JWT, picked in Admin > Settings > SSO and signed in through your session (see [access control](docs/access-control.md))
-- **Plugins** — Native Go plugins registered in `Config.Plugins.Native`, and `@escalated-dev/plugin-sdk` plugins through the Node plugin runtime, managed on Admin > Plugins (see [plugins](docs/plugins.md))
-- **Ticket subjects** — Attach host-app entities (Project, Customer, …) a ticket is about; polymorphic links with UI presentation via `TicketSubject` contract
+<p align="center"><sub><a href="docs/features.md">Every feature in detail</a></sub></p>
 
-## Installation
+<p align="center">
+  <a href="https://go.dev"><img src="https://img.shields.io/badge/Go_1.26+-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go 1.26+"></a>
+  <a href="https://www.postgresql.org"><img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL"></a>
+  <a href="https://www.sqlite.org"><img src="https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite"></a>
+  <a href="https://inertiajs.com"><img src="https://img.shields.io/badge/Inertia-9553E9?style=for-the-badge&logo=inertia&logoColor=white" alt="Inertia"></a>
+  <a href="https://vuejs.org"><img src="https://img.shields.io/badge/Vue_3-4FC08D?style=for-the-badge&logo=vuedotjs&logoColor=white" alt="Vue 3"></a>
+</p>
 
-```bash
-go get github.com/escalated-dev/escalated-go
-```
+## Quick start
 
-Requires Go 1.26.9 or later, as declared in [go.mod](go.mod). The examples use
-the PostgreSQL and pure-Go SQLite drivers already included by this module.
-
-## Quick Start with Chi
-
-Replace the authentication callbacks below with checks against your host app's
-verified session or JWT. Until then they deny access; request headers alone must
-not grant an admin or agent role.
+Install with `go get github.com/escalated-dev/escalated-go`, then:
 
 ```go
-package main
-
-import (
-    "database/sql"
-    "log"
-    "net/http"
-
-    "github.com/go-chi/chi/v5"
-    _ "github.com/lib/pq"
-
-    escalated "github.com/escalated-dev/escalated-go"
-    "github.com/escalated-dev/escalated-go/migrations"
-    "github.com/escalated-dev/escalated-go/models"
-    "github.com/escalated-dev/escalated-go/router"
-)
-
-func main() {
-    db, err := sql.Open("postgres", "postgres://localhost/myapp?sslmode=disable")
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    // Run migrations
-    if err := migrations.Migrate(db, "escalated_"); err != nil {
-        log.Fatal(err)
-    }
-
-    // Configure
-    cfg := escalated.DefaultConfig()
-    cfg.DB = db
-    cfg.RoutePrefix = "/support"
-    cfg.AdminCheck = func(r *http.Request) bool {
-        // Replace with an admin check using your verified session or JWT.
-        return false
-    }
-    cfg.AgentCheck = func(r *http.Request) bool {
-        // Replace with an agent check using your verified session or JWT.
-        return false
-    }
-    cfg.UserIDFunc = func(r *http.Request) models.UserID {
-        // Return the user ID from your host app's verified session or JWT.
-        return models.UserID("")
-    }
-
-    esc, err := escalated.New(cfg)
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    // Mount routes
-    r := chi.NewRouter()
-    router.MountChi(r, esc)
-
-    log.Println("Listening on :8080")
-    log.Fatal(http.ListenAndServe(":8080", r))
-}
-```
-
-## Quick Start with Standard Library
-
-```go
-package main
-
-import (
-    "database/sql"
-    "log"
-    "net/http"
-
-    _ "modernc.org/sqlite"
-
-    escalated "github.com/escalated-dev/escalated-go"
-    "github.com/escalated-dev/escalated-go/migrations"
-    "github.com/escalated-dev/escalated-go/router"
-)
-
-func main() {
-    db, err := sql.Open("sqlite", "escalated.db")
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    // Run SQLite migrations
-    if err := migrations.MigrateSQLite(db, "escalated_"); err != nil {
-        log.Fatal(err)
-    }
-
-    // Configure (headless API mode)
-    cfg := escalated.DefaultConfig()
-    cfg.DB = db
-    cfg.UIEnabled = false
-
-    // NewSQLite says it explicitly; escalated.New would detect the same thing
-    // from the connection.
-    esc, err := escalated.NewSQLite(cfg)
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    // Mount on the standard-library mux
-    mux := http.NewServeMux()
-    router.MountStdlib(mux, esc)
-
-    log.Println("Listening on :8080")
-    log.Fatal(http.ListenAndServe(":8080", mux))
-}
-```
-
-## Embedding the admin in your own admin panel (optional)
-
-Escalated's admin is a standalone panel at `{RoutePrefix}/admin` by default,
-and nothing changes unless you configure this. If your app already has an
-admin panel, you can show Escalated's admin screens inside it instead: under
-your URL prefix and middleware, in your Vue + Inertia layout, in your
-server-rendered admin template, or in an iframe on an allow-listed origin.
-
-```go
-cfg.EmbedAdmin(escalated.EmbedConfig{
-    Prefix:     "admin/support", // the admin moves to /admin/support/...
-    Middleware: []func(http.Handler) http.Handler{requireAdminSession},
-    Layout:     "Layouts/AdminLayout",
-})
-```
-
-Route names do not change, Escalated's admin gate stays on unless you
-replace it, and pages carry the admin menu (`escalated.navigation`, or
-`esc.AdminNavigation(r)`) for your sidebar. See
-[docs/embedding-admin.md](docs/embedding-admin.md).
-
-## Configuration
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `RoutePrefix` | `string` | `/escalated` | URL prefix for all routes |
-| `UIEnabled` | `bool` | `true` | Mount Inertia UI routes; `false` for JSON API only |
-| `Debug` | `bool` | `false` | A 500 on an Inertia visit goes out as the handler wrote it (a panic reaches your recoverer) instead of the generic Error page; development only (see `docs/ui-pages.md`) |
-| `RouteOverrides` | `map[string]escalated.NamedRoute` | nil | Replace, add (e.g. `login`) or remove names in the built-in route list the pages' `route()` reads. See [the shared pages](docs/ui-pages.md#route-names) |
-| `TablePrefix` | `string` | `escalated_` | Database table name prefix |
-| `AdminCheck` | `func(*http.Request) bool` | `false` | Returns true for admin users |
-| `AgentCheck` | `func(*http.Request) bool` | `false` | Returns true for agent users |
-| `UserIDFunc` | `func(*http.Request) models.UserID` | `""` | Extracts current user's ID from request |
-| `DB` | `*sql.DB` | required | The connection Escalated's own tables live on — see [Separate databases](#separate-databases) |
-| `UserDirectory` | `handlers.UserDirectory` | nil | Your bridge to your own users table, for the admin users page. When nil that page lists nothing and the role endpoint responds 501 |
-| `SkillAgentDirectory` | `handlers.SkillAgentDirectory` | nil | Lists agents for the Skills form. When nil, `available_agents` is empty |
-| `TicketSubjectResolver` | `func(type, id string) (models.TicketSubject, bool)` | nil | Loads host models for subject presentation |
-| `TicketSubjectTypes` | `[]string` | nil | Allowlist of `subject_type` values for API attach; empty disables API attach |
-| `UserName` | `func(ctx, models.UserID) string` | nil | Display names for the shared pages (requesters, assignees, authors). See [the shared pages](docs/ui-pages.md) |
-| `Plugins` | `plugins.Config` | none | Native plugins, the SDK plugin runtime and the capability check. See [plugins](docs/plugins.md) |
-| `UI.Embed` | `escalated.EmbedConfig` | off | Embed the admin in your own admin panel (`cfg.EmbedAdmin`). See [embedding the admin](docs/embedding-admin.md) |
-| `Access` | `access.Config` | all off | The install-level access switches (roles & permissions, two-factor, single sign-on). See [access control](docs/access-control.md) |
-
-### Which database you are on
-
-`escalated.New` works out whether `Config.DB` is connected to PostgreSQL or
-SQLite and picks the matching store. You do not tell it, and you cannot tell it
-wrong:
-
-```go
-db, _ := sql.Open("sqlite", "escalated.db")   // or "postgres", "pgx", ...
-
+migrations.Migrate(db, "escalated_")
 cfg := escalated.DefaultConfig()
 cfg.DB = db
-
-esc, err := escalated.New(cfg)                // SQLite store, no flag needed
+esc, err := escalated.New(cfg)
+router.MountChi(r, esc)
 ```
 
-Detection reads the driver's import path first — `github.com/lib/pq`,
-`github.com/jackc/pgx/...`, `modernc.org/sqlite`, `github.com/mattn/go-sqlite3`
-and the rest are recognised without touching the database. A driver it does not
-recognise, such as a tracing or proxy wrapper, is asked directly with one
-statement.
+Needs Go 1.26.9 or later. Set `AdminCheck`, `AgentCheck` and `UserIDFunc` to your own session checks first; until you do, they deny access. The [getting started guide](docs/getting-started.md) has the full Chi and standard library examples.
 
-A database Escalated has no store for — MySQL, say — is named in the error
-rather than guessed at, because a wrong guess does not fail at startup. It fails
-on the first query whose SQL happens to differ.
+## Learn more
 
-To skip detection, set the dialect yourself:
+- [All features](docs/features.md) · [Getting started](docs/getting-started.md) · [Configuration](docs/configuration.md) · [API routes](docs/api-routes.md)
+- [Custom actions, stores, statuses and translations](docs/customization.md) · [UI pages](docs/ui-pages.md)
+- [Access control](docs/access-control.md) · [API tokens](docs/api-tokens.md) · [Ticket access and routing](docs/ticket-access-and-routing.md)
+- [Notification emails](docs/notification-emails.md) · [Embedding the widget](docs/embedding-the-widget.md) · [Guest access](docs/guest-access.md)
+- [Agent panel](docs/agent-panel.md) · [Embedding the admin](docs/embedding-admin.md)
+- [Plugins](docs/plugins.md) · [Newsletters](docs/newsletters.md)
 
-```go
-cfg.DatabaseDialect = escalated.DialectPostgres
-```
-
-`escalated.DetectDialect(db)` is exported if you want the answer for your own
-code — an installer choosing which migrations to run, for instance.
-
-### Separate databases
-
-`Config.DB` is a `*sql.DB` you open and hand over, so Escalated's tables go
-wherever that connection points. Nothing requires it to be your application's
-database — it can be a schema shared with a legacy system, a separate reporting
-store, or simply a database you would rather not mix support data into:
-
-```go
-support, err := sql.Open("postgres", os.Getenv("SUPPORT_DATABASE_URL"))
-if err != nil {
-    log.Fatal(err)
-}
-
-cfg := escalated.DefaultConfig()
-cfg.DB = support             // Escalated's tables
-cfg.UserDirectory = myUsers  // your users, on your own connection
-```
-
-Run Escalated's migrations against that same connection. Your application's own
-migrations stay where they are.
-
-#### Your users are never on `Config.DB`
-
-This package issues no SQL against a table it does not own. It never queries a
-`users` table, and a test fails the build if any statement in the package
-references one.
-
-Host user data arrives through two interfaces you implement — `UserDirectory`
-(the admin users page: list, fetch, flip role flags) and `SkillAgentDirectory`
-(the agent dropdown on the Skills form). Both run on **your** connection, with
-your query, against your schema. Escalated only ever holds ids.
-
-That is also why there is no foreign key from `escalated_tickets.requester_id`
-to your users table: it is a plain unconstrained column, so the two databases
-need never meet. No query joins across them, because no database can join across
-two connections.
-
-The trade is that Escalated cannot filter or sort its tables by a user's own
-columns. Skill routing, agent load and assignment all work because they resolve
-ids from Escalated's tables first and then ask your directory for the people.
-
-### Ticket subjects
-
-A ticket has a **requester** (who raised it) and a **subject line** (free text).
-Tickets can also be *about* host-app entities — a Project, Customer, asset — via
-polymorphic **ticket subjects**. Implement `models.TicketSubject` on your host
-types and wire `TicketSubjectResolver` plus `TicketSubjectTypes` (for API safety).
-
-```go
-type Project struct { ID, Name string }
-
-func (p Project) TicketSubjectTitle() string { return p.Name }
-func (p Project) TicketSubjectSubtitle() *string { s := "Project"; return &s }
-func (p Project) TicketSubjectURL() *string {
-    s := "/projects/" + p.ID
-    return &s
-}
-func (p Project) TicketSubjectColor() *string { s := "#2563eb"; return &s }
-func (p Project) TicketSubjectIcon() *string  { s := "folder"; return &s }
-
-cfg.TicketSubjectTypes = []string{"Project"}
-cfg.TicketSubjectResolver = func(subjectType, id string) (models.TicketSubject, bool) {
-    if subjectType != "Project" {
-        return nil, false
-    }
-    p, err := loadProject(id)
-    if err != nil {
-        return nil, false
-    }
-    return p, true
-}
-```
-
-Ticket JSON includes `subjects[]` with `{type,id,role,title,subtitle,url,color,icon,missing}`.
-Attach/detach via `POST` / `DELETE` … `/api/tickets/{id}/subjects` (and agent UI routes).
-`subject_id` is stored as a string (integer, UUID, or other host keys).
-
-Use `services.TicketSubjectService` for programmatic `AttachSubject`, `DetachSubject`, and `SyncSubjects`.
-
-### Host user key type (UUID / string users)
-
-Host user ids are stored as `models.UserID` (a string-backed type that accepts
-integers and UUID/strings, and JSON-encodes numeric ids as numbers for
-back-compat). The DB column type defaults to `BIGINT`. If your host app's user
-primary key is a **UUID or other string**, set `ESCALATED_USER_KEY_TYPE` before
-running migrations so the host-user columns are created as `VARCHAR(255)`:
-
-```bash
-# one of: int (default) | bigint | uuid | string
-export ESCALATED_USER_KEY_TYPE=uuid
-```
-
-Existing integer-keyed installs need no change — the default produces `BIGINT`
-columns and numeric JSON ids exactly as before.
-
-## API Routes
-
-All routes are prefixed with `RoutePrefix` (default `/escalated`).
-
-### JSON API (always mounted)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/tickets` | List tickets (with filters) |
-| `POST` | `/api/tickets` | Create a ticket |
-| `GET` | `/api/tickets/{id}` | Get ticket with replies and activities |
-| `PATCH` | `/api/tickets/{id}` | Update a ticket |
-| `POST` | `/api/tickets/{id}/replies` | Add a reply |
-| `POST` | `/api/tickets/{id}/subjects` | Attach a ticket subject (`type`, `id`, optional `role`) |
-| `DELETE` | `/api/tickets/{id}/subjects/{subject}` | Detach a subject link by join-row id |
-| `GET` | `/api/departments` | List departments |
-| `GET` | `/api/tags` | List tags |
-
-The ticket, department and tag routes above require `AgentCheck` or
-`AdminCheck` and return 403 to anyone else. With `Config.APITokensEnabled` they also
-accept an admin-issued API token as `Authorization: Bearer <token>` (see
-[API tokens](docs/api-tokens.md)). The `/api/auth/*`, `/api/guest/*`
-and `/api/kb/*` routes are public.
-
-Guests verify their email with a code first: `POST /api/guest/verification`,
-then `POST /api/guest/tickets` with the code returns an expiring grant that
-opens `GET /api/guest/tickets/{grant}`, its `/replies` and `/rate`;
-`POST /api/guest/lookup` finds tickets by reference. Configure `Config.Mailer`
-and `Config.GuestAccess` (see [verified guest access](docs/guest-access.md)).
-
-`POST /api/guest/tickets` is rate-limited per client IP: 5 tickets a minute by
-default, then 429 with `Retry-After`. Configure it with `Config.GuestRateLimit`
-(`TicketsPerMinute`, `RepliesPerMinute`, `Disabled`, a shared `Store` for
-several instances, or a `ClientIP` func). The client IP is `r.RemoteAddr`, so
-behind a proxy every guest shares one limit unless a real-IP middleware that
-trusts only your proxies runs first, or `ClientIP` is set. If you mount
-`handlers.WidgetHandler.CreateTicket` yourself, wrap it with
-`middleware.NewGuestRateLimiter(cfg).Middleware(middleware.GuestTicketScope)`.
-
-For Chi behind a reverse proxy, register its client-IP middleware with your
-actual proxy CIDRs before `router.MountChi`, and configure `ClientIP` before
-constructing Escalated:
-
-```go
-import chimiddleware "github.com/go-chi/chi/v5/middleware"
-
-// Replace these loopback ranges with your own trusted proxy ranges.
-r.Use(chimiddleware.ClientIPFromXFF("127.0.0.1/32", "::1/128"))
-cfg.GuestRateLimit.ClientIP = func(r *http.Request) string {
-    return chimiddleware.GetClientIP(r.Context())
-}
-```
-
-Chi 5.4 requires explicit trusted CIDRs for `ClientIPFromXFF`. A direct client
-outside those ranges is counted by its connection address, even if it sends
-`X-Forwarded-For`. The default Escalated configuration also uses the connection
-address and does not read forwarded headers.
-
-### Customer UI (when `UIEnabled: true`)
-
-The UI routes render the pages of `@escalated-dev/escalated` with the props
-escalated-laravel passes them; see [the shared pages](docs/ui-pages.md).
-Every page carries the route names the pages call (a `ziggy` prop), so no
-hand-written `route()` mapping is needed: add
-`<script>{{ .escalatedRouteHelper }}</script>` to your root template (see
-[route names](docs/ui-pages.md#route-names)).
-
-These routes require a signed-in user, meaning `UserIDFunc` returns a
-non-empty id, and return 401 otherwise. A customer can view and reply only to
-tickets they requested. Any other ticket returns 403.
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/tickets` | My tickets |
-| `GET` | `/tickets/create` | New ticket form |
-| `POST` | `/tickets` | Submit a ticket |
-| `GET` | `/tickets/{id}` | View ticket (`{id}` is the reference or the id) |
-| `POST` | `/tickets/{id}/replies` | Reply to ticket |
-| `POST` | `/tickets/{id}/reply`, `/close`, `/reopen`, `/rate` | The ticket screen's writes |
-
-### Attachments (always mounted)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/attachments/{id}/download` | Download an attachment |
-
-Agents and admins can download any attachment. A signed-in customer can
-download attachments on tickets they requested, but not attachments on
-internal notes. Anyone else gets 401 or 403.
-
-### Agent UI (requires `AgentCheck`)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/agent/` | Agent dashboard |
-| `GET` | `/agent/tickets` | Ticket queue |
-| `GET` | `/agent/tickets/{id}` | Ticket detail |
-| `POST` | `/agent/tickets/{id}/assign` | Assign ticket |
-| `POST` | `/agent/tickets/{id}/replies` | Reply / internal note |
-| `POST` | `/agent/tickets/{id}/status` | Change status |
-| `POST` | `/agent/tickets/{id}/reply`, `/note`, `/priority`, `/tags`, `/department`, `/macro`, `/follow`, `/replies/{reply}/pin`; `PUT /agent/tickets/{id}` | The ticket screen's writes; see [the shared pages](docs/ui-pages.md) |
-| `POST` | `/agent/tickets/{id}/subjects` | Attach a ticket subject |
-| `DELETE` | `/agent/tickets/{id}/subjects/{subject}` | Detach a ticket subject |
-
-Live chat console (agents): `GET /agent/chat/sessions`, `POST /agent/chat/sessions/{id}/accept`, `/message`, `/end`, where `{id}` is the chat ticket. Set `Config.ChatAgentOnline` (presence) and `Config.ChatAgentName` for the widget.
-
-### Admin UI (requires `AdminCheck`)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET/POST/PATCH/DELETE` | `/admin/departments` | Manage departments |
-| `GET/POST/DELETE` | `/admin/tags` | Manage tags |
-| `GET/POST/DELETE` | `/admin/sla-policies` | Manage SLA policies |
-| `GET` | `/admin/audit-log` | Audit log of department, tag and SLA policy changes (filters: `user_id`, `action`, `auditable_type`, `date_from`, `date_to`) |
-| `GET` | `/admin/tickets`, `/admin/tickets/{ticket}` | Admin ticket queue and screen, with the agent screen's writes plus `split`; see [the shared pages](docs/ui-pages.md) |
-| `POST` | `/agent/tickets/bulk`, `/admin/tickets/bulk` | Bulk status, priority, assign, tags, department; delete (admins) |
-| `GET` | `/admin/tickets/merge-search?q=` | Unmerged tickets to merge into (reference or subject, at most 10) |
-| `POST` | `/admin/tickets/{ticket}/merge` | Merge `{ticket}` (id or reference) into `{target_reference}`: replies move to the target, both get a system note, the source is closed with `merged_into_id` |
-| `GET/PUT` | `/admin/settings/public-tickets` | Runtime guest-policy mode (unassigned / guest_user / prompt_signup). See [docs.escalated.dev/public-tickets](https://docs.escalated.dev/public-tickets). |
-| `GET/PUT` | `/admin/settings/widget` | Sites allowed to embed the widget (`widget_allowed_origins`). See [embedding the widget](docs/embedding-the-widget.md). |
-
-## Custom Ticket Actions
-
-Add host-defined action buttons to the agent ticket screen via
-`Config.TicketActions`. Each visible action is exposed on the ticket responses
-(`custom_actions`, plus a top-level `customActions` prop on the agent screen),
-and triggering it records an internal note and invokes `Config.OnCustomAction`:
-
-```go
-import "github.com/escalated-dev/escalated-go/actions"
-
-cfg := escalated.DefaultConfig()
-cfg.TicketActions = []actions.TicketAction{
-    {
-        Key:          "sync-crm",
-        Label:        "Sync CRM",
-        Variant:      "primary", // primary | secondary | danger
-        Confirmation: "Sync this ticket to the CRM?",
-        Metadata:     map[string]any{"icon": "refresh-cw"},
-        // Visible/Enabled are optional; nil means always visible/enabled.
-        Enabled: func(t *models.Ticket, userID int64) bool { return t.ResolvedAt == nil },
-    },
-}
-cfg.OnCustomAction = func(ctx context.Context, e actions.CustomActionEvent) error {
-    if e.Action == "sync-crm" {
-        // e.Ticket, e.UserID, e.Payload, e.Metadata
-    }
-    return nil
-}
-```
-
-Triggering an action (`POST {prefix}/agent/tickets/{id}/actions/{key}` or the
-`/api` equivalent) returns 404 if the action is unknown or not visible, 403 if
-it is disabled, otherwise records the audit note and calls `OnCustomAction`.
-
-## Custom Store
-
-Implement the `store.Store` interface to use a different database:
-
-```go
-esc, _ := escalated.New(cfg)
-esc.Store = myCustomStore // satisfies store.Store interface
-```
-
-## Ticket Statuses
-
-| Value | Name |
-|-------|------|
-| 0 | open |
-| 1 | in_progress |
-| 2 | waiting_on_customer |
-| 3 | waiting_on_agent |
-| 4 | escalated |
-| 5 | resolved |
-| 6 | closed |
-| 7 | reopened |
-
-## Priorities
-
-| Value | Name |
-|-------|------|
-| 0 | low |
-| 1 | medium |
-| 2 | high |
-| 3 | urgent |
-| 4 | critical |
-
-## Translations
-
-Strings come from the central [`escalated-locale`](https://github.com/escalated-dev/escalated-locale)
-Go module so they stay in sync with every other Escalated plugin. The thin
-loader at `internal/i18n` deep-merges optional local overrides on top of the
-upstream data:
-
-```go
-import "github.com/escalated-dev/escalated-go/internal/i18n"
-
-label := i18n.T("ticket.status.open", "fr", nil)
-msg   := i18n.T("validation.required", "en", map[string]any{"field": "Email"})
-```
-
-To override a single key without forking the locale file, drop a JSON file at
-`internal/i18n/overrides/{locale}.json` — only the keys you list there are
-overridden, everything else falls through to the central package. See
-`internal/i18n/overrides/README.md` for the full pattern.
-
-## Newsletters (optional, partial port)
-
-This PR establishes the schema, models, and renderer for the newsletter system. The DB-bound planner / dispatcher / tracker services need integration with the host's `store/` layer, which is a follow-up.
-
-```go
-import (
-    "github.com/escalated-dev/escalated-go/services/newsletter"
-    "github.com/yuin/goldmark"
-    "bytes"
-)
-
-cfg := newsletter.Config{
-    BaseURL:             "https://support.example.com",
-    DefaultTheme:        "default",
-    TrackingEnabled:     true,
-    ThemesDir:           "/path/to/templates/newsletter_themes",
-    MarkdownToHTML:      func(md string) string {
-        var buf bytes.Buffer
-        _ = goldmark.Convert([]byte(md), &buf)
-        return buf.String()
-    },
-    Brand: newsletter.Brand{
-        Name:            "Acme",
-        Accent:          "#2563eb",
-        PhysicalAddress: "Acme Inc. · 123 Main St",
-    },
-    EnableNewsletters:   true,
-}
-
-r := newsletter.NewRenderer(cfg)
-html, _ := r.Render(&delivery, &n, &contact, nil)
-```
-
-The package ships:
-- `models/newsletter.go` — 5 entity structs + Contact gains `MarketingOptOutAt`
-- `services/newsletter/renderer.go` — Markdown → theme → click rewrite → pixel injection
-- `migrations/20260522000001_create_escalated_newsletter_system.sql` — goose SQL migration
-
-Follow-up PR will add the Store interfaces for newsletters (postgres + sqlite) and the planner/dispatcher/tracker services that consume them.
+Escalated is also available for [Laravel](https://github.com/escalated-dev/escalated-laravel), [Rails](https://github.com/escalated-dev/escalated-rails), [Django](https://github.com/escalated-dev/escalated-django), [NestJS](https://github.com/escalated-dev/escalated-nestjs), [AdonisJS](https://github.com/escalated-dev/escalated-adonis), [Symfony](https://github.com/escalated-dev/escalated-symfony), [Phoenix](https://github.com/escalated-dev/escalated-phoenix), [.NET](https://github.com/escalated-dev/escalated-dotnet), [Spring](https://github.com/escalated-dev/escalated-spring), [WordPress](https://github.com/escalated-dev/escalated-wordpress) and [Filament](https://github.com/escalated-dev/escalated-filament). The UI lives in [escalated](https://github.com/escalated-dev/escalated).
 
 ## License
 
-MIT - Copyright (c) Escalated.dev. See [LICENSE](LICENSE).
-
-## Configurable ticket access and routing
-
-See [ticket access and routing](docs/ticket-access-and-routing.md) for opt-in department/account visibility, account resolver hooks, rule conditions and targeted SLA policies. All restrictions default off.
+MIT. Copyright (c) Escalated.dev. See [LICENSE](LICENSE).
