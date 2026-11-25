@@ -357,6 +357,11 @@ func (h *ReportHandler) reportPage(w http.ResponseWriter, r *http.Request, since
 		return
 	}
 	component, props := build(tickets, ratings)
+	// The overview and the dashboard warn admins while the recurring jobs
+	// are not running.
+	if h.Scheduler != nil && (component == "Escalated/Admin/Reports" || component == "Escalated/Admin/Reports/Dashboard") {
+		props["scheduler"] = h.Scheduler(r.Context())
+	}
 	h.Pages.render(w, r, component, props, nil)
 }
 

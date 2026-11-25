@@ -1,6 +1,7 @@
 package router_test
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -8,6 +9,7 @@ import (
 
 	escalated "github.com/escalated-dev/escalated-go"
 	"github.com/escalated-dev/escalated-go/middleware"
+	"github.com/escalated-dev/escalated-go/services"
 )
 
 // Config.CustomerMiddleware: extra guards on the customer and knowledge base
@@ -88,6 +90,45 @@ func TestCustomerMiddlewareRunsAfterThePackagesOwn(t *testing.T) {
 			send(h, http.MethodGet, "/escalated/tickets", customerB, "", "")
 			if !reflect.DeepEqual(order, []string{"first", "second"}) {
 				t.Errorf("order %v, want [first second]", order)
+			}
+		})
+	}
+}
+
+// The `scheduler` prop: the admin pages warn while the recurring jobs are
+// not running.
+func TestAdminPagesShareTheSchedulerStatus(t *testing.T) {
+	f := newUIFixture(t)
+	pages := []string{"/escalated/admin/settings", "/escalated/admin/reports", "/escalated/admin/reports/dashboard"}
+	for name, h := range f.mounts() {
+		t.Run(name, func(t *testing.T) {
+			if err := f.esc.Store.SetSetting(context.Background(), services.SchedulerHeartbeatSetting, ""); err != nil {
+				t.Fatal(err)
+			}
+			for _, path := range pages {
+				status := obj(t, visit(t, h, path, uiAgent, "admin").Props, "scheduler")
+				hasKeys(t, "scheduler", status, "healthy", "last_run_at", "message", "commands")
+				if status["healthy"] != false || status["last_run_at"] != nil {
+					t.Errorf("%s with no heartbeat: %v", path, status)
+				}
+				commands := list(t, status, "commands")
+				if len(commands) == 0 {
+					t.Fatalf("%s: no commands to schedule", path)
+				}
+				first, _ := commands[0].(map[string]any)
+				if first["command"] == "" || first["interval"] == "" {
+					t.Errorf("%s: command %v", path, first)
+				}
+			}
+
+			if _, _, err := f.esc.CheckSLA(context.Background(), 0); err != nil {
+				t.Fatalf("check sla: %v", err)
+			}
+			for _, path := range pages {
+				status := obj(t, visit(t, h, path, uiAgent, "admin").Props, "scheduler")
+				if status["healthy"] != true || status["last_run_at"] == nil {
+					t.Errorf("%s after an SLA check: %v", path, status)
+				}
 			}
 		})
 	}

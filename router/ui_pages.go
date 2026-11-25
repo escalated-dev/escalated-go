@@ -214,6 +214,9 @@ func wireUIPages(esc *escalated.Escalated, agentH *handlers.AgentHandler, custom
 	// Custom ticket statuses: the admin pages.
 	adminH.Statuses = esc.TicketStatuses()
 
+	// Whether the recurring jobs run: the Settings page's `scheduler` prop.
+	adminH.Scheduler = esc.SchedulerStatus
+
 	// The "require two-factor" setting, offered while two-factor is on.
 	if esc.Features.TwoFactor {
 		adminH.TwoFactorRequired = esc.TwoFactorRequired
@@ -246,6 +249,7 @@ func wireUIPages(esc *escalated.Escalated, agentH *handlers.AgentHandler, custom
 	}
 	if deps.reports != nil {
 		deps.reports.Pages = pages
+		deps.reports.Scheduler = esc.SchedulerStatus
 	}
 	if deps.automations != nil {
 		deps.automations.Pages = pages

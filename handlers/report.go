@@ -40,6 +40,12 @@ type ReportHandler struct {
 	// Pages serves the report pages (Escalated/Admin/Reports and
 	// Reports/*). Set by the router; the JSON endpoints answer API clients.
 	Pages PageSupport
+
+	// Scheduler reports whether the recurring jobs are running
+	// (Escalated.SchedulerStatus), shown on the reports overview and the
+	// report dashboard as the `scheduler` prop. Set by the router; nil leaves
+	// the prop out.
+	Scheduler func(ctx context.Context) *services.SchedulerStatus
 }
 
 // NewReportHandler constructs the handler. prefix is the table prefix (e.g.

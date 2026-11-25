@@ -155,6 +155,11 @@ type Config struct {
 	// with GuestRoutes false and EnableWidget off. See docs/configuration.md.
 	CustomerMiddleware []func(http.Handler) http.Handler
 
+	// Scheduling controls the package's own runner for the recurring jobs (SLA
+	// checks, snooze wake-ups, escalation rules, automations). See
+	// Escalated.StartScheduler.
+	Scheduling SchedulingConfig
+
 	// Newsletters contains runtime defaults for the optional newsletter system.
 	Newsletters NewsletterConfig
 

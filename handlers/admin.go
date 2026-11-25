@@ -52,6 +52,11 @@ type AdminHandler struct {
 	// effective "require two-factor" value; it also makes the settings page
 	// offer and save two_factor_required.
 	TwoFactorRequired func(ctx context.Context) bool
+
+	// Scheduler reports whether the recurring jobs are running
+	// (Escalated.SchedulerStatus), shown on the Settings page as the
+	// `scheduler` prop. Set by the router; nil leaves the prop out.
+	Scheduler func(ctx context.Context) *services.SchedulerStatus
 }
 
 func (h *AdminHandler) slaIndexURL() string {
