@@ -7,6 +7,12 @@ guest JSON API under `{RoutePrefix}/api/guest`, the mobile guest API under
 `{RoutePrefix}/api/mobile/guest`, the guest pages under `{RoutePrefix}/guest`
 and the widget under `{RoutePrefix}/widget`.
 
+The guest API, the mobile guest API and the guest pages are mounted unless
+`cfg.GuestRoutes` is false (or `ESCALATED_GUEST_ROUTES=false` while it is nil);
+the widget only with `cfg.EnableWidget`. An install nobody reaches as a guest
+can switch them off: see
+[Staff-only installs](configuration.md#staff-only-installs).
+
 ## What you must configure
 
 ```go

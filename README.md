@@ -155,7 +155,27 @@ esc, err := escalated.New(cfg)
 router.MountChi(r, esc)
 ```
 
-Needs Go 1.26.9 or later. Set `AdminCheck`, `AgentCheck` and `UserIDFunc` to your own session checks first; until you do, they deny access. The [getting started guide](docs/getting-started.md) has the full Chi and standard library examples.
+Needs Go 1.26.9 or later. Set `AdminCheck`, `AgentCheck` and `UserIDFunc` to your own session checks first; until you do, they deny access, and `New` logs each one still missing (`esc.SetupCheck()` returns the same list). The [getting started guide](docs/getting-started.md) has the full Chi and standard library examples.
+
+## Required: schedule the recurring jobs
+
+SLA breaches, escalation rules, automations and snooze wake-ups only happen when something runs them. Either start the package's own runner once, on one instance:
+
+```go
+stop := esc.StartScheduler(ctx) // or set cfg.Scheduling.AutoStart = true before New
+defer stop()
+```
+
+or call each job from your own scheduler:
+
+| Job | Interval |
+|-----|----------|
+| `esc.CheckSLA(ctx, 0)` | every minute |
+| `esc.WakeSnoozedTickets(ctx)` | every minute |
+| `esc.RunEscalations(ctx)` | every 5 minutes |
+| `esc.RunAutomations(ctx)` | every 5 minutes |
+
+Each SLA check records a heartbeat. When it is missing or older than 15 minutes, the admin Settings, Reports and report dashboard pages warn that the jobs are not running and list them, and a warning is logged; `esc.SchedulerStatus(ctx)` returns the same status for your own health check. Optional extras: `esc.StartRetentionPurger` (data retention, daily), `esc.StartPluginCron` (SDK plugin cron) and `esc.StartNewsletterDispatcher`.
 
 ## Learn more
 

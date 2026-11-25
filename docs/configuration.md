@@ -21,6 +21,59 @@
 | `Plugins` | `plugins.Config` | none | Native plugins, the SDK plugin runtime and the capability check. See [plugins](plugins.md) |
 | `UI.Embed` | `escalated.EmbedConfig` | off | Embed the admin in your own admin panel (`cfg.EmbedAdmin`). See [embedding the admin](embedding-admin.md) |
 | `Access` | `access.Config` | all off | The install-level access switches (roles & permissions, two-factor, single sign-on). See [access control](access-control.md) |
+| `GuestRoutes` | `*bool` | nil (on) | Mount the guest routes (guest pages, `/api/guest/*`, `/api/mobile/guest/*`). Nil reads `ESCALATED_GUEST_ROUTES` (unset means on). See [Staff-only installs](#staff-only-installs) |
+| `EnableWidget` | `bool` | `false` | Mount the support widget's public routes under `{RoutePrefix}/widget`. See [embedding the widget](embedding-the-widget.md) |
+| `CustomerMiddleware` | `[]func(http.Handler) http.Handler` | empty | Extra middleware on the customer routes (`/tickets/...`) and knowledge base pages (`/kb/...`), after the package's own. See [Staff-only installs](#staff-only-installs) |
+| `Scheduling.AutoStart` | `bool` | `false` | Start `esc.StartScheduler` in `New` (stopped by `Close`). See [Recurring jobs](#recurring-jobs) |
+
+### Staff-only installs
+
+By default any signed-in user of your app can open the customer portal
+(`{RoutePrefix}/tickets`), list their tickets and raise new ones, and the guest
+pages and guest API are open to anyone. When only your staff use Escalated,
+close those doors:
+
+```go
+off := false
+cfg.GuestRoutes = &off   // no guest pages, guest API or mobile guest API
+cfg.EnableWidget = false // the default: no widget routes
+cfg.CustomerMiddleware = []func(http.Handler) http.Handler{
+    middleware.RequireAgentOrAdmin(cfg.AgentCheck, cfg.AdminCheck),
+}
+```
+
+- `GuestRoutes` false (or `ESCALATED_GUEST_ROUTES=false` while the field is
+  nil) leaves every guest route unregistered on both routers, and their
+  `escalated.guest.*` names leave the route list the pages read.
+- `CustomerMiddleware` runs, in order, after the package's own middleware on
+  the customer routes (signed-in user, customer presence) and the knowledge
+  base reader pages (knowledge base enabled and public settings). Any
+  middleware works: refuse with 403, or redirect. Set `cfg.AgentCheck` and
+  `cfg.AdminCheck` before building the guard from them, as above.
+- `EnableWidget` is already off unless you turn it on; with it off no widget
+  route is mounted.
+
+### Recurring jobs
+
+See [Required: schedule the recurring jobs](../README.md#required-schedule-the-recurring-jobs).
+`esc.StartScheduler(ctx)` runs the SLA check and snooze wake-ups every minute
+and escalation rules and automations every five minutes (each once straight
+away), on one instance; `Scheduling.AutoStart` has `New` start it. A host with
+its own scheduler calls `esc.CheckSLA`, `esc.WakeSnoozedTickets`,
+`esc.RunEscalations` and `esc.RunAutomations` instead. Every successful SLA
+check stores a heartbeat (the `scheduler_heartbeat_at` setting); the admin
+Settings page, the Reports overview and the report dashboard carry it as the `scheduler` prop
+(`{healthy, last_run_at, message, commands}`), unhealthy when the heartbeat is
+missing or older than 15 minutes, and `esc.SchedulerStatus(ctx)` returns it for
+a health endpoint.
+
+### Setup check
+
+`New` logs every callback it needs that is still unset (`AgentCheck`,
+`AdminCheck`, `UserIDFunc`), with how to set it; `esc.SetupCheck()` returns the
+same list, empty when nothing is missing. Escalated owns no users table, so
+there is no user model to implement: those three callbacks are the whole
+contract.
 
 ### Which database you are on
 
