@@ -199,31 +199,35 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated, guestLimit *middl
 	mux.HandleFunc("PATCH "+prefix+"/api/auth/profile", authH.Profile)
 	mux.HandleFunc("POST "+prefix+"/api/auth/validate", authH.Validate)
 
-	// Anonymous (guest) ticket submission + lookup by token.
-	// Creating a ticket needs an email code from /api/guest/verification;
-	// {token} is the expiring grant it returns (docs/guest-access.md).
-	mux.Handle("POST "+prefix+"/api/guest/verification", guestLimit.Middleware(middleware.GuestTicketScope)(http.HandlerFunc(guestVerifyH.Request)))
-	mux.Handle("POST "+prefix+"/api/guest/lookup", guestLimit.Middleware(middleware.GuestReplyScope)(http.HandlerFunc(guestVerifyH.Lookup)))
-	mux.Handle("POST "+prefix+"/api/guest/tickets", guestLimit.Middleware(middleware.GuestTicketScope)(http.HandlerFunc(guestH.Create)))
-	mux.Handle("GET "+prefix+"/api/guest/tickets/{token}", guestLimit.Middleware(middleware.GuestRequestScope)(http.HandlerFunc(guestH.Show)))
-	mux.Handle("POST "+prefix+"/api/guest/tickets/{token}/replies", guestLimit.Middleware(middleware.GuestReplyScope)(http.HandlerFunc(guestH.Reply)))
-	mux.Handle("POST "+prefix+"/api/guest/tickets/{token}/rate", guestLimit.Middleware(middleware.GuestReplyScope)(http.HandlerFunc(satH.GuestRate)))
+	// The guest API and the mobile guest API, not mounted with
+	// Config.GuestRoutes off.
+	if cfg.GuestRoutesEnabled() {
+		// Anonymous (guest) ticket submission + lookup by token.
+		// Creating a ticket needs an email code from /api/guest/verification;
+		// {token} is the expiring grant it returns (docs/guest-access.md).
+		mux.Handle("POST "+prefix+"/api/guest/verification", guestLimit.Middleware(middleware.GuestTicketScope)(http.HandlerFunc(guestVerifyH.Request)))
+		mux.Handle("POST "+prefix+"/api/guest/lookup", guestLimit.Middleware(middleware.GuestReplyScope)(http.HandlerFunc(guestVerifyH.Lookup)))
+		mux.Handle("POST "+prefix+"/api/guest/tickets", guestLimit.Middleware(middleware.GuestTicketScope)(http.HandlerFunc(guestH.Create)))
+		mux.Handle("GET "+prefix+"/api/guest/tickets/{token}", guestLimit.Middleware(middleware.GuestRequestScope)(http.HandlerFunc(guestH.Show)))
+		mux.Handle("POST "+prefix+"/api/guest/tickets/{token}/replies", guestLimit.Middleware(middleware.GuestReplyScope)(http.HandlerFunc(guestH.Reply)))
+		mux.Handle("POST "+prefix+"/api/guest/tickets/{token}/rate", guestLimit.Middleware(middleware.GuestReplyScope)(http.HandlerFunc(satH.GuestRate)))
 
-	// The mobile guest API (docs/guest-access.md): the same handlers, grants
-	// and per-IP budgets as the guest routes above, plus the general request
-	// budget on every route.
-	mobileGuest := func(scope middleware.GuestScope, h http.HandlerFunc) http.Handler {
-		var next http.Handler = h
-		if scope != "" {
-			next = guestLimit.Middleware(scope)(next)
+		// The mobile guest API (docs/guest-access.md): the same handlers, grants
+		// and per-IP budgets as the guest routes above, plus the general request
+		// budget on every route.
+		mobileGuest := func(scope middleware.GuestScope, h http.HandlerFunc) http.Handler {
+			var next http.Handler = h
+			if scope != "" {
+				next = guestLimit.Middleware(scope)(next)
+			}
+			return handlers.GuestPrivacyHeaders(guestLimit.Middleware(middleware.GuestRequestScope)(next))
 		}
-		return handlers.GuestPrivacyHeaders(guestLimit.Middleware(middleware.GuestRequestScope)(next))
+		mux.Handle("POST "+prefix+"/api/mobile/guest/verification", mobileGuest(middleware.GuestTicketScope, guestVerifyH.Request))
+		mux.Handle("POST "+prefix+"/api/mobile/guest/lookup", mobileGuest(middleware.GuestReplyScope, guestVerifyH.Lookup))
+		mux.Handle("POST "+prefix+"/api/mobile/guest/tickets", mobileGuest(middleware.GuestTicketScope, mobileGuestH.Create))
+		mux.Handle("GET "+prefix+"/api/mobile/guest/tickets/{token}", mobileGuest("", mobileGuestH.Show))
+		mux.Handle("POST "+prefix+"/api/mobile/guest/tickets/{token}/replies", mobileGuest(middleware.GuestReplyScope, mobileGuestH.Reply))
 	}
-	mux.Handle("POST "+prefix+"/api/mobile/guest/verification", mobileGuest(middleware.GuestTicketScope, guestVerifyH.Request))
-	mux.Handle("POST "+prefix+"/api/mobile/guest/lookup", mobileGuest(middleware.GuestReplyScope, guestVerifyH.Lookup))
-	mux.Handle("POST "+prefix+"/api/mobile/guest/tickets", mobileGuest(middleware.GuestTicketScope, mobileGuestH.Create))
-	mux.Handle("GET "+prefix+"/api/mobile/guest/tickets/{token}", mobileGuest("", mobileGuestH.Show))
-	mux.Handle("POST "+prefix+"/api/mobile/guest/tickets/{token}/replies", mobileGuest(middleware.GuestReplyScope, mobileGuestH.Reply))
 
 	// Public knowledge base (published only).
 	mux.Handle("GET "+prefix+"/api/kb/articles", kbGuard(http.HandlerFunc(kbH.ListArticles)))
@@ -246,8 +250,11 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated, guestLimit *middl
 		// Customer routes — a signed-in user only. Show and Reply are further
 		// limited to the ticket's requester in the handler.
 		userMW := middleware.RequireUser(cfg.UserIDFunc)
-		// The customer is on the site, for the agent pages' presence.
-		customerMW := func(h http.Handler) http.Handler { return userMW(esc.CustomerPresenceMiddleware(h)) }
+		// The customer is on the site, for the agent pages' presence. The
+		// host's own guards (Config.CustomerMiddleware) run last.
+		customerMW := func(h http.Handler) http.Handler {
+			return userMW(esc.CustomerPresenceMiddleware(cfg.CustomerRoutes(h)))
+		}
 		mux.Handle("GET "+prefix+"/tickets", customerMW(http.HandlerFunc(customerH.Index)))
 		mux.Handle("POST "+prefix+"/tickets", customerMW(http.HandlerFunc(customerH.Create)))
 		mux.Handle("GET "+prefix+"/tickets/create", customerMW(http.HandlerFunc(customerH.CreateForm)))
@@ -259,18 +266,23 @@ func mountStdlib(mux *http.ServeMux, esc *escalated.Escalated, guestLimit *middl
 		mux.Handle("POST "+prefix+"/tickets/{id}/reopen", customerMW(http.HandlerFunc(customerH.Reopen)))
 
 		// The guest ticket pages (escalated.guest.tickets.*) on the verified
-		// guest flow, behind the guest rate limits.
-		mux.HandleFunc("GET "+prefix+"/guest/create", guestPages.Create)
-		mux.Handle("POST "+prefix+"/guest", guestLimit.Middleware(middleware.GuestTicketScope)(http.HandlerFunc(guestPages.Submit)))
-		mux.Handle("GET "+prefix+"/guest/{token}", guestLimit.Middleware(middleware.GuestRequestScope)(http.HandlerFunc(guestPages.Show)))
-		mux.Handle("POST "+prefix+"/guest/{token}/reply", guestLimit.Middleware(middleware.GuestReplyScope)(http.HandlerFunc(guestPages.Reply)))
-		mux.Handle("POST "+prefix+"/guest/{token}/rate", guestLimit.Middleware(middleware.GuestReplyScope)(http.HandlerFunc(guestPages.Rate)))
+		// guest flow, behind the guest rate limits. Not mounted with
+		// Config.GuestRoutes off.
+		if cfg.GuestRoutesEnabled() {
+			mux.HandleFunc("GET "+prefix+"/guest/create", guestPages.Create)
+			mux.Handle("POST "+prefix+"/guest", guestLimit.Middleware(middleware.GuestTicketScope)(http.HandlerFunc(guestPages.Submit)))
+			mux.Handle("GET "+prefix+"/guest/{token}", guestLimit.Middleware(middleware.GuestRequestScope)(http.HandlerFunc(guestPages.Show)))
+			mux.Handle("POST "+prefix+"/guest/{token}/reply", guestLimit.Middleware(middleware.GuestReplyScope)(http.HandlerFunc(guestPages.Reply)))
+			mux.Handle("POST "+prefix+"/guest/{token}/rate", guestLimit.Middleware(middleware.GuestReplyScope)(http.HandlerFunc(guestPages.Rate)))
+		}
 
 		// The knowledge base reader pages (escalated.customer.kb.*), behind the
-		// knowledge base enabled and public settings.
-		mux.Handle("GET "+prefix+"/kb", kbGuard(http.HandlerFunc(kbPages.Index)))
-		mux.Handle("GET "+prefix+"/kb/{slug}", kbGuard(http.HandlerFunc(kbPages.Article)))
-		mux.Handle("POST "+prefix+"/kb/{slug}/feedback", kbGuard(http.HandlerFunc(kbPages.Feedback)))
+		// knowledge base enabled and public settings. The host's own guards
+		// (Config.CustomerMiddleware) run last.
+		kbPage := func(h http.HandlerFunc) http.Handler { return kbGuard(cfg.CustomerRoutes(h)) }
+		mux.Handle("GET "+prefix+"/kb", kbPage(kbPages.Index))
+		mux.Handle("GET "+prefix+"/kb/{slug}", kbPage(kbPages.Article))
+		mux.Handle("POST "+prefix+"/kb/{slug}/feedback", kbPage(kbPages.Feedback))
 
 		// Two-factor: the enrolment screen for every staff user and the
 		// challenge for any signed-in user, 404 while two-factor is off
