@@ -61,10 +61,14 @@ func (h *AdminHandler) settingsPage(w http.ResponseWriter, r *http.Request, errs
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	h.renderSettingsPage(w, r, "Escalated/Admin/Settings", map[string]any{
+	props := map[string]any{
 		"settings":           settings,
 		"supported_settings": h.supportedSettings(),
-	}, errs)
+	}
+	if h.Scheduler != nil {
+		props["scheduler"] = h.Scheduler(r.Context())
+	}
+	h.renderSettingsPage(w, r, "Escalated/Admin/Settings", props, errs)
 }
 
 // UpdateSettings handles POST /admin/settings (escalated.admin.settings.update).

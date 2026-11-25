@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`Config.GuestRoutes`** (env `ESCALATED_GUEST_ROUTES`; nil and unset keep them on): set it to false and the guest pages, the guest API and the mobile guest API are not registered on either router, and the `escalated.guest.*` names leave the route list.
+- **`Config.CustomerMiddleware`**: extra middleware on the customer routes and the knowledge base reader pages, after the package's own. With `RequireAgentOrAdmin`, `GuestRoutes` off and the widget off, the portal is staff-only (docs/configuration.md#staff-only-installs). Empty by default; the route table is unchanged.
+- **Recurring jobs:** `Escalated.StartScheduler(ctx)` runs the SLA check and snooze wake-ups every minute and escalation rules and automations every five minutes; `Config.Scheduling.AutoStart` has `New` start it (off by default). New `RunEscalations`, `RunAutomations` and `WakeSnoozedTickets` for hosts with their own scheduler.
+- **Scheduler heartbeat:** every successful `CheckSLA` stores `scheduler_heartbeat_at`. `Escalated.SchedulerStatus(ctx)` reports it; the admin Settings page, the Reports overview and the report dashboard carry it as the `scheduler` prop (`{healthy, last_run_at, message, commands}`), unhealthy (and logged) when the heartbeat is missing or older than 15 minutes. README: "Required: schedule the recurring jobs".
+- **Setup check:** `New` logs each of `AgentCheck`, `AdminCheck` and `UserIDFunc` left unset, with how to set it; `Escalated.SetupCheck()` returns the list.
+
+### Fixed
+- **Reopening a ticket clears `resolved_at` and `closed_at`**, as escalated-laravel's `markReopened` does, so a reopened ticket's resolution clock runs again. This covers every status change to anything other than resolved or closed: `ChangeStatus` and custom statuses (customer reopen, agent status changes, an inbound email reply that reopens), the change_status actions of macros, automations and workflows, the escalate action of escalation rules, and ending a chat. Moving between resolved and closed keeps both timestamps.
+
 ## [0.2.14] - 2026-11-07
 
 ### Changed

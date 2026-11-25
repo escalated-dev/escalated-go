@@ -31,6 +31,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/escalated-dev/escalated-go/ticketaccess"
@@ -78,6 +79,14 @@ type Escalated struct {
 
 	agentPanelOnce sync.Once
 	agentPanel     *services.AgentPanel
+
+	// setupProblems are what SetupCheck reports, found in the Config New
+	// was given.
+	setupProblems []string
+
+	// stopScheduler stops the scheduler Config.Scheduling.AutoStart started.
+	stopScheduler     func()
+	schedulerWarnedAt atomic.Int64
 
 	routeNamesState
 }
@@ -140,6 +149,7 @@ func New(cfg Config) (*Escalated, error) {
 		return nil, fmt.Errorf("escalated: Config.DB is required")
 	}
 
+	problems := setupProblems(cfg)
 	applyDefaults(&cfg)
 
 	if cfg.DatabaseDialect == "" {
@@ -183,15 +193,16 @@ func New(cfg Config) (*Escalated, error) {
 	if err != nil {
 		return nil, err
 	}
-	return checkAccess(wirePlugins(&Escalated{
-		Access:      access,
-		Config:      cfg,
-		Store:       s,
-		Renderer:    rend,
-		GuestAccess: newGuestAccess(cfg),
-		Notifier:    newNotifier(cfg, access),
-		Plugins:     pluginHost,
-	}))
+	return finish(checkAccess(wirePlugins(&Escalated{
+		Access:        access,
+		Config:        cfg,
+		Store:         s,
+		Renderer:      rend,
+		GuestAccess:   newGuestAccess(cfg),
+		Notifier:      newNotifier(cfg, access),
+		Plugins:       pluginHost,
+		setupProblems: problems,
+	})))
 }
 
 // NewSQLite is New with the SQLite store chosen explicitly, skipping detection.
@@ -202,6 +213,7 @@ func NewSQLite(cfg Config) (*Escalated, error) {
 		return nil, fmt.Errorf("escalated: Config.DB is required")
 	}
 
+	problems := setupProblems(cfg)
 	applyDefaults(&cfg)
 	cfg.DatabaseDialect = DialectSQLite
 	s := store.NewSQLiteStore(cfg.DB, cfg.TablePrefix)
@@ -222,15 +234,16 @@ func NewSQLite(cfg Config) (*Escalated, error) {
 	if err != nil {
 		return nil, err
 	}
-	return checkAccess(wirePlugins(&Escalated{
-		Access:      access,
-		Config:      cfg,
-		Store:       s,
-		Renderer:    rend,
-		GuestAccess: newGuestAccess(cfg),
-		Notifier:    newNotifier(cfg, access),
-		Plugins:     pluginHost,
-	}))
+	return finish(checkAccess(wirePlugins(&Escalated{
+		Access:        access,
+		Config:        cfg,
+		Store:         s,
+		Renderer:      rend,
+		GuestAccess:   newGuestAccess(cfg),
+		Notifier:      newNotifier(cfg, access),
+		Plugins:       pluginHost,
+		setupProblems: problems,
+	})))
 }
 
 // wirePlugins gives the plugin context its domain: the store, a ticket
@@ -291,9 +304,26 @@ func adminBase(cfg Config) string {
 	return (&Escalated{Config: cfg}).AdminBase()
 }
 
-// Close stops what New started in the background: the plugin runtime.
+// Close stops what New started in the background: the plugin runtime and,
+// with Config.Scheduling.AutoStart, the scheduler.
 func (e *Escalated) Close() {
+	if e.stopScheduler != nil {
+		e.stopScheduler()
+		e.stopScheduler = nil
+	}
 	e.Plugins.Close()
+}
+
+// finish logs the setup problems and starts what the config asks to start,
+// once the instance is otherwise ready.
+func finish(e *Escalated, err error) (*Escalated, error) {
+	if err != nil {
+		return nil, err
+	}
+	for _, problem := range e.setupProblems {
+		log.Printf("escalated: setup: %s", problem)
+	}
+	return autoStartScheduler(e), nil
 }
 
 // StartNewsletterDispatcher starts the optional minute-cadence newsletter
@@ -367,13 +397,13 @@ func applyDefaults(cfg *Config) {
 		cfg.Newsletters.BrandAccent = "#2563eb"
 	}
 	if cfg.AdminCheck == nil {
-		cfg.AdminCheck = func(_ *http.Request) bool { return false }
+		cfg.AdminCheck = noStaffCheck
 	}
 	if cfg.AgentCheck == nil {
-		cfg.AgentCheck = func(_ *http.Request) bool { return false }
+		cfg.AgentCheck = noStaffCheck
 	}
 	if cfg.UserIDFunc == nil {
-		cfg.UserIDFunc = func(_ *http.Request) models.UserID { return "" }
+		cfg.UserIDFunc = noUserID
 	}
 	if cfg.APITokenOwner == nil {
 		cfg.APITokenOwner = handlers.APITokenOwnerFromDirectory(cfg.UserDirectory)
@@ -496,11 +526,20 @@ func (e *Escalated) TicketStatuses() *services.TicketStatusService {
 // CheckSLA marks tickets whose SLA deadline has passed and fires sla.breached
 // for each, then fires sla.warning for deadlines in the next warningMinutes
 // (30 when <= 0), to webhooks and workflows. Call it from the host's
-// scheduler, every minute being the convention, or use StartSLAChecker.
+// scheduler, every minute being the convention, or use StartScheduler.
+//
+// A successful run records the scheduler heartbeat SchedulerStatus reads.
 func (e *Escalated) CheckSLA(ctx context.Context, warningMinutes int) (breaches, warnings int, err error) {
 	sla := services.NewSLAService(e.Store)
 	sla.Tickets = e.NewTicketService()
-	return sla.Check(ctx, warningMinutes)
+	breaches, warnings, err = sla.Check(ctx, warningMinutes)
+	if err != nil {
+		return breaches, warnings, err
+	}
+	if err := services.RecordSchedulerHeartbeat(ctx, e.Store, time.Now()); err != nil {
+		return breaches, warnings, fmt.Errorf("recording the scheduler heartbeat: %w", err)
+	}
+	return breaches, warnings, nil
 }
 
 // StartSLAChecker runs CheckSLA every interval (one minute when <= 0) with

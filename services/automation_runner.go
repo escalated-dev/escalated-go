@@ -251,7 +251,7 @@ func (r *AutomationRunner) runAction(a models.Automation, t models.Ticket, actio
 			return err
 		}
 		_, err = r.DB.Exec(
-			r.query(`UPDATE escalated_tickets SET status = ?, ticket_status_id = ?, updated_at = ? WHERE id = ?`),
+			r.query(`UPDATE escalated_tickets SET status = ?, ticket_status_id = ?, updated_at = ?`+reopenClause(status)+` WHERE id = ?`),
 			status, custom, time.Now(), t.ID,
 		)
 		return err

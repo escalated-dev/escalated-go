@@ -4,6 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"net/http"
+	"os"
+	"strconv"
+	"strings"
 
 	"github.com/escalated-dev/escalated-go/ticketaccess"
 
@@ -130,6 +133,32 @@ type Config struct {
 
 	// Widget configures the mounted widget routes (EnableWidget).
 	Widget handlers.WidgetConfig
+
+	// GuestRoutes mounts the guest routes: the guest ticket pages
+	// ({RoutePrefix}/guest/...), the guest API ({RoutePrefix}/api/guest/...)
+	// and the mobile guest API ({RoutePrefix}/api/mobile/guest/...), all
+	// unauthenticated. Nil reads ESCALATED_GUEST_ROUTES and, when that is
+	// unset, mounts them, as before. Set it to false on an install nobody
+	// reaches as a guest (a staff-only install): the routes are then not
+	// registered at all and their names leave the ziggy route list. See
+	// GuestRoutesEnabled and docs/configuration.md.
+	GuestRoutes *bool
+
+	// CustomerMiddleware is extra middleware for the customer routes
+	// ({RoutePrefix}/tickets/...) and the knowledge base reader pages
+	// ({RoutePrefix}/kb/...), applied in order after the package's own
+	// (signed-in user, customer presence; the knowledge base settings). Empty
+	// by default, which leaves those routes open to any signed-in user (the
+	// knowledge base to anyone while it is public). A host makes the portal
+	// staff-only with middleware that refuses everyone else, e.g.
+	// middleware.RequireAgentOrAdmin(cfg.AgentCheck, cfg.AdminCheck), together
+	// with GuestRoutes false and EnableWidget off. See docs/configuration.md.
+	CustomerMiddleware []func(http.Handler) http.Handler
+
+	// Scheduling controls the package's own runner for the recurring jobs (SLA
+	// checks, snooze wake-ups, escalation rules, automations). See
+	// Escalated.StartScheduler.
+	Scheduling SchedulingConfig
 
 	// Newsletters contains runtime defaults for the optional newsletter system.
 	Newsletters NewsletterConfig
@@ -349,16 +378,43 @@ func DefaultConfig() Config {
 			AutoPauseThreshold:  100,
 			BrandAccent:         "#2563eb",
 		},
-		AdminCheck: func(r *http.Request) bool {
-			return false
-		},
-		AgentCheck: func(r *http.Request) bool {
-			return false
-		},
-		UserIDFunc: func(r *http.Request) models.UserID {
-			return ""
-		},
+		// Placeholders that refuse everyone: SetupCheck reports each one
+		// the host leaves in place.
+		AdminCheck: noStaffCheck,
+		AgentCheck: noStaffCheck,
+		UserIDFunc: noUserID,
 	}
+}
+
+// EnvGuestRoutes switches the guest routes off when GuestRoutes is nil:
+// ESCALATED_GUEST_ROUTES=false (or 0, off, no). Unset leaves them on.
+const EnvGuestRoutes = "ESCALATED_GUEST_ROUTES"
+
+// GuestRoutesEnabled reports whether the guest routes are mounted:
+// GuestRoutes, else ESCALATED_GUEST_ROUTES, else true.
+func (c Config) GuestRoutesEnabled() bool {
+	if c.GuestRoutes != nil {
+		return *c.GuestRoutes
+	}
+	raw := strings.ToLower(strings.TrimSpace(os.Getenv(EnvGuestRoutes)))
+	switch raw {
+	case "off", "no":
+		return false
+	}
+	// Unset or unreadable keeps the routes, as before the switch existed.
+	on, err := strconv.ParseBool(raw)
+	return err != nil || on
+}
+
+// CustomerRoutes wraps h in Config.CustomerMiddleware, the first entry
+// outermost. The routers use it for the customer and knowledge base pages.
+func (c Config) CustomerRoutes(h http.Handler) http.Handler {
+	for i := len(c.CustomerMiddleware) - 1; i >= 0; i-- {
+		if mw := c.CustomerMiddleware[i]; mw != nil {
+			h = mw(h)
+		}
+	}
+	return h
 }
 
 // TableName returns the full table name with prefix applied.

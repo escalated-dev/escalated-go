@@ -213,24 +213,10 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 			// Anonymous (guest) ticket submission + lookup by token.
 			// Creating a ticket needs an email code from /guest/verification;
 			// {token} is the expiring grant it returns (docs/guest-access.md).
-			r.With(guestLimit.Middleware(middleware.GuestTicketScope)).Post("/guest/verification", guestVerifyH.Request)
-			r.With(guestLimit.Middleware(middleware.GuestReplyScope)).Post("/guest/lookup", guestVerifyH.Lookup)
-			r.With(guestLimit.Middleware(middleware.GuestTicketScope)).Post("/guest/tickets", guestH.Create)
-			r.With(guestLimit.Middleware(middleware.GuestRequestScope)).Get("/guest/tickets/{token}", guestH.Show)
-			r.With(guestLimit.Middleware(middleware.GuestReplyScope)).Post("/guest/tickets/{token}/replies", guestH.Reply)
-			r.With(guestLimit.Middleware(middleware.GuestReplyScope)).Post("/guest/tickets/{token}/rate", satH.GuestRate)
-
-			// The mobile guest API (docs/guest-access.md): the same handlers,
-			// grants and per-IP budgets as the guest routes above, plus the
-			// general request budget on every route.
-			r.Route("/mobile/guest", func(r chi.Router) {
-				r.Use(handlers.GuestPrivacyHeaders, guestLimit.Middleware(middleware.GuestRequestScope))
-				r.With(guestLimit.Middleware(middleware.GuestTicketScope)).Post("/verification", guestVerifyH.Request)
-				r.With(guestLimit.Middleware(middleware.GuestReplyScope)).Post("/lookup", guestVerifyH.Lookup)
-				r.With(guestLimit.Middleware(middleware.GuestTicketScope)).Post("/tickets", mobileGuestH.Create)
-				r.Get("/tickets/{token}", mobileGuestH.Show)
-				r.With(guestLimit.Middleware(middleware.GuestReplyScope)).Post("/tickets/{token}/replies", mobileGuestH.Reply)
-			})
+			// Not mounted with Config.GuestRoutes off.
+			if cfg.GuestRoutesEnabled() {
+				mountGuestAPIChi(r, guestLimit, guestVerifyH, guestH, satH, mobileGuestH)
+			}
 
 			// Public knowledge base (published only), behind the KB enabled
 			// and public settings.
@@ -282,6 +268,10 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 				r.Use(middleware.RequireUser(cfg.UserIDFunc))
 				// The customer is on the site, for the agent pages' presence.
 				r.Use(esc.CustomerPresenceMiddleware)
+				// The host's own guards (Config.CustomerMiddleware), last.
+				if len(cfg.CustomerMiddleware) > 0 {
+					r.Use(cfg.CustomerRoutes)
+				}
 				r.Get("/", customerH.Index)
 				r.Post("/", customerH.Create)
 				r.Get("/create", customerH.CreateForm)
@@ -296,19 +286,26 @@ func MountChi(r chi.Router, esc *escalated.Escalated) {
 			})
 
 			// The guest ticket pages (escalated.guest.tickets.*) on the
-			// verified guest flow, behind the guest rate limits.
-			r.Route("/guest", func(r chi.Router) {
-				r.Get("/create", guestPages.Create)
-				r.With(guestLimit.Middleware(middleware.GuestTicketScope)).Post("/", guestPages.Submit)
-				r.With(guestLimit.Middleware(middleware.GuestRequestScope)).Get("/{token}", guestPages.Show)
-				r.With(guestLimit.Middleware(middleware.GuestReplyScope)).Post("/{token}/reply", guestPages.Reply)
-				r.With(guestLimit.Middleware(middleware.GuestReplyScope)).Post("/{token}/rate", guestPages.Rate)
-			})
+			// verified guest flow, behind the guest rate limits. Not mounted
+			// with Config.GuestRoutes off.
+			if cfg.GuestRoutesEnabled() {
+				r.Route("/guest", func(r chi.Router) {
+					r.Get("/create", guestPages.Create)
+					r.With(guestLimit.Middleware(middleware.GuestTicketScope)).Post("/", guestPages.Submit)
+					r.With(guestLimit.Middleware(middleware.GuestRequestScope)).Get("/{token}", guestPages.Show)
+					r.With(guestLimit.Middleware(middleware.GuestReplyScope)).Post("/{token}/reply", guestPages.Reply)
+					r.With(guestLimit.Middleware(middleware.GuestReplyScope)).Post("/{token}/rate", guestPages.Rate)
+				})
+			}
 
 			// The knowledge base reader pages (escalated.customer.kb.*), behind
 			// the knowledge base enabled and public settings.
 			r.Group(func(r chi.Router) {
 				r.Use(kbGuard)
+				// The host's own guards (Config.CustomerMiddleware), last.
+				if len(cfg.CustomerMiddleware) > 0 {
+					r.Use(cfg.CustomerRoutes)
+				}
 				r.Get("/kb", kbPages.Index)
 				r.Get("/kb/{slug}", kbPages.Article)
 				r.Post("/kb/{slug}/feedback", kbPages.Feedback)
@@ -698,4 +695,27 @@ func mountEmbeddedAdminChi(r chi.Router, esc *escalated.Escalated, mount chi.Rou
 	base := esc.AdminBase()
 	r.Handle(base, h)
 	r.Handle(base+"/*", h)
+}
+
+// mountGuestAPIChi mounts the guest API and the mobile guest API under /api
+// (Config.GuestRoutes).
+func mountGuestAPIChi(r chi.Router, guestLimit *middleware.GuestRateLimiter, verify *handlers.GuestVerificationHandler, guest *handlers.GuestTicketHandler, sat *handlers.SatisfactionHandler, mobile *handlers.MobileGuestHandler) {
+	r.With(guestLimit.Middleware(middleware.GuestTicketScope)).Post("/guest/verification", verify.Request)
+	r.With(guestLimit.Middleware(middleware.GuestReplyScope)).Post("/guest/lookup", verify.Lookup)
+	r.With(guestLimit.Middleware(middleware.GuestTicketScope)).Post("/guest/tickets", guest.Create)
+	r.With(guestLimit.Middleware(middleware.GuestRequestScope)).Get("/guest/tickets/{token}", guest.Show)
+	r.With(guestLimit.Middleware(middleware.GuestReplyScope)).Post("/guest/tickets/{token}/replies", guest.Reply)
+	r.With(guestLimit.Middleware(middleware.GuestReplyScope)).Post("/guest/tickets/{token}/rate", sat.GuestRate)
+
+	// The mobile guest API (docs/guest-access.md): the same handlers, grants
+	// and per-IP budgets as the guest routes above, plus the general request
+	// budget on every route.
+	r.Route("/mobile/guest", func(r chi.Router) {
+		r.Use(handlers.GuestPrivacyHeaders, guestLimit.Middleware(middleware.GuestRequestScope))
+		r.With(guestLimit.Middleware(middleware.GuestTicketScope)).Post("/verification", verify.Request)
+		r.With(guestLimit.Middleware(middleware.GuestReplyScope)).Post("/lookup", verify.Lookup)
+		r.With(guestLimit.Middleware(middleware.GuestTicketScope)).Post("/tickets", mobile.Create)
+		r.Get("/tickets/{token}", mobile.Show)
+		r.With(guestLimit.Middleware(middleware.GuestReplyScope)).Post("/tickets/{token}/replies", mobile.Reply)
+	})
 }

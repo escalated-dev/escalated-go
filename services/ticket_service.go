@@ -300,6 +300,11 @@ func (ts *TicketService) changeStatus(ctx context.Context, ticketID int64, newSt
 	if newStatus == models.StatusClosed && t.ClosedAt == nil {
 		t.ClosedAt = &now
 	}
+	// Any other status reopens the ticket: its resolution clock runs again.
+	if !models.StatusEndsResolution(newStatus) {
+		t.ResolvedAt = nil
+		t.ClosedAt = nil
+	}
 
 	if err := ts.store.UpdateTicket(ctx, t); err != nil {
 		return err

@@ -337,9 +337,9 @@ func BuiltInRoutes(prefix string) map[string]NamedRoute {
 	return out
 }
 
-// RouteList is BuiltInRoutes under Config.RoutePrefix with
-// Config.RouteOverrides applied: an override replaces or adds a name, and
-// one with an empty URI removes it.
+// RouteList is BuiltInRoutes under Config.RoutePrefix, less the guest names
+// while Config.GuestRoutes is off, with Config.RouteOverrides applied: an
+// override replaces or adds a name, and one with an empty URI removes it.
 func (e *Escalated) RouteList() map[string]NamedRoute {
 	routes := BuiltInRoutes(e.Config.RoutePrefix)
 	// While the admin is embedded its names point under the embed prefix.
@@ -347,6 +347,14 @@ func (e *Escalated) RouteList() map[string]NamedRoute {
 		for name, route := range routes {
 			if embedded, ok := e.embeddedAdminURL("/" + route.URI); ok {
 				routes[name] = NamedRoute{URI: strings.TrimLeft(embedded, "/"), Methods: route.Methods}
+			}
+		}
+	}
+	// Guest routes switched off are not mounted, so their names go too.
+	if !e.Config.GuestRoutesEnabled() {
+		for name := range routes {
+			if strings.HasPrefix(name, "escalated.guest.") {
+				delete(routes, name)
 			}
 		}
 	}

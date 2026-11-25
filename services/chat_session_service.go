@@ -328,6 +328,7 @@ func (cs *ChatSessionService) endSession(ctx context.Context, session *models.Ch
 	if err == nil && t != nil {
 		t.ChatEndedAt = &now
 		t.Status = models.StatusOpen
+		t.ResolvedAt, t.ClosedAt = nil, nil
 
 		chatMeta := map[string]any{}
 		if len(t.ChatMetadata) > 0 {
@@ -395,6 +396,7 @@ func (cs *ChatSessionService) MarkAbandonedSessions(ctx context.Context, waitMin
 			t, _ := cs.store.GetTicket(ctx, s.TicketID)
 			if t != nil {
 				t.Status = models.StatusOpen
+				t.ResolvedAt, t.ClosedAt = nil, nil
 				t.ChatEndedAt = &now
 				_ = cs.store.UpdateTicket(ctx, t)
 			}

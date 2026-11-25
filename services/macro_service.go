@@ -209,7 +209,7 @@ func (s *MacroService) runActionContext(ctx context.Context, action models.Macro
 			return err
 		}
 		_, err = ticketaccess.ExecContext(ctx, s.DB,
-			s.query(`UPDATE escalated_tickets SET status = ?, ticket_status_id = ?, updated_at = ? WHERE id = ?`),
+			s.query(`UPDATE escalated_tickets SET status = ?, ticket_status_id = ?, updated_at = ?`+reopenClause(status)+` WHERE id = ?`),
 			status, custom, time.Now(), ticketID,
 		)
 		return err
