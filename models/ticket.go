@@ -23,6 +23,14 @@ const (
 	StatusSnoozed           = 8
 )
 
+// StatusEndsResolution reports whether status stops the resolution clock:
+// resolved or closed. Moving a ticket from one of these to any other status
+// reopens it, which clears ResolvedAt and ClosedAt (escalated-laravel's
+// markReopened).
+func StatusEndsResolution(status int) bool {
+	return status == StatusResolved || status == StatusClosed
+}
+
 // StatusName maps status integers to human-readable names.
 var StatusName = map[int]string{
 	StatusOpen:              "open",

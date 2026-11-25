@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Scheduler heartbeat:** every successful `CheckSLA` stores `scheduler_heartbeat_at`. `Escalated.SchedulerStatus(ctx)` reports it; the admin Settings page, the Reports overview and the report dashboard carry it as the `scheduler` prop (`{healthy, last_run_at, message, commands}`), unhealthy (and logged) when the heartbeat is missing or older than 15 minutes. README: "Required: schedule the recurring jobs".
 - **Setup check:** `New` logs each of `AgentCheck`, `AdminCheck` and `UserIDFunc` left unset, with how to set it; `Escalated.SetupCheck()` returns the list.
 
+### Fixed
+- **Reopening a ticket clears `resolved_at` and `closed_at`**, as escalated-laravel's `markReopened` does, so a reopened ticket's resolution clock runs again. This covers every status change to anything other than resolved or closed: `ChangeStatus` and custom statuses (customer reopen, agent status changes, an inbound email reply that reopens), the change_status actions of macros, automations and workflows, the escalate action of escalation rules, and ending a chat. Moving between resolved and closed keeps both timestamps.
+
 ## [0.2.14] - 2026-11-07
 
 ### Changed

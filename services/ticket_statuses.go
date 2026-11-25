@@ -341,3 +341,13 @@ func resolveStatusDirect(ctx context.Context, db *sql.DB, query func(string) str
 	}
 	return models.CategoryAnchor(category), &id, nil
 }
+
+// reopenClause is the SET fragment a direct status UPDATE adds for status:
+// any status but resolved or closed reopens the ticket, so its resolved_at
+// and closed_at are cleared, as TicketService.ChangeStatus does.
+func reopenClause(status int) string {
+	if models.StatusEndsResolution(status) {
+		return ""
+	}
+	return ", resolved_at = NULL, closed_at = NULL"
+}
