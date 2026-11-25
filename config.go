@@ -349,15 +349,11 @@ func DefaultConfig() Config {
 			AutoPauseThreshold:  100,
 			BrandAccent:         "#2563eb",
 		},
-		AdminCheck: func(r *http.Request) bool {
-			return false
-		},
-		AgentCheck: func(r *http.Request) bool {
-			return false
-		},
-		UserIDFunc: func(r *http.Request) models.UserID {
-			return ""
-		},
+		// Placeholders that refuse everyone: SetupCheck reports each one
+		// the host leaves in place.
+		AdminCheck: noStaffCheck,
+		AgentCheck: noStaffCheck,
+		UserIDFunc: noUserID,
 	}
 }
 

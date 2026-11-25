@@ -79,6 +79,10 @@ type Escalated struct {
 	agentPanelOnce sync.Once
 	agentPanel     *services.AgentPanel
 
+	// setupProblems are what SetupCheck reports, found in the Config New
+	// was given.
+	setupProblems []string
+
 	routeNamesState
 }
 
@@ -140,6 +144,7 @@ func New(cfg Config) (*Escalated, error) {
 		return nil, fmt.Errorf("escalated: Config.DB is required")
 	}
 
+	problems := setupProblems(cfg)
 	applyDefaults(&cfg)
 
 	if cfg.DatabaseDialect == "" {
@@ -183,15 +188,16 @@ func New(cfg Config) (*Escalated, error) {
 	if err != nil {
 		return nil, err
 	}
-	return checkAccess(wirePlugins(&Escalated{
-		Access:      access,
-		Config:      cfg,
-		Store:       s,
-		Renderer:    rend,
-		GuestAccess: newGuestAccess(cfg),
-		Notifier:    newNotifier(cfg, access),
-		Plugins:     pluginHost,
-	}))
+	return finish(checkAccess(wirePlugins(&Escalated{
+		Access:        access,
+		Config:        cfg,
+		Store:         s,
+		Renderer:      rend,
+		GuestAccess:   newGuestAccess(cfg),
+		Notifier:      newNotifier(cfg, access),
+		Plugins:       pluginHost,
+		setupProblems: problems,
+	})))
 }
 
 // NewSQLite is New with the SQLite store chosen explicitly, skipping detection.
@@ -202,6 +208,7 @@ func NewSQLite(cfg Config) (*Escalated, error) {
 		return nil, fmt.Errorf("escalated: Config.DB is required")
 	}
 
+	problems := setupProblems(cfg)
 	applyDefaults(&cfg)
 	cfg.DatabaseDialect = DialectSQLite
 	s := store.NewSQLiteStore(cfg.DB, cfg.TablePrefix)
@@ -222,15 +229,16 @@ func NewSQLite(cfg Config) (*Escalated, error) {
 	if err != nil {
 		return nil, err
 	}
-	return checkAccess(wirePlugins(&Escalated{
-		Access:      access,
-		Config:      cfg,
-		Store:       s,
-		Renderer:    rend,
-		GuestAccess: newGuestAccess(cfg),
-		Notifier:    newNotifier(cfg, access),
-		Plugins:     pluginHost,
-	}))
+	return finish(checkAccess(wirePlugins(&Escalated{
+		Access:        access,
+		Config:        cfg,
+		Store:         s,
+		Renderer:      rend,
+		GuestAccess:   newGuestAccess(cfg),
+		Notifier:      newNotifier(cfg, access),
+		Plugins:       pluginHost,
+		setupProblems: problems,
+	})))
 }
 
 // wirePlugins gives the plugin context its domain: the store, a ticket
@@ -294,6 +302,17 @@ func adminBase(cfg Config) string {
 // Close stops what New started in the background: the plugin runtime.
 func (e *Escalated) Close() {
 	e.Plugins.Close()
+}
+
+// finish logs the setup problems once the instance is otherwise ready.
+func finish(e *Escalated, err error) (*Escalated, error) {
+	if err != nil {
+		return nil, err
+	}
+	for _, problem := range e.setupProblems {
+		log.Printf("escalated: setup: %s", problem)
+	}
+	return e, nil
 }
 
 // StartNewsletterDispatcher starts the optional minute-cadence newsletter
@@ -367,13 +386,13 @@ func applyDefaults(cfg *Config) {
 		cfg.Newsletters.BrandAccent = "#2563eb"
 	}
 	if cfg.AdminCheck == nil {
-		cfg.AdminCheck = func(_ *http.Request) bool { return false }
+		cfg.AdminCheck = noStaffCheck
 	}
 	if cfg.AgentCheck == nil {
-		cfg.AgentCheck = func(_ *http.Request) bool { return false }
+		cfg.AgentCheck = noStaffCheck
 	}
 	if cfg.UserIDFunc == nil {
-		cfg.UserIDFunc = func(_ *http.Request) models.UserID { return "" }
+		cfg.UserIDFunc = noUserID
 	}
 	if cfg.APITokenOwner == nil {
 		cfg.APITokenOwner = handlers.APITokenOwnerFromDirectory(cfg.UserDirectory)
