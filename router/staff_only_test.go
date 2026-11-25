@@ -2,6 +2,8 @@ package router_test
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -128,6 +130,50 @@ func TestAdminPagesShareTheSchedulerStatus(t *testing.T) {
 				status := obj(t, visit(t, h, path, uiAgent, "admin").Props, "scheduler")
 				if status["healthy"] != true || status["last_run_at"] == nil {
 					t.Errorf("%s after an SLA check: %v", path, status)
+				}
+			}
+		})
+	}
+}
+
+// Ticket subjects on the agent and admin ticket pages, serialised as the
+// JSON API serialises them.
+func TestTicketPagesCarryTheSubjectsTheAPIReturns(t *testing.T) {
+	f := newUIFixture(t)
+	ctx := context.Background()
+	role := "primary"
+	subjects := services.NewTicketSubjectService(f.esc.Store, nil, nil)
+	if _, err := subjects.AttachSubject(ctx, f.ticket.ID, "Order", "1001", &role, nil, false); err != nil {
+		t.Fatalf("attach: %v", err)
+	}
+	if _, err := subjects.AttachSubject(ctx, f.ticket.ID, "Customer", "77", nil, nil, false); err != nil {
+		t.Fatalf("attach: %v", err)
+	}
+
+	for name, h := range f.mounts() {
+		t.Run(name, func(t *testing.T) {
+			rec := sendAPI(h, http.MethodGet, fmt.Sprintf("/escalated/api/tickets/%d", f.ticket.ID), uiAgent, "agent", "")
+			if rec.Code != http.StatusOK {
+				t.Fatalf("api: %d %s", rec.Code, rec.Body.String())
+			}
+			var api struct {
+				Ticket map[string]any `json:"ticket"`
+			}
+			if err := json.Unmarshal(rec.Body.Bytes(), &api); err != nil {
+				t.Fatal(err)
+			}
+			want := list(t, api.Ticket, "subjects")
+			if len(want) != 2 {
+				t.Fatalf("api subjects %v", want)
+			}
+
+			for path, who := range map[string]string{
+				"/escalated/agent/tickets/" + url.PathEscape(f.ticket.Reference): "agent",
+				"/escalated/admin/tickets/" + url.PathEscape(f.ticket.Reference): "admin",
+			} {
+				ticket := obj(t, visit(t, h, path, uiAgent, who).Props, "ticket")
+				if got := list(t, ticket, "subjects"); !reflect.DeepEqual(got, want) {
+					t.Errorf("%s subjects %v, want the API's %v", path, got, want)
 				}
 			}
 		})
