@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.15] - 2026-11-25
 ### Added
 - **`Config.GuestRoutes`** (env `ESCALATED_GUEST_ROUTES`; nil and unset keep them on): set it to false and the guest pages, the guest API and the mobile guest API are not registered on either router, and the `escalated.guest.*` names leave the route list.
 - **`Config.CustomerMiddleware`**: extra middleware on the customer routes and the knowledge base reader pages, after the package's own. With `RequireAgentOrAdmin`, `GuestRoutes` off and the widget off, the portal is staff-only (docs/configuration.md#staff-only-installs). Empty by default; the route table is unchanged.
